@@ -1,2 +1,2 @@
-# qiita-article
-Qiita article repository
+# zenn-article
+Zenn article repository
