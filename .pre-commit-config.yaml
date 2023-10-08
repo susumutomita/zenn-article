@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: make-before-commit
+        name: make before_commit
+        entry: make before_commit
+        language: system
+        always_run: true
+        pass_filenames: false
