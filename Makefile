@@ -6,7 +6,6 @@ install:
 lint:
 	npx textlint ./articles/*.md
 
-
 .PHONY: lint_fix
 lint_fix:
 	npx textlint --fix ./articles/*.md
