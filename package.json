@@ -4,7 +4,9 @@
   "description": "Zenn article repository",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "npx textlint ./articles/*.md",
+    "lint:fix": "npx textlint --fix ./articles/*.md",
+    "preview": "npx zenn preview"
   },
   "keywords": [],
   "author": "",

@@ -4,11 +4,7 @@ install:
 
 .PHONY: lint
 lint:
-	npx textlint ./articles/*.md
-
-.PHONY: lint_fix
-lint_fix:
-	npx textlint --fix ./articles/*.md
+	npm run lint
 
 .PHONY: before_commit
 before_commit: lint
