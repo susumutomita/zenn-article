@@ -6,3 +6,5 @@ topics: [forge,solidity]
 published: true
 ---
 forge-std/console.sol をインポートして、console.logBytesとかでできる。
+FFFF
+##
