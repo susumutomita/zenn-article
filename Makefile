@@ -1,6 +1,6 @@
 .PHONY: install
 install:
-	npm install
+	pip install -r requirements.txt && pre-commit install && npm install
 
 .PHONY: lint
 lint:
