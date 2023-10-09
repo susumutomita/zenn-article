@@ -3,7 +3,7 @@ title: "MynaWalletのコードを読み込んでいく"
 emoji: "⛳"
 type: "tech"
 topics: [forge,solidity]
-published: true
+published: false
 ---
 
 ## [MynaWallet Contracts](https://github.com/MynaWallet/contracts)について
