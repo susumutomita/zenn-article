@@ -3,10 +3,14 @@ title: "MynaWalletのコードを読み込んでいく"
 emoji: "⛳"
 type: "tech"
 topics: [forge,solidity]
-published: false
+published: true
 ---
 
-#### RsaVerify.solについて
+## [MynaWallet Contracts](https://github.com/MynaWallet/contracts)について
+
+読み込んだ結果と気づいたことのログを残しています。
+
+### RsaVerify.solについて
 
 ***pkcs1Sha256Verifyのコードは何をしていたのか***
 RAS署名の検証をしているコードだった。
@@ -106,9 +110,3 @@ import "forge-std/console.sol";
         console.logUint(uint8(decipher[1]));
         console.logString("fuga-------------------------");
 ```
-
-## 足したい Issue
-
-- RsaVerifyのテストケース追加
-- RsaVerifyのテストコードのリファクタリングをする。ホワイトボックス的なテストケース名でなく、仕様を表すテストケース名にする
-- RsaVerifyのリファクタリング -> バリデーションメソッドに切り出し、returnで数字ではなく例外発生これはガスの増加の影響も計測しながら進めてみる
