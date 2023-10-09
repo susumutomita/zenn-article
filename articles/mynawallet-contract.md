@@ -238,6 +238,7 @@ if __name__ == "__main__":
 [forge-std/console.sol](https://github.com/foundry-rs/forge-std/blob/master/src/console.sol) をインポートして、console.logBytesとかでできる。
 
 例えば以下のようにするとログを出せる。
+型を出力時に指定しないとだめだった。
 
 ```RsaVerify.sol
 import "forge-std/console.sol";
