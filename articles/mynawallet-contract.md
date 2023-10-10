@@ -233,6 +233,10 @@ if __name__ == "__main__":
 
 ```
 
+#### opensslを使う
+
+[SolRsaVerify](https://github.com/adria0/SolRsaVerify)のREADMEに書いてある手順に従ってやってみる。
+
 #### Solidity のコンソールログの出力方法について
 
 [forge-std/console.sol](https://github.com/foundry-rs/forge-std/blob/master/src/console.sol) をインポートして、console.logBytesとかでできる。
