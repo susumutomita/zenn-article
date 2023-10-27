@@ -3,12 +3,14 @@ title: "Auth0 のアプリケーションをTerraformから作る"
 emoji: "✨"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: [Auth0,Terraform]
-published: false
+published: true
 ---
 
 ## 事前準備
 
-Auth0にある管理用アプリケーション側でアクセス権を付与しておく。
+[Auth0](https://auth0.com/docs/get-started/auth0-overview)にあるアプリケーションでアクセス権を付与しておく。
+TerraformでAuth0の[Provider](https://github.com/auth0/terraform-provider-auth0)を使うにはAuth0のアプリケーションの認証情報を使ってAuth0のTerraform プロバイダーを作る。
+
 
 ### Terraformのファイルたち
 
@@ -30,6 +32,9 @@ provider "auth0" {
 }
 ```
 
+忘れずに設定しないと行けないのはCallBack URLとOIDC Conromant,JWT Signature Alogorithmの設定でした。
+手動でアプリケーションを作成した場合はOIDC Conromantは有効化、JWT Signature AlogorithmはRS256だったのですが、Terraformで作成したときはOIDC Conromantは無効化、JWT Signature AlogorithmはHS256になっていました。(2023/10/28時点)そのため、Terraform側で明示的に指定します。
+
 ```main.tf
 resource "auth0_client" "application" {
   name            = "${var.client_name}-${var.pre_fix}"
@@ -45,6 +50,8 @@ resource "auth0_client" "application" {
 }
 
 ```
+
+変数化したいものがあれば別途定義しておきます。
 
 ```variables.tf
 variable "client_name" {
@@ -120,3 +127,5 @@ variable "pre_fix" {
 }
 
 ```
+
+あとはアプリケーションを作成して認証します。
