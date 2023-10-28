@@ -9,8 +9,7 @@ published: true
 ## 事前準備
 
 [Auth0](https://auth0.com/docs/get-started/auth0-overview)にあるアプリケーションでアクセス権を付与しておく。
-TerraformでAuth0の[Provider](https://github.com/auth0/terraform-provider-auth0)を使うにはAuth0のアプリケーションの認証情報を使ってAuth0のTerraform プロバイダーを作る。
-
+TerraformでAuth0の[Provider](https://github.com/auth0/terraform-provider-auth0)を使うにはAuth0のアプリケーションの認証情報を使ってAuth0のTerraformプロバイダーを作る。
 
 ### Terraformのファイルたち
 
@@ -32,8 +31,10 @@ provider "auth0" {
 }
 ```
 
-忘れずに設定しないと行けないのはCallBack URLとOIDC Conromant,JWT Signature Alogorithmの設定でした。
-手動でアプリケーションを作成した場合はOIDC Conromantは有効化、JWT Signature AlogorithmはRS256だったのですが、Terraformで作成したときはOIDC Conromantは無効化、JWT Signature AlogorithmはHS256になっていました。(2023/10/28時点)そのため、Terraform側で明示的に指定します。
+CallBack URL、OIDC Conformant、JWT Signature Algorithmの設定を忘れずに行う必要がありました。
+手動でアプリケーションを作成した際:OIDC Conformantは有効化されていました。JWT Signature AlgorithmはRS256でした。
+しかし、Terraformを使用してアプリケーションを作成すると、OIDC Conformantは無効、JWT Signature AlgorithmはHS256として設定されていました。(2023/10/28時点) そのため、これらの設定をTerraform側で明示的に指定する必要があります。
+
 
 ```main.tf
 resource "auth0_client" "application" {
