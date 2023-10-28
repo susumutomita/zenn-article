@@ -35,7 +35,6 @@ CallBack URL、OIDC Conformant、JWT Signature Algorithmの設定を忘れずに
 手動でアプリケーションを作成した際:OIDC Conformantは有効化されていました。JWT Signature AlgorithmはRS256でした。
 しかし、Terraformを使用してアプリケーションを作成すると、OIDC Conformantは無効、JWT Signature AlgorithmはHS256として設定されていました。(2023/10/28時点) そのため、これらの設定をTerraform側で明示的に指定する必要があります。
 
-
 ```main.tf
 resource "auth0_client" "application" {
   name            = "${var.client_name}-${var.pre_fix}"
