@@ -6,5 +6,9 @@ install:
 lint:
 	npm run lint
 
+.PHONY: new_article
+new_article:
+	npx zenn new:article --slug $(slug) --title "$(title)"
+
 .PHONY: before_commit
 before_commit: lint
