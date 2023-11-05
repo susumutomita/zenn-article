@@ -10,7 +10,7 @@ published: true
 
 [Auth0](https://auth0.com/docs/get-started/auth0-overview)にあるアプリケーションでアクセス権を付与しておく。
 TerraformでAuth0の[Provider](https://github.com/auth0/terraform-provider-auth0)を使うにはAuth0のアプリケーションの認証情報を使ってAuth0のTerraformプロバイダーを作る。
-公式ドキュメントをみると[auth0](https://registry.terraform.io/providers/auth0/auth0/latest)が出しているものと[個人が作成していたようにみえるもの](https://registry.terraform.io/providers/alexkappa/auth0/latest/docs)があるので注意。[後者のレポジトリはアーカイブされているため、](https://github.com/alexkappa/terraform-provider-auth0)使用する際にはAuth0の公式ドキュメントかを確認してください。
+公式ドキュメントをみると[auth0](https://registry.terraform.io/providers/auth0/auth0/latest/docs)が出しているものと[個人が作成していたようにみえるもの](https://registry.terraform.io/providers/alexkappa/auth0/latest/docs)があるので注意。[後者のレポジトリはアーカイブされているため、](https://github.com/alexkappa/terraform-provider-auth0)使用する際にはAuth0の公式ドキュメントかを確認してください。
 
 ### Terraformのファイルたち
 
