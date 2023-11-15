@@ -38,57 +38,26 @@ CallBack URL、OIDC Conformant、JWT Signature Algorithmの設定を忘れずに
 
 ```main.tf
 resource "auth0_client" "application" {
-  name            = "${var.client_name}-${var.pre_fix}"
-  description     = var.client_description
-  app_type        = var.client_app_type
-  callbacks       = [for domain in var.callback_domains : "${domain}${var.callback_path}"]
-  oidc_conformant = var.oidc_conformant
-
+  allowed_logout_urls = var.logout_urls
+  app_type            = var.client_app_type
+  callbacks           = [for domain in var.callback_domains : "${domain}${var.callback_path}"]
+  description         = var.client_description
   jwt_configuration {
     alg                 = var.jwt_alg
     lifetime_in_seconds = var.jwt_lifetime_in_seconds
   }
+  name            = "${var.client_name}-${var.pre_fix}"
+  oidc_conformant = var.oidc_conformant
 }
-
 ```
 
 変数化したいものがあれば別途定義しておきます。
 
 ```variables.tf
-variable "client_name" {
-  description = "The name of the Auth0 client"
-  type        = string
-  default     = "sample name"
-}
-
-variable "client_description" {
-  description = "The description of the Auth0 client"
-  type        = string
-  default     = "description"
-}
-
-variable "client_app_type" {
-  description = "The type of the Auth0 client app"
-  type        = string
-  default     = "regular_web"
-}
-
-variable "client_id" {
-  description = "The client_id of auth0"
-  type        = string
-  default     = "sample client id"
-}
-
-variable "client_secret" {
-  description = "The client secret of auth0"
-  type        = string
-  default     = "sample client secret"
-}
-
 variable "callback_domains" {
   description = "List of callback domains"
   type        = list(string)
-  default     = ["http://127.0.0.1:8080", "http://localhost:8080"]
+  default     = ["http://127.0.0.1:8080", "http://localhost:8080", "http://127.0.0.1:5000", "http://localhost:5000"]
 }
 
 variable "callback_path" {
@@ -97,10 +66,22 @@ variable "callback_path" {
   default     = "/callback"
 }
 
-variable "domain" {
-  description = "The domain of auth0"
+variable "client_app_type" {
+  description = "The type of the Auth0 client app"
   type        = string
-  default     = "sampledomain.auth0.com"
+  default     = "regular_web"
+}
+
+variable "client_description" {
+  description = "The description of the Auth0 client"
+  type        = string
+  default     = "sample app"
+}
+
+variable "client_name" {
+  description = "The name of the Auth0 client"
+  type        = string
+  default     = "sample client"
 }
 
 variable "jwt_alg" {
@@ -113,6 +94,12 @@ variable "jwt_lifetime_in_seconds" {
   description = "The lifetime of the JWT in seconds"
   type        = number
   default     = 36000
+}
+
+variable "logout_urls" {
+  description = "List of allowed logout URLs"
+  type        = list(string)
+  default     = ["http://127.0.0.1:8080/home", "http://localhost:8080/home", "http://127.0.0.1:5000/home", "http://localhost:5000/home"]
 }
 
 variable "oidc_conformant" {
