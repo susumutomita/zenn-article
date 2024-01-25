@@ -3,7 +3,7 @@ title: "React + Familyを使ってウォレットを接続する"
 emoji: "🐙"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [family]
-published: false
+published: true
 ---
 
 ## [Family](https://family.co/)とは
