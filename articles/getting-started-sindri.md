@@ -176,6 +176,10 @@ return = false
 Circuit proof output signal: return = false
 ```
 
+### 検証
+
+調査中です。
+
 ### 結論
 
 回路のデプロイや検証がAPI経由で完結してとても便利でした。継続してチェックしていきます。
