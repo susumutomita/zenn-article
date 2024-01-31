@@ -1,5 +1,5 @@
 ---
-title: "Sindri CLIを使って年齢確認のゼロ知識証明回路をデプロイする"
+title: "Sindri CLIを使ってゼロ知識証明回路をデプロイする"
 emoji: "🙆"
 type: "tech"
 topics: [Sindri]
