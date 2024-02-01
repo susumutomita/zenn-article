@@ -3,7 +3,7 @@ title: "Expo Go + React NativeでSindri APIを実行してみる"
 emoji: "😎"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [Sindri, React Native]
-published: false
+published: true
 ---
 
 ## 準備
