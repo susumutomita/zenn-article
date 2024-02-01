@@ -6,7 +6,26 @@ topics: [Sindri, React Native]
 published: true
 ---
 
+## Sindri API とは
+
+[Sindri](https://sindri.app/) は、ゼロ知識証明を簡単に生成できるAPIを提供します。これにより、開発者はプライバシーを保護しながら、特定の情報（例えば、年齢の証明）が真実であることを証明できます。
+
 ## 準備
+
+### Sindri API キーの取得
+
+[Sindri](https://sindri.app/) にログインするためのユーザー情報を発行して貰う必要があります。
+直接メールをするなりしてコンタクトをしてログインするためのユーザー情報を発行してもらいます。
+無事ログインができるとAccount Settings -> API KeysからAPI Keyを発行できます。
+なお、APIやCLI経由でもAPI Keyは発行できます。
+具体的なやり方は[チュートリアル](https://sindri.app/docs/getting-started/cli/)に書いてありますが次のようになります。
+
+```bash
+npm install -g sindri@latest
+sindri login
+```
+
+と実行してログインをするとAPI Keyが発行されます。
 
 ### Expoのセットアップ
 
