@@ -201,4 +201,4 @@ npx expo start
 
 ### 検証
 
-調査中です。
+[noirの場合はnargo verifyを使います。](https://sindri.app/docs/how-to-guides/frameworks/noir/#verify)
