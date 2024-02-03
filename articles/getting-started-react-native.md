@@ -35,7 +35,7 @@ sindri login
 ```bash
 npx create-expo-app SindriAPISample
 
-cd AwesomeProject
+cd SindriAPISample
 npx expo start
 ```
 
@@ -81,34 +81,11 @@ async function pollForStatus(endpoint, timeout = 20 * 60) {
   throw new Error(`Polling timed out after ${timeout} seconds.`);
 }
 
-// TOML does not working in React Native environment, so we need to parse it manually.
-function parseTOML(tomlString) {
-  const result = {};
-  const lines = tomlString.split(/\r?\n/);
-
-  lines.forEach(line => {
-    if (line.trim().startsWith('#') || line.trim() === '') return;
-    const [key, value] = line.split('=').map(s => s.trim());
-    if (value === 'true') {
-      result[key] = true;
-    } else if (value === 'false') {
-      result[key] = false;
-    } else if (!isNaN(value)) {
-      result[key] = Number(value);
-    } else {
-      result[key] = value;
-    }
-  });
-
-  return result;
-}
-
 export async function generateProof(input) {
   try {
     const circuitId = "SindriでデプロイしたIDに置き換える";
     console.log("Proving circuit...");
-    const tomlString = `input = ${input}`;
-    const proofInput = parseTOML(tomlString)
+    const proofInput = `input = ${input}`;
     const proveResponse = await axios.post(
       API_URL + `/circuit/${circuitId}/prove`,
       { proof_input: proofInput },
