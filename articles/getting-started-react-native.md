@@ -12,6 +12,11 @@ published: true
 
 ## 準備
 
+### ゼロ知識証明とは
+
+[イーサリアムコミュニティとゼロ知識証明の発展](https://youtu.be/7NVb07bYDoY?feature=shared)
+あたりで学習しておくとイメージがつかみやすいです。
+
 ### Sindri API キーの取得
 
 [Sindri](https://sindri.app/) にログインするためのユーザー情報を発行して貰う必要があります。
@@ -26,6 +31,11 @@ sindri login
 ```
 
 と実行してログインをするとAPI Keyが発行されます。
+
+### 回路のデプロイ
+
+[Sindri CLIを使ってゼロ知識証明回路をデプロイする](https://zenn.dev/bull/articles/getting-started-sindri)
+で使用した回路を使っています。
 
 ### Expoのセットアップ
 
