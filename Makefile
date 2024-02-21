@@ -6,6 +6,10 @@ install:
 lint:
 	npm run lint
 
+.PHONY: lint_fix
+lint_fix:
+	npm run lint --fix
+
 .PHONY: new_article
 new_article:
 	npx zenn new:article --slug $(slug) --title "$(title)"
