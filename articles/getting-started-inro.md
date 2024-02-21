@@ -82,7 +82,7 @@ Web3の世界でJavaScriptベースのライブラリが豊富であるため[Re
 
 #### 参考動画
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/7NVb07bYDoY?si=_7RWTfdM-i31AbO9" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+https://www.youtube.com/watch?v=7NVb07bYDoY
 
 [暗号学の現在―現代暗号入門](https://lms.gacco.org/courses/course-v1:gacco+ga186+2024_01/about)
 
@@ -90,7 +90,7 @@ Web3の世界でJavaScriptベースのライブラリが豊富であるため[Re
 
 Inroの基本的な処理の流れを[ここ](#動作プロセス)ではブラックボックス的に書きましたが、内部の処理も含めて図示すると以下のようになっています。
 
-<img src=https://github.com/knocks-public/2024-CircuitBreaker/assets/66736869/bad68dd0-5f02-418d-92b7-1ea06867dfb1 width="600">
+![](https://github.com/knocks-public/2024-CircuitBreaker/assets/66736869/bad68dd0-5f02-418d-92b7-1ea06867dfb1)
 
 この処理を作っていく過程で直面した課題とそれに対する工夫について、このセクションでは詳しく説明します。
 
@@ -136,7 +136,7 @@ ETHGlobalのハッカソンでは、新しい技術に触れてみる動機が�
 
 各回YouTube公開される以下の様なフィナーレの動画で紹介されるファイナリストのプロダクトを見ておくだけでも良い情報源になると感じました。
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/EV116tBuxv8?si=1f2Jsx81GafTOfPl" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+https://www.youtube.com/watch?v=EV116tBuxv8
 
 ### Web3 のプロダクトづくりに挑戦できる
 
