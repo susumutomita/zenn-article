@@ -8,7 +8,7 @@ published: true
 
 ## この記事について
 
-私たちがETHGlobalの[Circuit Breaker](https://ethglobal.com/events/circuitbreaker)イベントで開発した[アプリ](https://ethglobal.com/showcase/inro-rped8)の紹介と、開発過程で直面した課題について話します。
+ETHGlobalの[Circuit Breaker](https://ethglobal.com/events/circuitbreaker)イベントで開発した[アプリ](https://ethglobal.com/showcase/inro-rped8)の紹介と、開発過程で直面した課題について共有します。
 
 ## ETHGlobalとは
 
