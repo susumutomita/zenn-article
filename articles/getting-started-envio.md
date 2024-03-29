@@ -61,6 +61,8 @@ envio dev
 
 Dockerが起動し、インデックス化されたデータ用のデータベースを作成します。`config.yaml`ファイルで指定された契約からインデックスを開始します。
 
+![images/getting-started-envio/enviostart.png](https://github.com/susumutomita/zenn-article/assets/11481781/89bcdc2b-92c9-4a8e-9472-d408d0c151d2)
+
 #### インデックス化された結果の表示
 
 ローカルの[Hasuraサーバー](https://hasura.io/learn/ja/graphql/intro-graphql/graphql-server/)(GraphQL APIを提供するオープンソースのエンジンです)で結果を表示します。
