@@ -17,7 +17,7 @@ published: false
 
 [Envio](https://envio.dev/)は、[Ponder](https://ponder.sh/)や[theGraph](https://thegraph.com/)と比べて高速であるとされています。
 
-![Envioのスクリーンショット](images/getting-started-envio/image.png)
+![Envioのスクリーンショット](https://github.com/susumutomita/zenn-article/assets/11481781/baf215ed-8f94-4778-a302-a1c75856977f)
 
 ## チュートリアルを実践してみた
 
@@ -70,4 +70,4 @@ open http://localhost:8080
 ```
 
 次のような画面が出てきます。
-![alt text](images/getting-started-envio/enviostart.png)
+![images/getting-started-envio/enviostart.png](https://github.com/susumutomita/zenn-article/assets/11481781/e1723209-fd19-4478-96ec-4c36d3c56cc1)
