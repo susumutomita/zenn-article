@@ -210,3 +210,21 @@ query MyQuery {
   }
 }
 ```
+
+## ホスティングしてみる
+
+[Deploy the indexer onto the hosted service](https://docs.envio.dev/docs/greeter-tutorial#deploy-the-indexer-onto-the-hosted-service)の説明にしたがい[hosted service](https://envio.dev/app/login)の画面を開きます。
+
+![images/getting-started-envio/hosting.png](https://github.com/susumutomita/zenn-article/assets/11481781/9026aa6d-ac43-4178-8920-ed14a203de15)
+
+GitHubアカウントを使ってログインすると次の画面が出てきます。`Add new indexer +`をクリックします。
+![images/getting-started-envio/login.png](https://github.com/susumutomita/zenn-article/assets/11481781/96828575-6510-493f-af9c-ec7adb1eab19
+)
+
+どのリポジトリを使用するのか選択できるのでenvioのチュートリアルで使っているリポジトリを選択します。
+その後パラメータを指定する画面が出てくるので、適宜入力します。今回はGit release branchだけmainにしました。
+![images/getting-started-envio/connect.png](https://github.com/susumutomita/zenn-article/assets/11481781/0479779a-cd0c-407b-b79c-28e1d5bb0c99)
+
+指示にしたがいmainブランチへコードをプッシュするとデプロイが始まります。
+
+![images/getting-started-envio/deploy.png](https://github.com/susumutomita/zenn-article/assets/11481781/f7ec7493-c3f0-44d0-96ac-fc5e8aa83670)
