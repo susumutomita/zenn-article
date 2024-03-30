@@ -79,3 +79,134 @@ open http://localhost:8080
 と[ドキュメント](https://docs.envio.dev/docs/greeter-tutorial)に記載があるのでadmin-secretに`testing`と入力すると管理画面が開きます。
 
 ![images/getting-started-envio/adminimage.png](https://github.com/susumutomita/zenn-article/assets/11481781/502bc7fd-ca3e-4ae0-9133-a474e89cf37b)
+
+GraphQLに次のようなクエリを入力して実行ボタンをクリックすると結果を取得できます。
+
+![images/getting-started-envio/query.png](https://github.com/susumutomita/zenn-article/assets/11481781/30f4b01c-e746-4ae2-98f3-eebe8d6411d9
+)
+
+```shell
+query MyQuery {
+  User {
+    greetings
+  }
+}
+```
+
+```shll
+{
+  "data": {
+    "User": [
+      {
+        "greetings": [
+          "gm EthGlobal Paris",
+          "gm EthGlobal Paris"
+        ]
+      },
+      {
+        "greetings": [
+          "hello sers",
+          "gm!",
+          "hello fam!"
+        ]
+      },
+      {
+        "greetings": [
+          "gm",
+          "gm",
+          "gm (https://polygonscan.com/address/0x9D02A17dE4E68545d3a58D3a20BbBE0399E05c9c#writeContract#F2)",
+          "hello world"
+        ]
+      },
+      {
+        "greetings": [
+          "Hello"
+        ]
+      },
+      {
+        "greetings": [
+          "Greetings from ct1aic.eth",
+          "Thanks for the NFT #0"
+        ]
+      },
+      {
+        "greetings": [
+          "GG"
+        ]
+      },
+      {
+        "greetings": [
+          " "
+        ]
+      },
+      {
+        "greetings": [
+          "Welcome to envio"
+        ]
+      },
+      {
+        "greetings": [
+          "\"hello\""
+        ]
+      },
+      {
+        "greetings": [
+          "Testing Envio!Envio is a real-time indexer built specifically for EVM-compatible blockchains, providing developers with a seamless and efficient indexing solution. Designed to optimize the user experience, Envio offers automatic code generation and flexible language support. Indexers on Envio can be written in JavaScript, TypeScript or ReScript.",
+          "Testing Envio!Envio is a real-time indexer built specifically for EVM-compatible blockchains providing developers with a seamless and efficient indexing solution. Designed to optimize the user experience Envio offers automatic code generation and flexible language support. Indexers on Envio can be written in JavaScript TypeScript or ReScript."
+        ]
+      },
+      {
+        "greetings": [
+          "Roadiooooh",
+          "Rick Stack",
+          "Tee House",
+          "Ada Lovelace",
+          "Readings Baye"
+        ]
+      },
+      {
+        "greetings": [
+          "This is a greeting from Noah."
+        ]
+      },
+      {
+        "greetings": [
+          "gm brymes"
+        ]
+      },
+      {
+        "greetings": [
+          "Hello Envio",
+          "Gm, 1234"
+        ]
+      },
+      {
+        "greetings": [
+          "gm",
+          "gn",
+          "gm paris",
+          "gm Linea",
+          "assah dude",
+          "envio actions 👀",
+          "envio actions 👀, whats that 🤔",
+          "Hello notifications",
+          "envio actions are going to be a game changer",
+          "its all hosted for testing"
+        ]
+      },
+      {
+        "greetings": [
+          "gm!",
+          "gm ser",
+          "envio is super faaaast"
+        ]
+      },
+      {
+        "greetings": [
+          "ottie"
+        ]
+      }
+    ]
+  }
+}
+```
