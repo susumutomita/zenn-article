@@ -218,8 +218,7 @@ query MyQuery {
 ![images/getting-started-envio/hosting.png](https://github.com/susumutomita/zenn-article/assets/11481781/9026aa6d-ac43-4178-8920-ed14a203de15)
 
 GitHubアカウントを使ってログインすると次の画面が出てきます。`Add new indexer +`をクリックします。
-![images/getting-started-envio/login.png](https://github.com/susumutomita/zenn-article/assets/11481781/96828575-6510-493f-af9c-ec7adb1eab19
-)
+![images/getting-started-envio/login.png](https://github.com/susumutomita/zenn-article/assets/11481781/96828575-6510-493f-af9c-ec7adb1eab19)
 
 どのリポジトリを使用するのか選択できるのでenvioのチュートリアルで使っているリポジトリを選択します。
 その後パラメータを指定する画面が出てくるので、適宜入力します。今回はGit release branchだけmainにしました。
@@ -228,3 +227,6 @@ GitHubアカウントを使ってログインすると次の画面が出てき�
 指示にしたがいmainブランチへコードをプッシュするとデプロイが始まります。
 
 ![images/getting-started-envio/deploy.png](https://github.com/susumutomita/zenn-article/assets/11481781/f7ec7493-c3f0-44d0-96ac-fc5e8aa83670)
+
+`Open`をクリックするとステータスが出てきます。インデクサーのデプロイが完了するまで待ちます。
+![images/getting-started-envio/deploywait.png](https://github.com/susumutomita/zenn-article/assets/11481781/96c727f8-1980-4858-9f25-fb64128b0584)
