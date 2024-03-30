@@ -73,3 +73,9 @@ open http://localhost:8080
 
 次のような画面が出てきます。
 ![images/getting-started-envio/enviostart.png](https://github.com/susumutomita/zenn-article/assets/11481781/e1723209-fd19-4478-96ec-4c36d3c56cc1)
+
+>The hasura admin-secret / password is testing and the tables can be viewed in the data tab or queried from the playground
+
+と[ドキュメント](https://docs.envio.dev/docs/greeter-tutorial)に記載があるのでadmin-secretに`testing`と入力すると管理画面が開きます。
+
+![images/getting-started-envio/adminimage.png](https://github.com/susumutomita/zenn-article/assets/11481781/502bc7fd-ca3e-4ae0-9133-a474e89cf37b)
