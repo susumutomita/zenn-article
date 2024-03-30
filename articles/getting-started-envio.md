@@ -1,27 +1,25 @@
 ---
 
-title: "Envioを触ってみた"
+title: "Envioでブロックチェインデータをインデックス化してみた"
 emoji: "😸"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: [Envio]
-published: false
+topics: [Envio,Web3]
+published: true
 ---
-
-## この記事は
 
 [Envio](https://envio.dev/)のチュートリアルを実践してみた経験を共有します。
 
 ## [Envio](https://envio.dev/)とは
 
-ブロックチェイン上のデータをインデックス化するサービスで、大量のデータを効率的に検索・アクセスできます。[インデックスサービスの概念については、この記事で](https://gaiax-blockchain.com/the-graph)説明されていますが、要するにブロックチェインの目次を作成してくれるサービスです。ブロックチェインのデータは公開されていますが、時系列で記録されておらず、インデックス化されていません。そのため、特定のキーワードやパラメータに基づいてデータを取得するのが困難です。インデックス化サービスを利用することで、データアクセスが格段に容易になります。
+Envioは、ブロックチェイン上のデータをインデックス化して効率的に検索・アクセス可能にするサービスです。ブロックチェインのデータは公開されていますが、時系列に記録されず、検索しにくい状態で存在します。インデックス化サービスを利用することで、特定のキーワードやパラメータに基づいたデータアクセスが容易になります。[インデックスサービスの概念については、この記事で](https://gaiax-blockchain.com/the-graph)説明されていますが、要するにブロックチェインの目次を作成してくれるサービスです。ブロックチェインのデータは公開されていますが、時系列で記録されておらず、インデックス化されていません。そのため、特定のキーワードやパラメータに基づいてデータを取得するのが困難です。インデックス化サービスを利用することで、データアクセスが格段に容易になります。
 
-[Envio](https://envio.dev/)は、[Ponder](https://ponder.sh/)や[theGraph](https://thegraph.com/)と比べて高速であるとされています。
+なお、[Envio](https://envio.dev/)は、[Ponder](https://ponder.sh/)や[theGraph](https://thegraph.com/)と比べて高速であるとされています。
 
 ![Envioのスクリーンショット](https://github.com/susumutomita/zenn-article/assets/11481781/baf215ed-8f94-4778-a302-a1c75856977f)
 
 ## チュートリアルを実践してみた
 
-以下は、[Getting Started](https://docs.envio.dev/docs/getting-started)の指示に沿って行ったステップです。
+Envioの公式ドキュメント[Getting Started](https://docs.envio.dev/docs/getting-started)に沿って、Envioの基本的な使い方を試してみました。以下はそのステップごとの紹介です。
 
 ### インストール
 
@@ -213,7 +211,9 @@ query MyQuery {
 
 ## ホスティングしてみる
 
-[Deploy the indexer onto the hosted service](https://docs.envio.dev/docs/greeter-tutorial#deploy-the-indexer-onto-the-hosted-service)の説明にしたがい[hosted service](https://envio.dev/app/login)の画面を開きます。
+Envioの[Deploy the indexer onto the hosted service](https://docs.envio.dev/docs/greeter-tutorial#deploy-the-indexer-onto-the-hosted-service)に従い、デプロイプロセスを経てインデクサーをホスティングサービスにデプロイしました。GitHubアカウントでログイン後、インデクサーを追加するためのUIが提供されており、簡単にデプロイが完了します。デプロイ後は、エンドポイントにクエリを送信して、実際の動作を確認できます。
+
+まず[Deploy the indexer onto the hosted service](https://docs.envio.dev/docs/greeter-tutorial#deploy-the-indexer-onto-the-hosted-service)の説明にしたがい[hosted service](https://envio.dev/app/login)の画面を開きます。
 
 ![images/getting-started-envio/hosting.png](https://github.com/susumutomita/zenn-article/assets/11481781/9026aa6d-ac43-4178-8920-ed14a203de15)
 
@@ -230,3 +230,173 @@ GitHubアカウントを使ってログインすると次の画面が出てき�
 
 `Open`をクリックするとステータスが出てきます。インデクサーのデプロイが完了するまで待ちます。
 ![images/getting-started-envio/deploywait.png](https://github.com/susumutomita/zenn-article/assets/11481781/96c727f8-1980-4858-9f25-fb64128b0584)
+
+Deployが終わるとクエリを送信するエンドポイントの情報がでてきます。
+![images/getting-started-envio/deployend.png](https://github.com/susumutomita/zenn-article/assets/11481781/9e77ae4d-a020-4a86-81cb-288c981896b9)
+
+実際にクエリを送信してみると結果が返ってきます。
+![images/getting-started-envio/query.png](https://github.com/susumutomita/zenn-article/assets/11481781/597b03da-1fb3-4760-81d5-5a3bceebcd0d)
+
+### クエリをコードから送信
+
+コードからもクエリを送信してみると結果が返ってきます。
+
+```sample.py
+import requests
+import json
+
+# GraphQLエンドポイントURL適切に置き換える
+url = "https://indexer.bigdevenergy.link/XXXXX/v1/graphql"
+
+# 送信するGraphQLクエリ
+query = """
+query MyQuery {
+  User {
+    greetings
+  }
+}
+"""
+
+# GraphQLエンドポイントに対するリクエストヘッダー
+headers = {
+    "Content-Type": "application/json",
+}
+
+# リクエストデータ
+data = {"query": query}
+
+# POSTリクエストを送信してレスポンスを取得
+response = requests.post(url, json=data, headers=headers)
+
+# レスポンスデータを整形して表示
+# json.dumps()の第二引数にindentを指定することで整形できる
+# sort_keys=Trueはキーをアルファベット順にソートするオプション
+formatted_response = json.dumps(response.json(), indent=4, sort_keys=True)
+print(formatted_response)
+
+```
+
+### 実行結果
+
+```shell
+❯ python3 sample.py
+{
+    "data": {
+        "User": [
+            {
+                "greetings": [
+                    "gm EthGlobal Paris",
+                    "gm EthGlobal Paris"
+                ]
+            },
+            {
+                "greetings": [
+                    "hello sers",
+                    "gm!",
+                    "hello fam!"
+                ]
+            },
+            {
+                "greetings": [
+                    "gm",
+                    "gm",
+                    "gm (https://polygonscan.com/address/0x9D02A17dE4E68545d3a58D3a20BbBE0399E05c9c#writeContract#F2)",
+                    "hello world"
+                ]
+            },
+            {
+                "greetings": [
+                    "Hello"
+                ]
+            },
+            {
+                "greetings": [
+                    "Greetings from ct1aic.eth",
+                    "Thanks for the NFT #0"
+                ]
+            },
+            {
+                "greetings": [
+                    "GG"
+                ]
+            },
+            {
+                "greetings": [
+                    " "
+                ]
+            },
+            {
+                "greetings": [
+                    "Welcome to envio"
+                ]
+            },
+            {
+                "greetings": [
+                    "\"hello\""
+                ]
+            },
+            {
+                "greetings": [
+                    "Testing Envio!Envio is a real-time indexer built specifically for EVM-compatible blockchains, providing developers with a seamless and efficient indexing solution. Designed to optimize the user experience, Envio offers automatic code generation and flexible language support. Indexers on Envio can be written in JavaScript, TypeScript or ReScript.",
+                    "Testing Envio!Envio is a real-time indexer built specifically for EVM-compatible blockchains providing developers with a seamless and efficient indexing solution. Designed to optimize the user experience Envio offers automatic code generation and flexible language support. Indexers on Envio can be written in JavaScript TypeScript or ReScript."
+                ]
+            },
+            {
+                "greetings": [
+                    "Roadiooooh",
+                    "Rick Stack",
+                    "Tee House",
+                    "Ada Lovelace",
+                    "Readings Baye"
+                ]
+            },
+            {
+                "greetings": [
+                    "This is a greeting from Noah."
+                ]
+            },
+            {
+                "greetings": [
+                    "gm brymes"
+                ]
+            },
+            {
+                "greetings": [
+                    "Hello Envio",
+                    "Gm, 1234"
+                ]
+            },
+            {
+                "greetings": [
+                    "gm",
+                    "gn",
+                    "gm paris",
+                    "gm Linea",
+                    "assah dude",
+                    "envio actions \ud83d\udc40",
+                    "envio actions \ud83d\udc40, whats that \ud83e\udd14",
+                    "Hello notifications",
+                    "envio actions are going to be a game changer",
+                    "its all hosted for testing"
+                ]
+            },
+            {
+                "greetings": [
+                    "gm!",
+                    "gm ser",
+                    "envio is super faaaast"
+                ]
+            },
+            {
+                "greetings": [
+                    "ottie"
+                ]
+            }
+        ]
+    }
+}
+```
+
+## 最後に
+
+Envioを使用してみた経験を通じて、ブロックチェインデータのインデックス化が簡単に行えることを理解しました。これは開発者にとって大きなメリットをもたらします。今後もEnvioを使い続け、さらに深い機能を探求していきたいです。Envioに興味のある方は、是非このチュートリアルを試してみてください。
