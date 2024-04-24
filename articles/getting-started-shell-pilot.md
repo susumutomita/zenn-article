@@ -28,9 +28,14 @@ ollama run llama3:70b
 
 まずは[リポジトリ](https://github.com/reid41/shell-pilot)をクローンして、次の設定を調整して実行してみます。
 
-```shell
+```s-pilot
 SHELL_PILOT_CONFIG_PATH="~/shell-pilot"
 OLLAMA_SERVER_IP=127.0.0.1
+```
+
+使用するモデルもデフォルトからダウンロードしたものに変えます。
+
+```spilot_common.sh
 MODEL_OLLAMA=llama3:70b
 ```
 
