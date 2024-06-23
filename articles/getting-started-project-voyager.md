@@ -18,10 +18,6 @@ Web3開発者の育成と支援を目的に、さまざまなイベントを主�
 
 ETHGlobalでは、主にイーサリアムブロックチェイン上で動作するアプリケーション(DApps)開発に関連する技術が紹介されます。
 
-### なぜEthereumなのか
-
-Ethereumは、プログラム（スマートコントラクト）をEthereum Virtual Machine（EVM）上で実行できるブロックチェインプラットフォームです。これにより、従来のブロックチェイン技術が提供していた単純な送金機能を超えて、複雑な条件に基づく自動的な取引や契約の実行が可能になります。
-
 ## 今回のStarkHackのイベントについて
 
 StarkHackは、イーサリアムのスケーラビリティと効率性を向上させるために設計されたレイヤー2ソリューションであるStarkNetを中心に行われるハッカソンです。参加者は、StarkNet上で動作する革新的なプロジェクトを開発することが求められます。
@@ -101,7 +97,7 @@ VOYAGER_API_KEY=your_api_key_here
 
 ## 今回開発したプロジェクトについて
 
-[Blockchain Pulse](https://ethglobal.com/showcase/blockchain-pulse-rnnt1)は、リアルタイムでブロックチェイントランザクションデータを可視化するインタラクティブなデジタルアートインスタレーションです。[Voyager API](https://docs.voyager.online/)を使ってStarkNetのトランザクションデータを取得し、そのデータを元に視覚的に表現しています。
+[Blockchain Pulse](https://github.com/susumutomita/2024-StarkHack)は、リアルタイムでブロックチェイントランザクションデータを可視化するインタラクティブなデジタルアートインスタレーションです。[Voyager API](https://docs.voyager.online/)を使ってStarkNetのトランザクションデータを取得し、そのデータを元に視覚的に表現しています。
 
 ### 動作プロセス
 
