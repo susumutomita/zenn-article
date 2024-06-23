@@ -3,7 +3,7 @@ title: "Voyager APIを利用したリアルタイムブロックチェーンア�
 emoji: "🎨"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [Voyager,React,Socket.IO,StarkNet]
-published: false
+published: true
 ---
 
 ## この記事について
@@ -17,6 +17,10 @@ Web3開発者の育成と支援を目的に、さまざまなイベントを主�
 ## ETHGlobalで紹介される技術
 
 ETHGlobalでは、主にイーサリアムブロックチェイン上で動作するアプリケーション(DApps)開発に関連する技術が紹介されます。
+
+### なぜEthereumなのか
+
+Ethereumは、プログラム（スマートコントラクト）をEthereum Virtual Machine（EVM）上で実行できるブロックチェインプラットフォームです。これにより、従来のブロックチェイン技術が提供していた単純な送金機能を超えて、複雑な条件に基づく自動的な取引や契約の実行が可能になります。
 
 ## 今回のStarkHackのイベントについて
 
@@ -35,31 +39,65 @@ StarkNetは、イーサリアムのレイヤー2スケーリングソリュー�
 まず、Voyager APIを使用するためのセットアップを行います。
 
 ```bash
-npm install axios
+npm install axios dotenv
 ```
 
 次に、以下のサンプルコードを使って、Voyager APIからトランザクションデータを取得します。
 
 ```typescript
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const VOYAGER_API_KEY = process.env.VOYAGER_API_KEY;
+
+class HttpClient {
+  private client: AxiosInstance;
+
+  constructor(baseURL: string) {
+    this.client = axios.create({
+      baseURL,
+      headers: {
+        'x-api-key': VOYAGER_API_KEY,
+        'accept': 'application/json'
+      }
+    });
+  }
+
+  public async get(url: string) {
+    try {
+      console.log(`Sending GET request to: ${url}`);
+      const response = await this.client.get(url);
+      console.log("Response received");
+      return response.data;
+    } catch (error) {
+      const err = error as any;
+      console.error('Error during GET request:', err.response ? err.response.data : err.message);
+      throw err;
+    }
+  }
+}
 
 const apiBaseURL = 'https://api.voyager.online/beta';
+const httpClient = new HttpClient(apiBaseURL);
 
 async function fetchTransactionData(txHash: string) {
-  try {
-    const response = await axios.get(`${apiBaseURL}/txns/${txHash}`);
-    console.log('Transaction Data:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching transaction data:', error);
-  }
+  const txData = await httpClient.get(`/txns/${txHash}`);
+  console.log('Transaction Data:', txData);
 }
 
 const txHash = '0x1234567890abcdef';
 fetchTransactionData(txHash);
 ```
 
-このコードは、指定されたトランザクションハッシュに対応するデータを取得し、コンソールに表示します。
+このコードは、指定されたトランザクションハッシュに対応するデータを取得し、コンソールに表示します。APIキーは`.env`ファイルに設定してください。
+
+`.env`ファイルの内容例。
+
+```.env
+VOYAGER_API_KEY=your_api_key_here
+```
 
 ## 今回開発したプロジェクトについて
 
@@ -94,50 +132,82 @@ Voyager APIを使用して、StarkNet上のトランザクションデータを�
 
 1. **トランザクションデータの取得**:
 
-   ```fetch.ts
-   import { OpcodeService } from './services/OpcodeService';
+```typescript
+import axios, { AxiosInstance } from 'axios';
+import dotenv from 'dotenv';
 
-   const apiBaseURL = process.env.NODE_ENV === 'production' ? 'https://api.voyager.online/beta' : 'https://sepolia-api.voyager.online/beta';
-   const opcodeService = new OpcodeService(apiBaseURL);
+dotenv.config();
 
-   async function fetchTransactionData(txHash: string) {
-     const txData = await opcodeService.getTransactionData(txHash);
-     console.log('Transaction Data:', txData);
-     return txData;
-   }
-   ```
+const VOYAGER_API_KEY = process.env.VOYAGER_API_KEY;
 
-3. **リアルタイム更新の実装**:
-   ```javascript
-   import { io } from 'socket.io-client';
+class HttpClient {
+  private client: AxiosInstance;
 
-   const socket = io('http://localhost:3000');
+  constructor(baseURL: string) {
+    this.client = axios.create({
+      baseURL,
+      headers: {
+        'x-api-key': VOYAGER_API_KEY,
+        'accept': 'application/json'
+      }
+    });
+  }
 
-   socket.on('connect', () => {
-     console.log('Connected to server');
-   });
+  public async get(url: string) {
+    try {
+      console.log(`Sending GET request to: ${url}`);
+      const response = await this.client.get(url);
+      console.log("Response received");
+      return response.data;
+    } catch (error) {
+      const err = error as any;
+      console.error('Error during GET request:', err.response ? err.response.data : err.message);
+      throw err;
+    }
+  }
+}
 
-   socket.on('new_transaction', (data) => {
-     console.log('New transaction received:', data);
-     // データを視覚化する処理を追加
-   });
+const apiBaseURL = 'https://api.voyager.online/beta';
+const httpClient = new HttpClient(apiBaseURL);
 
-   socket.on('error', (error) => {
-     console.error('Error:', error);
-   });
+async function fetchTransactionData(txHash: string) {
+  const txData = await httpClient.get(`/txns/${txHash}`);
+  console.log('Transaction Data:', txData);
+}
 
-   socket.on('disconnect', () => {
-     console.log('Disconnected from server');
-   });
-   ```
+const txHash = '0x1234567890abcdef';
+fetchTransactionData(txHash);
+```
+
+2. **リアルタイム更新の実装**:
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000');
+
+socket.on('connect', () => {
+  console.log('Connected to server');
+});
+
+socket.on('new_transaction', (data) => {
+  console.log('New transaction received:', data);
+});
+
+socket.on('error', (error) => {
+  console.error('Error:', error);
+});
+
+socket.on('disconnect', () => {
+  console.log('Disconnected from server');
+});
+```
 
 ## 開発で苦労した点と工夫
 
 ### Opcodeの取得
 
-当初、トランザクションのBytecodeからOpcodeを取り出して色付けしようとしましたが、Voyager APIでは取得できなませんでした。
-そのため、APIで取得できた個々のトランザクション情報（blockNumber、contractAddress、hash、senderAddress、actualFee）を使いました。
-アートという意味では良かったのですが、より意味のあるデータ表現を目指すにはOpcodeの取得が重要です。
+当初、トランザクションのBytecodeからOpcodeを取り出して色付けしようとしましたが、Voyager APIでは取得できなませんでした。そのため、個々のトランザクション情報（blockNumber、contractAddress、hash、senderAddress、actualFee）を使いました。アートという意味では良かったのですが、より意味のあるデータ表現をしたかったです。
 
 ### インタラクティブな視覚化の実装
 
