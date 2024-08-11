@@ -1,5 +1,5 @@
 ---
-title: "Getting Started with World ID"
+title: "World IDを使った認証をアプリケーションへ組み込む"
 emoji: "💨"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [WorldID, Web3, Authentication]
