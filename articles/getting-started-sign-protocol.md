@@ -95,7 +95,7 @@ npm install @ethsign/sp-sdk viem axios ethers dotenv
 
 `.env`ファイルを作成し、以下のようにプライベートキーを設定します。
 
-```
+```.env
 PRIVATE_KEY=あなたのプライベートキーをここに入力
 ```
 
