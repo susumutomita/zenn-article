@@ -22,7 +22,11 @@ published: false
 
 本記事では、Sign Protocolの技術的背景や機能を解説するとともに、EthSignとの違いについても触れ、具体的な実装手順をステップバイステップで紹介します。
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/Grb6tRCelNo?si=23RIlx47P4JaTgvD" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+https://www.youtube.com/watch?v=Grb6tRCelNo
+
+https://www.youtube.com/watch?v=X2SIfaUWPI0
+
+https://www.youtube.com/watch?v=eU-mcjTzXYk
 
 ### Sign ProtocolとEthSignの違い
 
