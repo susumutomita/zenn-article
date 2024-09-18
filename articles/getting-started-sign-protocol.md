@@ -1,46 +1,48 @@
 ---
+
 title: "Sign Protocolを用いたアテステーション生成入門"
 emoji: "😸"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [signprotocol]
-published: false
+published: true
+
 ---
 
 ## はじめに
 
-ブロックチェイン技術の進化に伴い、信頼性と検証可能性を高めるためのプロトコルが数多く開発されています。**Sign Protocol**は、その中でも特に注目を集めているオンチェインおよびオフチェインでのアテステーション（証明書）を生成・管理するためのプロトコルです。
+ブロックチェイン技術の進化に伴い、信頼性と検証可能性を高めるためのプロトコルが数多く開発されています。**Sign Protocol**は、その中でも特に注目を集めている、オンチェインおよびオフチェインでのアテステーション（証明書）を生成・管理するためのプロトコルです。
 
 本記事では、Sign Protocolの技術的背景や機能を解説するとともに、EthSignとの違いについても触れ、具体的な実装手順をステップバイステップで紹介します。
 
-参考になる動画
-https://www.youtube.com/watch?v=Grb6tRCelNo
+参考になる動画。
 
-https://www.youtube.com/watch?v=X2SIfaUWPI0
-
-https://www.youtube.com/watch?v=eU-mcjTzXYk
+- [Introduction to Sign Protocol](https://www.youtube.com/watch?v=Grb6tRCelNo)
+- [Understanding Attestations](https://www.youtube.com/watch?v=X2SIfaUWPI0)
+- [Zero-Knowledge Proofs Explained](https://www.youtube.com/watch?v=eU-mcjTzXYk)
 
 ### Sign ProtocolとEthSignの違い
 
-はじめ、[EthSign](https://www.ethsign.xyz/)も似たような話に見えたのですが、Sign ProtocolはプロトコルでEthSignはプラットフォームです。
+はじめに、[EthSign](https://www.ethsign.xyz/)も似たようなプロジェクトに見えますが、Sign Protocolはプロトコルであり、EthSignはプラットフォームです。
 
-- **Sign Protocol**は、あらゆる情報をオンチェインでアテスト（証明）し、それを検証できる**オムニチェイン対応**のアテステーションプロトコルです。主に**アテステーションの生成、管理、検証**を目的とし、ゼロ知識証明やクロスチェイン対応など、高度なプライバシー保護と相互運用性を実現しています。これは、身分証明、サプライチェインのトレーサビリティ、学歴証明など、さまざまなユースケースに対応できます。
+- **Sign Protocol**は、あらゆる情報をオンチェインでアテステーション（証明）し、それを検証できる**マルチチェイン対応**のアテステーションプロトコルです。主に**アテステーションの生成、管理、検証**を目的としており、プライバシー保護と相互運用性を実現しています。これは、身分証明、サプライチェインのトレーサビリティ、学歴証明など、さまざまなユースケースに対応できます。
 
-- 一方、**EthSign**は主に**電子契約書の署名プラットフォーム**であり、スマートコントラクトを活用してブロックチェイン上での**ドキュメント署名と管理**に特化しています。契約書や同意書のような法律的拘束力のある文書に対して、ユーザー同士が安全に署名できる機能を提供し、署名の真正性を保証します。
+- 一方、**EthSign**は主に**電子契約書の署名プラットフォーム**であり、スマートコントラクトを活用してブロックチェイン上での**ドキュメント署名と管理**に特化しています。契約書や同意書のような法的拘束力のある文書に対して、ユーザー同士が安全に署名できる機能を提供し、署名の真正性を保証します。
 
-以下のような違いがある認識です。
+以下のような違いがあります。
+
 |                 | **Sign Protocol**                           | **EthSign**                               |
 |-----------------|---------------------------------------------|-------------------------------------------|
 | **用途**         | アテステーション（証明）生成・管理              | 電子契約書や同意書の署名                    |
-| **技術**         | オムニチェイン対応、ゼロ知識証明                | スマートコントラクトを用いた署名管理       |
+| **技術**         | マルチチェイン対応、プライバシー保護              | スマートコントラクトを用いた署名管理       |
 | **主なユースケース**| 身分証明、学歴証明、サプライチェインの追跡等      | 法的文書への署名、契約管理                  |
 
 ---
 
 ## 技術的背景
 
-### オムニチェインとは
+### マルチチェインとは
 
-オムニチェインとは、複数の異なるブロックチェインネットワーク間でシームレスにデータや資産を共有・転送できる技術です。オムニチェイン技術を用いることで、Ethereum、Polygon、Binance Smart Chainといった異なるチェイン間でのデータ共有が可能になりました。Sign Protocolもこの技術を活用しており、様々なチェイン上でのアテステーションの作成と検証が可能です。
+マルチチェインとは、複数の異なるブロックチェインネットワーク間でシームレスにデータや資産を共有・転送できる技術です。マルチチェイン技術を用いることで、Ethereum、Polygon、Binance Smart Chainといった異なるチェイン間でのデータ共有が可能になりました。Sign Protocolもこの技術を活用しており、さまざまなチェイン上でのアテステーションの作成と検証が可能です。
 
 ### アテステーションとは
 
@@ -55,7 +57,7 @@ https://www.youtube.com/watch?v=eU-mcjTzXYk
 - **証明者（Prover）**: 秘密の情報を明かさずにその正当性を証明します。
 - **検証者（Verifier）**: 証明者の主張が真実であることを確認しますが、秘密の情報自体は知りたくありません。
 
-このプロセスを通じて、データの正当性を保証しつつ、個人情報の保護を実現します。
+Sign Protocolでは、ゼロ知識証明を利用して、ユーザーの個人情報を公開することなく、その情報の正当性を第三者に証明できます。たとえば、年齢確認や資格の証明など、プライバシーを保護しながら必要な情報のみを提供可能です。
 
 ## Sign Protocolの機能概要
 
@@ -64,12 +66,15 @@ https://www.youtube.com/watch?v=eU-mcjTzXYk
 1. **スキーマの作成**: アテステーションで使用するデータの構造を定義します。
 2. **アテステーションの生成**: スキーマに基づいてアテステーションを作成します。
 3. **アテステーションの管理**: 生成したアテステーションの検証やクエリを行います。
+4. **プライバシー保護**: ゼロ知識証明を用いて、データの正当性を証明しつつ個人情報を保護します。
+5. **マルチチェイン対応**: 複数のブロックチェインネットワークでの操作が可能です。
 
 ---
 
 ## 実装手順
 
 以下では、Sign Protocolを使用してスキーマを作成し、アテステーションを生成・管理する方法を詳しく解説します。
+
 
 ### 必要な環境
 
@@ -82,13 +87,12 @@ https://www.youtube.com/watch?v=eU-mcjTzXYk
 
 ```bash
 npm init -y
-npm install @ethsign/sp-sdk viem axios ethers dotenv
+npm install @ethsign/sp-sdk viem axios dotenv
 ```
 
 - **@ethsign/sp-sdk**: Sign Protocolの公式SDKです。
 - **viem**: EVM互換チェインとの通信をするライブラリです。
 - **axios**: HTTPリクエストを行うためのライブラリです。
-- **ethers**: Ethereumブロックチェインとのやり取りを簡素化するためのライブラリです。
 - **dotenv**: 環境変数を管理するためのライブラリです。
 
 #### プライベートキーの設定
@@ -99,7 +103,7 @@ npm install @ethsign/sp-sdk viem axios ethers dotenv
 PRIVATE_KEY=あなたのプライベートキーをここに入力
 ```
 
-**注意**: プライベートキーは安全に管理する。
+**注意**: プライベートキーは安全に管理してください。
 
 ### クライアントの初期化
 
@@ -242,40 +246,83 @@ async function queryAttestations(schemaId, indexingValue) {
 const { SignProtocolClient, SpMode, EvmChains } = require("@ethsign/sp-sdk");
 const { privateKeyToAccount } = require("viem/accounts");
 const axios = require("axios");
-const { ethers } = require("ethers");
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 async function init() {
   const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("プライベートキーが設定されていません。");
+  }
+
   const client = new SignProtocolClient(SpMode.OnChain, {
     chain: EvmChains.sepolia,
     account: privateKeyToAccount(privateKey),
   });
-  console.log("Client initialized");
+
+  console.log("クライアントが初期化されました。");
   return { client };
 }
 
-async function createSchema(client, provider) {
-  const res = await client.createSchema({
+async function createSchema(client) {
+  const schemaDefinition = {
     name: "BlockFeedBack",
     data: [
       { name: "userAddress", type: "address" },
+      { name: "feedback", type: "string" },
+      { name: "timestamp", type: "uint256" },
     ],
-  });
-  console.log("Schema created with ID:", res.schemaId);
+  };
+
+  const res = await client.createSchema(schemaDefinition);
+
+  console.log("スキーマが作成されました。ID:", res.schemaId);
   return res.schemaId;
 }
 
-async function createNotaryAttestation(client, schemaId, userAddress, signer, provider) {
+async function createAttestation(client, schemaId, attestationData, indexingValue) {
   const res = await client.createAttestation({
     schemaId: schemaId,
-    data: {
-      userAddress,
-    },
-    indexingValue: signer.toLowerCase(),
+    data: attestationData,
+    indexingValue: indexingValue.toLowerCase(),
   });
-  console.log("Attestation created");
-  console.log(res);
+
+  console.log("アテステーションが作成されました。");
   return res;
+}
+
+async function makeAttestationRequest(endpoint, options) {
+  const url = `https://testnet-rpc.sign.global/api/${endpoint}`;
+  const res = await axios.request({
+    url,
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    ...options,
+  });
+
+  if (res.status !== 200) {
+    throw new Error(`エラーが発生しました: ${res.statusText}`);
+  }
+  return res.data;
+}
+
+async function queryAttestations(schemaId, indexingValue) {
+  const response = await makeAttestationRequest("index/attestations", {
+    method: "GET",
+    params: {
+      mode: "onchain",
+      schemaId,
+      indexingValue: indexingValue.toLowerCase(),
+    },
+  });
+
+  if (!response.success || response.data.total === 0) {
+    console.log("アテステーションが見つかりませんでした。");
+    return [];
+  }
+
+  console.log("アテステーションが見つかりました:", response.data.rows);
+  return response.data.rows;
 }
 
 async function main() {
@@ -308,7 +355,7 @@ main();
 
 ---
 
-## 詳細な解説
+## 詳細
 
 ### クライアントの初期化の詳細
 
@@ -330,7 +377,7 @@ main();
 
 - **userAddress**: ユーザーのウォレットアドレス。
 - **feedback**: ユーザーからのフィードバック内容。
-- **タイムスタンプ**: フィードバックが行われた時刻（Unixtimestamp）。
+- **タイムスタンプ**: フィードバックが行われた時刻。
 
 ### インデックス値の重要性
 
@@ -348,7 +395,7 @@ Sign ProtocolのAPIを使用して、特定の条件に合致するアテステ�
 
 ---
 
-## 実践的な応用例
+## 応用例として考えられるもの
 
 ### 身分証明のアテステーション
 
@@ -406,73 +453,14 @@ const schemaDefinition = {
 
 ---
 
-## セキュリティとプライバシー
+## 実際に使ってみた感想
 
-### ゼロ知識証明の活用
-
-プライバシー保護の観点から、ゼロ知識証明は非常に重要です。Sign Protocolでは、個人情報や機密情報を公開することなく、その正当性を証明できます。
-
-#### ゼロ知識証明の具体的な例
-
-たとえば、年齢制限のあるサービスにおいて、ユーザーが18歳以上であることを証明する必要がある場合を考えます。ゼロ知識証明を使うと実際の生年月日を公開せずに、「18歳以上である」という事実のみを証明できます。
-
-### 分散型ストレージの信頼性
-
-データの保存に分散型ストレージを利用することで、単一障害点（Single Point of Failure）を排除し、データの可用性と耐久性を向上させます。
-
-#### IPFSとArweaveの比較
-
-- **IPFS**: データがネットワーク上の複数のノードに分散して保存されます。データの可用性はノードの稼働状況に依存します。
-- **Arweave**: データが永続的に保存され、一度アップロードされたデータは削除できません。長期的なデータ保存に適しています。
-
-### スマートコントラクトのセキュリティ
-
-Sign Protocolのスマートコントラクトは、セキュリティ監査を受けており、安全性が確保されています。しかし、開発者自身もスマートコントラクトの安全な実装を心がける必要があります。
-
-#### セキュリティ対策のベストプラクティス
-
-- **再入可能な攻撃の防止**: 関数の状態を適切に管理し、外部コールの後に状態を更新しない。
-- **整数オーバーフロー・アンダーフローの防止**: 安全な数学ライブラリを使用する。
-- **アクセス制御の適切な設定**: 関数や変数の可視性を適切に設定し、権限のないユーザーからの操作を防ぐ。
-
----
-
-## クロスチェイン対応の詳細
-
-Sign Protocolのクロスチェイン対応により、異なるブロックチェイン間でのデータ共有が可能となります。これにより、以下のような利点があります。
-
-- **柔軟なネットワーク選択**: アプリケーションの要件に応じて最適なブロックチェインを選択できます。
-- **相互運用性**: 異なるネットワーク上のユーザーやアプリケーションと連携できます。
-- **コスト効率**: ガス代やトランザクション速度を考慮して、最適なチェインを選択できます。
-
-### 対応チェインの例
-
-- **Ethereum**: セキュリティと分散性の高さから、多くのDAppsが利用しています。
-- **Polygon**: 低ガス代と高速なトランザクションが特徴です。
-- **Binance Smart Chain**: 高いスループットと低コストが魅力です。
-
-### クロスチェインでのアテステーション管理
-
-異なるチェイン上で生成されたアテステーションを統一的に管理するため、Sign Protocolは以下の仕組みを提供します。
-
-- **共通のスキーマ定義**: スキーマIDはチェイン間で一意に識別されます。
-- **統合されたAPI**: 単一のAPIエンドポイントで複数のチェイン上のデータにアクセスできます。
-- **チェイン間のデータ転送**: ブリッジやオラクルを利用して、データの同期を行います。
-
----
+[BlockFeedback](https://github.com/susumutomita/ETHOnline2024/blob/main/frontend/src/pages/api/attestation.ts)というアプリをハッカソンで作ってみたのですが、アテステーションの生成に時間がかかりました。10-20秒くらいかかったので同期処理でアテステーションを生成するのは避けた方が良いと感じました。
 
 ## まとめ
 
-Sign Protocolは、ブロックチェイン技術の持つ信頼性と透明性を最大限に活用し、アテステーションの生成・管理を効率的かつ安全に行うためのプロトコルです。ゼロ知識証明や分散型ストレージ、クロスチェイン対応といった先進的な技術を組み合わせることで、プライバシー保護と信頼性を両立しています。
-
-本記事では、Sign Protocolの技術的背景から具体的な実装手順までを詳細に解説しました。以下に本記事のポイントをまとめます。
-
-- **技術的背景**: ゼロ知識証明や分散型ストレージ、クロスチェイン対応の重要性を理解しました。
-- **実装手順**: スキーマの作成からアテステーションの生成・クエリまで、実践的なコード例を紹介しました。
-- **応用例**: 身分証明やサプライチェイン、学歴証明など、様々な分野での活用方法を提案しました。
-- **セキュリティとプライバシー**: 安全なシステム構築のためのベストプラクティスを学びました。
-
-Sign Protocolを活用することで、信頼性の高い分散型アプリケーションを開発できます。さらに詳しい情報や高度な機能の活用方法については、[Sign Protocol公式ドキュメント](https://signprotocol.io/docs)を参照してください。
+Sign Protocolは、ブロックチェイン技術の持つ信頼性と透明性を最大限に活用し、アテステーションの生成・管理を効率的かつ安全に行うためのプロトコルです。
+さらに詳しい情報や高度な機能の活用方法については、[Sign Protocol公式ドキュメント](https://docs.sign.global/)を参照してください。
 
 ---
 
