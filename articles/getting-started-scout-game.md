@@ -41,7 +41,8 @@ Scout Gameは、**実際の開発活動に基づいた報酬分配システム**
 
 [Partner Rewards](https://scoutgame.xyz/info/partner-rewards)を見ると、スポンサー企業やプロトコルがOSSプロジェクトへのコントリビュートに対して報酬を提供していることがわかります。これは、ハッカソンのスポンサーがプロジェクトを支援するモデルに似ています。
 
-例えば、[Optimism](https://scoutgame.xyz/info/partner-rewards/optimism)では、100 OPトークン（約4万円相当）が報酬として提供されることもあります。
+例えば、[Optimism](https://scoutgame.xyz/info/partner-rewards/optimism)では、100 OPトークンが報酬として提供されることもあります。
+（注：暗号資産の価格は市場の変動により大きく変動する可能性があります）
 これにより、ビルダーはOSSに貢献することで報酬を得られ、スポンサー側は自分たちのプロジェクトが改善されるという価値交換が成り立っています。
 
 ---
