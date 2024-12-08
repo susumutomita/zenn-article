@@ -1,12 +1,10 @@
 ---
-title: "getting-started-cargo-husky"
+title: "Rust × Docker環境でGitフックによる任意コマンド実行を行う方法"
 emoji: "🌟"
 type: "tech"
-topics: []
+topics: [Rust, Docker, Git]
 published: false
 ---
-
-## Rust × Docker環境でGitフックによる任意コマンド実行を行う方法
 
 ## 背景
 
