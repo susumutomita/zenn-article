@@ -3,7 +3,7 @@ title: "Solidity ガス最適化の基本とテクニック"
 emoji: "👌"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [Solidity]
-published: false
+published: true
 ---
 
 ## はじめに
