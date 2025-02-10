@@ -1,5 +1,5 @@
 ---
-title: "Voyager APIを利用したリアルタイムブロックチェーンアート：Blockchain Pulseの紹介"
+title: "Voyager APIを利用したリアルタイムブロックチェインアート：Blockchain Pulseの紹介"
 emoji: "🎨"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [Voyager,React,Socket.IO,StarkNet]
