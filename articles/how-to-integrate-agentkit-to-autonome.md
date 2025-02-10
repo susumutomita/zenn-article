@@ -1,4 +1,3 @@
-```markdown
 ---
 title: "AutonomeでAgent Kitを使う"
 emoji: "🦁"
@@ -9,23 +8,11 @@ published: false
 
 ## AutonomeでAgent Kitを使う
 
-**この記事は2025年2月時点の情報です。今後仕様が変わる可能性があります。**
+**この記事は2025年2月時点の情報です。**
 最近話題の「AIエージェント」を手軽にデプロイできる
 プラットフォームとして注目されるのが**Autonome（オートノーム）**です。
 本記事では、Autonome上でAgent Kitを利用して
 AIエージェントを作成し、デプロイする方法を解説します。
-
-**目次**
-- [Autonomeとは](#autonomeとは)
-- [Agent Kitとは](#agent-kitとは)
-- [環境構築](#環境構築)
-- [Agent KitのDocker化](#agent-kitのdocker化)
-- [Autonomeへのデプロイ](#autonomeへのデプロイ)
-- [Agent Kitの機能追加](#agent-kitの機能追加)
-- [ハマったポイントと回避策](#ハマったポイントと回避策)
-- [コードと参考リンク](#コードと参考リンク)
-
-では早速見ていきましょう。
 
 ### Autonomeとは
 
@@ -58,9 +45,6 @@ Trusted Execution Environment (TEE) により保護します。
 現在は**AgentKit**、Based Agent、Eliza、Perplexicaに対応しています。
 本記事では**AgentKit**を用いた開発方法に焦点をあてます。
 
-▶ **参考資料**
-Autonome公式ドキュメントの「Deploy AI Agent」章を参照してください。
-
 ### Agent Kitとは
 
 **Agent Kit（エージェントキット）**は、Coinbase社が提供する
@@ -85,10 +69,7 @@ Agent Kitを使うと、LLM（大規模言語モデル）を用いた
   各エージェントに固有のウォレットを持たせます。
   CDPのウォレットAPI/SDKを活用し、安全に鍵管理が行えます。
 
-このように、Agent Kitは
-AIエージェントにブロックチェインの「腕と足」を生やします。
-通常のチャットAIがテキスト応答するだけなのに対し、
-Agent Kit搭載エージェントは自らウォレット操作を実行できます。
+このように、Agent KitはAIエージェントにブロックチェインの「腕と足」を生やします。
 
 公式リポジトリは[coinbase/agentkit](https://github.com/coinbase/agentkit)です。
 TypeScript版とPython版が提供されていますが、
@@ -104,7 +85,7 @@ Coinbase公式ドキュメントの解説ページも参考にしてください
   Agent Kit（TypeScript版）の実行にはNode.jsが必要です。
   インストールがまだの場合は、公式サイトからLTS版を入れてください。
 - **Docker**
-  エージェントをコンテナ化してAutonomeにデプロイするために使用します。
+  エージェントをコンテナ化してAutonomeで動作させるために使用します。
   Docker Desktopなどを導入してください。
 - **Git**
   ソースコード管理用です。サンプルリポジトリのクローン時に必要です。
@@ -120,89 +101,381 @@ Coinbase公式ドキュメントの解説ページも参考にしてください
 2. **エージェントの新規作成**
    ダッシュボードの「+」ボタンをクリックすると、
    新しいAIエージェントのデプロイ画面が表示されます。
-   ここでは後ほどDockerイメージのアップロードや設定を行います。
+   ここでは後ほどDockerイメージのアップロードや設定をします。
 
 また、エージェント動作用に以下のAPIキーも用意してください。
 
 - **OpenAI APIキー**
   LLM（GPT-4/3.5等）利用のために必要です。
+- **Coinbase CDP APIキー名**
+  オンチェイン操作に用いる秘密鍵付きAPIキーの名前です。
 - **Coinbase CDP APIキー**
   オンチェイン操作に用いる秘密鍵付きAPIキーです。
+
+### Agent Kitを使いAI Agentを作成
+
+[Quickstart](https://docs.cdp.coinbase.com/agentkit/docs/quickstart#starting-from-scratch-with-langchain)
+に従ってAgentを構築していきます。
+今回はTypeScript版を使用します。
+
+#### 必要パッケージのインストール
+
+```bash
+pnpm install @coinbase/agentkit @coinbase/agentkit-langchain @langchain/openai @langchain/core @langchain/langgraph viem
+```
+
+#### 環境変数の設定
+
+```.env
+CDP_API_KEY_NAME=your-cdp-key-name
+CDP_API_KEY_PRIVATE_KEY=your-cdp-private-key
+OPENAI_API_KEY=your-openai-key
+NETWORK_ID=base-sepolia
+```
+
+#### Agentの作成
+
+```agent.ts
+import {
+  AgentKit,
+  CdpWalletProvider,
+  wethActionProvider,
+  walletActionProvider,
+  erc20ActionProvider,
+  cdpApiActionProvider,
+  cdpWalletActionProvider,
+  pythActionProvider,
+} from "@coinbase/agentkit";
+
+import { getLangChainTools } from "@coinbase/agentkit-langchain";
+import { HumanMessage } from "@langchain/core/messages";
+import { MemorySaver } from "@langchain/langgraph";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { ChatOpenAI } from "@langchain/openai";
+
+import * as fs from "fs";
+import * as readline from "readline";
+
+/**
+ * Validates that required environment variables are set
+ *
+ * @throws {Error} - If required environment variables are missing
+ * @returns {void}
+ */
+function validateEnvironment(): void {
+  const missingVars: string[] = [];
+
+  // Check required variables
+  const requiredVars = [
+    "OPENAI_API_KEY",
+    "CDP_API_KEY_NAME",
+    "CDP_API_KEY_PRIVATE_KEY",
+  ];
+  requiredVars.forEach((varName) => {
+    if (!process.env[varName]) {
+      missingVars.push(varName);
+    }
+  });
+
+  // Exit if any required variables are missing
+  if (missingVars.length > 0) {
+    console.error("Error: Required environment variables are not set");
+    missingVars.forEach((varName) => {
+      console.error(`${varName}=your_${varName.toLowerCase()}_here`);
+    });
+    process.exit(1);
+  }
+
+  // Warn about optional NETWORK_ID
+  if (!process.env.NETWORK_ID) {
+    console.warn(
+      "Warning: NETWORK_ID not set, defaulting to base-sepolia testnet",
+    );
+  }
+}
+
+// Add this right after imports and before any other code
+validateEnvironment();
+
+// Configure a file to persist the agent's CDP MPC Wallet Data
+const WALLET_DATA_FILE = "wallet_data.txt";
+
+/**
+ * Initialize the agent with CDP Agentkit
+ *
+ * @returns Agent executor and config
+ */
+async function initializeAgent() {
+  try {
+    // Initialize LLM
+    const llm = new ChatOpenAI({
+      model: "gpt-4o-mini",
+    });
+
+    let walletDataStr: string | null = null;
+
+    // Read existing wallet data if available
+    if (fs.existsSync(WALLET_DATA_FILE)) {
+      try {
+        walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
+      } catch (error) {
+        console.error("Error reading wallet data:", error);
+        // Continue without wallet data
+      }
+    }
+
+    // Configure CDP Wallet Provider
+    const config = {
+      apiKeyName: process.env.CDP_API_KEY_NAME,
+      apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+        /\\n/g,
+        "\n",
+      ),
+      cdpWalletData: walletDataStr || undefined,
+      networkId: process.env.NETWORK_ID || "base-sepolia",
+    };
+
+    const walletProvider = await CdpWalletProvider.configureWithWallet(config);
+
+    // Initialize AgentKit
+    const agentkit = await AgentKit.from({
+      walletProvider,
+      actionProviders: [
+        wethActionProvider(),
+        pythActionProvider(),
+        walletActionProvider(),
+        erc20ActionProvider(),
+        cdpApiActionProvider({
+          apiKeyName: process.env.CDP_API_KEY_NAME,
+          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+            /\\n/g,
+            "\n",
+          ),
+        }),
+        cdpWalletActionProvider({
+          apiKeyName: process.env.CDP_API_KEY_NAME,
+          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+            /\\n/g,
+            "\n",
+          ),
+        }),
+      ],
+    });
+
+    const tools = await getLangChainTools(agentkit);
+
+    // Store buffered conversation history in memory
+    const memory = new MemorySaver();
+    const agentConfig = {
+      configurable: { thread_id: "CDP AgentKit Chatbot Example!" },
+    };
+
+    // Create React Agent using the LLM and CDP AgentKit tools
+    const agent = createReactAgent({
+      llm,
+      tools,
+      checkpointSaver: memory,
+      messageModifier: `
+        You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are
+        empowered to interact onchain using your tools. If you ever need funds, you can request them from the
+        faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request
+        funds from the user. Before executing your first action, get the wallet details to see what network
+        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone
+        asks you to do something you can't do with your currently available tools, you must say so, and
+        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to
+        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from
+        restating your tools' descriptions unless it is explicitly requested.
+        `,
+    });
+
+    // Save wallet data
+    const exportedWallet = await walletProvider.exportWallet();
+    fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
+
+    return { agent, config: agentConfig };
+  } catch (error) {
+    console.error("Failed to initialize agent:", error);
+    throw error; // Re-throw to be handled by caller
+  }
+}
+
+/**
+ * Run the agent autonomously with specified intervals
+ */
+async function runAutonomousMode(agent: any, config: any, interval = 10) {
+  console.log("Starting autonomous mode...");
+
+  while (true) {
+    try {
+      const thought =
+        "Be creative and do something interesting on the blockchain. " +
+        "Choose an action or set of actions and execute it that highlights your abilities.";
+
+      const stream = await agent.stream(
+        { messages: [new HumanMessage(thought)] },
+        config,
+      );
+
+      for await (const chunk of stream) {
+        if ("agent" in chunk) {
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
+        }
+        console.log("-------------------");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error:", error.message);
+      }
+      process.exit(1);
+    }
+  }
+}
+
+/**
+ * Run the agent interactively based on user input
+ */
+async function runChatMode(agent: any, config: any) {
+  console.log("Starting chat mode... Type 'exit' to end.");
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (prompt: string): Promise<string> =>
+    new Promise((resolve) => rl.question(prompt, resolve));
+
+  try {
+    while (true) {
+      const userInput = await question("\nPrompt: ");
+
+      if (userInput.toLowerCase() === "exit") {
+        break;
+      }
+
+      const stream = await agent.stream(
+        { messages: [new HumanMessage(userInput)] },
+        config,
+      );
+
+      for await (const chunk of stream) {
+        if ("agent" in chunk) {
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
+        }
+        console.log("-------------------");
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error:", error.message);
+    }
+    process.exit(1);
+  } finally {
+    rl.close();
+  }
+}
+
+/**
+ * Choose whether to run in autonomous or chat mode
+ */
+async function chooseMode(): Promise<"chat" | "auto"> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (prompt: string): Promise<string> =>
+    new Promise((resolve) => rl.question(prompt, resolve));
+
+  while (true) {
+    console.log("\nAvailable modes:");
+    console.log("1. chat    - Interactive chat mode");
+    console.log("2. auto    - Autonomous action mode");
+
+    const choice = (await question("\nChoose a mode (enter number or name): "))
+      .toLowerCase()
+      .trim();
+
+    if (choice === "1" || choice === "chat") {
+      rl.close();
+      return "chat";
+    } else if (choice === "2" || choice === "auto") {
+      rl.close();
+      return "auto";
+    }
+    console.log("Invalid choice. Please try again.");
+  }
+}
+
+/**
+ * Main entry point
+ */
+async function main() {
+  try {
+    const { agent, config } = await initializeAgent();
+    const mode = await chooseMode();
+
+    if (mode === "chat") {
+      await runChatMode(agent, config);
+    } else {
+      await runAutonomousMode(agent, config);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error:", error.message);
+    }
+    process.exit(1);
+  }
+}
+
+// Start the agent when running directly
+if (require.main === module) {
+  console.log("Starting Agent...");
+  main().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
+}
+```
+
+#### Agentの起動確認
+
+```bash
+❯ pnpm run start
+
+> autonome-coinbase-agentkit-integration@1.0.0 start /Users/susumu/autonome-coinbase-agentkit-integration
+> node --env-file .env build/index.js
+
+Starting Agent...
+(node:10522) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Available modes:
+1. chat    - Interactive chat mode
+2. auto    - Autonomous action mode
+
+Choose a mode (enter number or name): 1
+Starting chat mode... Type 'exit' to end.
+
+Prompt: hi
+Hello! How can I assist you today?
+```
+
+これでAgent Kitを使ったエージェントが起動しました。
+
+### Agent をAPI経由で起動できるようにする
 
 ### Agent KitのDocker化
 
 ここでは、Agent Kitを利用したエージェントアプリケーションを
 Dockerイメージ化する手順を説明します。
 AutonomeはDockerコンテナとしてエージェントを実行します。
-
-まずはエージェントのアプリコードを用意します。
-例として、Agent Kitの公式サンプルであるチャットボットを基に
-`chatbot.ts`を作成します。
-以下はその概要です。
-
-```typescript
-// chatbot.ts（エージェントのメインロジック）
-import { OpenAI } from "langchain/llms/openai";
-import { initializeAgentExecutor } from "langchain/agents";
-import { WalletTool } from "@coinbase/agentkit";
-import { theGraphTool } from "./TheGraphActionProvider";
-
-// OpenAI LLMを初期化します。
-const model = new OpenAI({ temperature: 0.2, modelName: "gpt-3.5-turbo" });
-
-// Agent Kitのウォレットツールを初期化します。
-const walletTool = new WalletTool({
-  cdpApiKey: process.env.CDP_API_KEY!,
-  privateKey: process.env.WALLET_PRIVATE_KEY!
-});
-
-// カスタムツール（The Graph用）を含むツールリストです。
-const tools = [walletTool, theGraphTool];
-
-// LangChainのエージェントを初期化します。
-const executor = await initializeAgentExecutor(
-  tools,
-  model,
-  "zero-shot-react-description"
-);
-
-import express from "express";
-const app = express();
-app.use(express.json());
-
-// ヘルスチェック用エンドポイントです。
-app.get("/", (_req, res) => res.send("OK"));
-
-// POST /chat でユーザー入力を受け付け、応答します。
-app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
-  try {
-    const agentResponse = await executor.call({ input: userMessage });
-    res.json({ answer: agentResponse.output });
-  } catch (err) {
-    console.error("Agent error:", err);
-    res.status(500).json({ error: "Agent failed to respond" });
-  }
-});
-
-// ポート3000で待機します。
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Agent server listening on port ${PORT}`);
-});
-```
-
-上記コードは、以下のポイントを含みます。
-
-- OpenAI APIを利用してLLMを構築します。
-- Agent Kitのウォレットツールで
-  暗号資産の送金やトランザクション処理を行います。
-- カスタムツールとしてThe Graph用のツールを追加します。
-- ExpressでシンプルなHTTPサーバを構築し、
-  `GET /`でヘルスチェック、`POST /chat`で対話を実現します。
-
-次に、上記アプリをDocker化するために
-以下の**Dockerfile**を用意します。
 
 ```dockerfile
 # Node.js 18-slimをベースイメージに使用します。
@@ -296,102 +569,31 @@ docker run -p 3000:3000 \
 必ず`POST /chat`や`GET /`でリクエストを受け付けるようにしてください。
 特に、サーバは0.0.0.0で待機する必要があります。
 
-### Agent Kitの機能追加
-
-基本的なエージェントが動作したら、
-次はカスタム機能の追加方法を説明します。
-ここでは、**The Graph**というブロックチェインデータ照会サービスを例にとります。
-
-The Graphは、GraphQLでブロックチェインデータを検索できるサービスです。
-たとえば「Uniswapのプールから最新の価格データを取得する」
-や「特定ウォレットのNFT一覧を取得する」ことが可能です。
-これをエージェントに組み込むと、オンチェインデータを参照して対話できます。
-
-まず、`TheGraphActionProvider.ts`を作成します。
-
-```typescript
-// TheGraphActionProvider.ts
-import fetch from "node-fetch";
-
-// Uniswap v3のサブグラフのエンドポイントURLです。
-const THE_GRAPH_API_URL =
-  "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3";
-
-// The Graphに問い合わせを行う関数です。
-async function queryTheGraph(graphQLQuery: string): Promise<any> {
-  const res = await fetch(THE_GRAPH_API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: graphQLQuery })
-  });
-  if (!res.ok) {
-    throw new Error(`TheGraph APIが${res.status}を返しました`);
-  }
-  const data = await res.json();
-  return data;
-}
-
-// LangChain用ツールの定義です。
-export const theGraphTool = {
-  name: "thegraph",
-  description:
-    "ブロックチェイン上のデータを照会します。GraphQLクエリ文字列を入力してください。",
-  call: async (input: string) => {
-    console.log("TheGraphクエリを実行します:", input);
-    const result = await queryTheGraph(input);
-    return JSON.stringify(result);
-  }
-};
-```
-
-このツールを`chatbot.ts`でインポートし、ツール配列に追加します。
-
-```diff
- // chatbot.ts（一部抜粋）
- import { WalletTool } from "@coinbase/agentkit";
--import { theGraphTool } from "./TheGraphActionProvider";
-+import { theGraphTool } from "./TheGraphActionProvider";
- ...
- // ツールの配列です。
--const tools = [ walletTool, theGraphTool ];
-+const tools = [walletTool, theGraphTool];
- ...
- const executor = await initializeAgentExecutor(
-   tools,
-   model,
-   "zero-shot-react-description"
- );
-```
-
-これでエージェントはThe Graph経由で
-ブロックチェインデータを取得できる機能が追加されます。
-例えば「このウォレットの最新トランザクション時刻を教えて」と入力すると、
-内部でGraphQLクエリが組み立てられ、結果が返されます。
-
-### ハマったポイントと回避策
+## ハマったポイントと回避策
 
 最後に、筆者が実際にAutonome＋AgentKit環境を触ってみてハマったポイントとその回避策を共有します。
 
-#### ヘルスチェック
+### ヘルスチェック
 
 Autonomeではデプロイしたコンテナの稼働監視のためにhealthzというメッセージを送りヘルスチェックを行います。リクエストに対してすぐに200を返す実装にしてください。
 
-#### exec /usr/local/bin/docker-entrypoint.sh: exec format error`
+### exec /usr/local/bin/docker-entrypoint.sh: exec format error`
 
 Dockerイメージの中にdocker-entrypoint.shを配置してあげて0なりをリターンするようにします。
 
-#### Apple Silicon Macでのイメージのビルド
+### Apple Silicon Macでのイメージのビルド
 
 Apple SiliconのMacを使っていたのですが、DockerイメージをビルドしてもAutonome上で動かないという問題がありました。docker build --platform linux/amd64 -t <タグ名> .として上げると回避できます。
 
-### コードと参考リンク
+## コードと参考リンク
+
+#### コード
 
 最後に、今回解説したコード一式はGitHubにアップロードしてあります [autonome-coinbase-agentkit-integration](https://github.com/susumutomita/autonome-coinbase-agentkit-integration)
 
-**参考リンク集**: 本記事執筆にあたり参考にした公式情報や関連資料を以下にまとめます。理解を深めるのに役立つので、興味があれば読んでみてください。
+#### 参考リンク集
 
-- [AltLayer公式: Autonomeドキュメント](https://docs.altlayer.io/altlayer-documentation/autonome/deploy-ai-agen ([Deploy AI Agent | AltLayer Documentation](https://docs.altlayer.io/altlayer-documentation/autonome/deploy-ai-agent#:~:text=3,deploying%20a%20new%20AI%20Agent)) ([Deploy AI Agent | AltLayer Documentation](https://docs.altlayer.io/altlayer-documentation/autonome/deploy-ai-agent#:~:text=5,and%20the%20Coinbase%20CDP%20guide))9】 - Autonomeの基本的な使い方が解説されています
-- [Coinbase公式: AgentKit 紹介記事](https://www.coinbase.com/developer-platform/discover/launches/introducing-agentki ([Introducing AgentKit | Coinbase](https://www.coinbase.com/developer-platform/discover/launches/introducing-agentkit#:~:text=We%27re%20excited%20to%20announce%20the,powered%20applications)) ([Introducing AgentKit | Coinbase](https://www.coinbase.com/developer-platform/discover/launches/introducing-agentkit#:~:text=%2A%20Model%20Flexibility%3A%20AgentKit%27s%20model,that%20best%20suits%20their%20needs))6】 - AgentKitの狙いや機能が紹介されたブログ記事（英語）
-- [Coinbase Developer Docs: AgentKit](https://docs.cdp.coinbase.com/agent-sdk/overvie ([GitHub - coinbase/agentkit: Every AI Agent deserves a wallet.](https://github.com/coinbase/agentkit#:~:text=Overview))6】 - AgentKitの開発者向けドキュメント（APIリファレンスやチュートリアル）
-- [Coinbase GitHub: agentkitリポジトリ](https://github.com/coinbase/agentkit) - AgentKitのソースコード。TypeScriptとPythonのサンプル実装が見られます
-- [CoinGecko解説: Crypto AIエージェントとは？](https://www.coingecko.com/ja/learn/what-are-crypto-ai-agent ([What Are Crypto AI Agents? The First Narrative to Watch for 2025 | CoinGecko](https://www.coingecko.com/learn/what-are-crypto-ai-agents#:~:text=Key%20Takeaways))7】 - Crypto領域におけるAIエージェントの概要と2025年展望について日本語で解説した記事
+- [AltLayer公式: Autonomeドキュメント](https://docs.altlayer.io/altlayer-documentation/autonome/deploy-ai-agent)
+- [Introducing AgentKit | Coinbase](https://www.coinbase.com/developer-platform/discover/launches/introducing-agentkit)
+- [Coinbase Developer Docs: AgentKit](https://docs.cdp.coinbase.com/agentkit/docs/welcome)
+- [Coinbase GitHub](https://github.com/coinbase/agentkit)
