@@ -87,6 +87,9 @@ Coinbase公式ドキュメントの解説ページも参考にしてください
 - **Docker**
   エージェントをコンテナ化してAutonomeで動作させるために使用します。
   Docker Desktopなどを導入してください。
+- **Docker Hubのユーザー作成**
+  DockerイメージをプッシュするためにDocker Hubのアカウントが必要です。
+  まだの場合は[公式サイト](https://hub.docker.com/)から登録してください。
 - **Git**
   ソースコード管理用です。サンプルリポジトリのクローン時に必要です。
 
@@ -131,6 +134,7 @@ CDP_API_KEY_NAME=your-cdp-key-name
 CDP_API_KEY_PRIVATE_KEY=your-cdp-private-key
 OPENAI_API_KEY=your-openai-key
 NETWORK_ID=base-sepolia
+DOCKER_USERNAME=your-docker-username # Docker Hubのユーザー名イメージのプッシュスクリプトで使用
 ```
 
 #### Agentの作成
@@ -468,6 +472,128 @@ Hello! How can I assist you today?
 ```
 
 これでAgent Kitを使ったエージェントが起動しました。
+
+## Autonomeで動かせるようにする
+
+Autonomeで動かすには以下の作業が必要でした。
+
+1. linux/amd64に対応したDockerイメージの作成
+2. API経由で起動できるようにする
+3. ヘルスチェックの追加
+
+### linux/amd64に対応したDockerイメージの作成
+
+#### docker-entrypoint.shの作成
+
+ルートディレクトリ配下に`docker-entrypoint.sh`を作成します。
+
+```docker-entrypoint.sh
+#!/bin/sh
+set -e
+exec "$@"
+```
+
+#### Dockerfileの作成
+
+ルートディレクトリ配下に`Dockerfile`を作成します。
+ポイントは/usr/local/bin/docker-entrypoint.shへの配置です。
+
+```Dockerfile
+FROM node:23
+
+WORKDIR /app
+
+RUN npm install -g pnpm
+
+# Copy package files (if needed for runtime scripts)
+COPY package*.json ./
+
+# Install production dependencies only
+RUN pnpm install
+
+COPY . .
+
+RUN pnpm run build
+# Copy entrypoint script and set execution permissions
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Set production environment variables
+ENV NODE_ENV=production
+ENV DAEMON_PROCESS=true
+ENV SERVER_PORT=3000
+
+# Set entrypoint and command:
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["node", "build/index.js"]
+```
+
+合わせてテスト用にdocker runを行うための`docker-compose.yml`も作成します。
+
+```docker-compose.yml
+services:
+  autonome-coinbase-agentkit-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CDP_API_KEY_NAME: ${CDP_API_KEY_NAME}
+      CDP_API_KEY_PRIVATE_KEY: ${CDP_API_KEY_PRIVATE_KEY}
+      NETWORK_ID: ${NETWORK_ID:-base-sepolia}
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+```
+
+またイメージのビルドとプッシュ用のMakefileも作成します。
+
+```Makefile
+# Load .env file if available (.env should contain KEY=VALUE pairs)
+-include .env
+
+# Retrieve DOCKER_USERNAME from the environment (error out if not set)
+ifndef DOCKER_USERNAME
+$(error DOCKER_USERNAME is not set. Please set it in your environment or in a .env file)
+endif
+
+# Docker related variables
+IMAGE_NAME = autonome-coinbase-agentkit-integration
+TAG ?= latest
+
+# Full image name with tag
+DOCKER_IMAGE = $(DOCKER_USERNAME)/$(IMAGE_NAME):$(TAG)
+
+.PHONY: build
+build:
+	docker build --platform linux/amd64 -t $(DOCKER_IMAGE) .
+
+.PHONY: push
+push:
+	@if ! docker images | grep -q $(DOCKER_IMAGE); then \
+		$(MAKE) build; \
+	fi
+	docker push $(DOCKER_IMAGE)
+
+.PHONY: all
+all: build push
+
+.PHONY: help
+help:
+	@echo "Available commands:"
+	@echo "  make build    - Build the Docker image (targeting linux/amd64)"
+	@echo "  make push     - Push the image to DockerHub (build automatically if image is not found)"
+	@echo "  make all      - Build and push the image"
+	@echo ""
+	@echo "Environment variable settings:"
+	@echo "  DOCKER_USERNAME    - Your DockerHub username (do not hardcode sensitive information)"
+	@echo "  TAG                - Image tag (default: latest)"
+```
+
+`make all`を実行することでlinux/amd64用のイメージのビルドとDocker Hubへのプッシュが行えるようになります。
+
+####
 
 ### Agent をAPI経由で起動できるようにする
 
