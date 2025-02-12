@@ -593,79 +593,6 @@ help:
 
 `make all`を実行することでlinux/amd64用のイメージのビルドとDocker Hubへのプッシュが行えるようになります。
 
-####
-
-### Agent をAPI経由で起動できるようにする
-
-### Agent KitのDocker化
-
-ここでは、Agent Kitを利用したエージェントアプリケーションを
-Dockerイメージ化する手順を説明します。
-AutonomeはDockerコンテナとしてエージェントを実行します。
-
-```dockerfile
-# Node.js 18-slimをベースイメージに使用します。
-FROM node:18-slim
-
-# 作業ディレクトリを /app に設定します。
-WORKDIR /app
-
-# 依存関係ファイルを先にコピーし、npm ciでインストールします。
-COPY package.json package-lock.json ./
-RUN npm ci
-
-# 残りのソースコードをコピーします。
-COPY . .
-
-# TypeScriptをビルドします。出力は dist に配置されます。
-RUN npm run build
-
-# PORTは3000に設定します。
-ENV PORT=3000
-
-# コンテナ起動時に entrypoint.sh を実行します。
-ENTRYPOINT ["./entrypoint.sh"]
-```
-
-次に、同じディレクトリに**entrypoint.sh**を用意します。
-
-```bash
-#!/bin/sh
-# entrypoint.sh
-
-# 必須の環境変数が設定されているかチェックします。
-if [ -z "$OPENAI_API_KEY" ] || [ -z "$CDP_API_KEY" ] || [ -z "$WALLET_PRIVATE_KEY" ]; then
-  echo "Error: 必須のAPIキーが設定されていません。"
-  exit 1
-fi
-
-# npm startでアプリを起動します。
-npm run start
-```
-
-※スクリプトに実行権限を与えてください（例: `chmod +x entrypoint.sh`）。
-
-これでDockerイメージのビルド準備が整いました。
-ターミナルで以下のコマンドを実行します。
-
-```bash
-docker build --platform linux/amd64 -t myagent:latest .
-```
-
-ビルド完了後、次のコマンドでローカル実行し動作確認してください。
-
-```bash
-docker run -p 3000:3000 \
-  -e OPENAI_API_KEY=<OpenAIキー> \
-  -e CDP_API_KEY=<CDPキー> \
-  -e WALLET_PRIVATE_KEY=<ウォレット秘密鍵> \
-  myagent:latest
-```
-
-ブラウザまたはcurlで`http://localhost:3000/`にアクセスし
-"OK"が返れば成功です。
-また、`POST /chat`に対してJSONを送信し応答が返るか確認してください。
-
 ### Autonomeへのデプロイ
 
 次に、DockerイメージをAutonomeにデプロイします。
@@ -713,7 +640,7 @@ Apple SiliconのMacを使っていたのですが、Dockerイメージをビル�
 
 ## コードと参考リンク
 
-#### コード
+### コード
 
 最後に、今回解説したコード一式はGitHubにアップロードしてあります [autonome-coinbase-agentkit-integration](https://github.com/susumutomita/autonome-coinbase-agentkit-integration)
 
