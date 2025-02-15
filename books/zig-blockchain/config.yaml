@@ -2,9 +2,9 @@ title: "Zigで学ぶブロックチェーン"
 summary: "Zig言語を使ってブロックチェーンを実装する"
 topics: ["Zig", "BlockChain"]
 published: false
-price: 0
+price: 500
 chapters:
-  - はじめに
+  - intro
   - ブロックチェーンの基本的な実装
   - ネットワーク化と分散ノード
   - コンセンサスアルゴリズム（PoWとPoS）
