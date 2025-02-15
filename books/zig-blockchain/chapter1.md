@@ -1,77 +1,26 @@
 ---
-title: "Zigで始めるブロックチェーン構築: 基本実装チュートリアル"
+title: "Zigで始めるブロックチェイン構築: 基本実装チュートリアル"
 free: true
 ---
 
-ブロックチェーンの基本概念を学びながら、Zig言語を使って最小限のブロックチェーン・プロトタイプを実装してみましょう。**環境セットアップ**から始めて、**ブロックとトランザクションの構造**、**Proof of Work (PoW)** の簡単な実装、そして**動作確認とデバッグ**まで、手を動かしながら順を追って解説します。最終的に、Zigでブロックチェーンの基礎が動作するプログラムを完成させ、ブロックチェーンの仕組みを体験することが目標です。
+ブロックチェインの基本概念を学びながら、Zig言語を使って最小限のブロックチェイン・プロトタイプを実装してみましょう。**環境セットアップ**から始めて、**ブロックとトランザクションの構造**、**Proof of Work (PoW)** の簡単な実装、そして**動作確認とデバッグ**まで、手を動かしながら順を追って解説します。最終的に、Zigでブロックチェインの基礎が動作するプログラムを完成させ、ブロックチェインの仕組みを体験することが目標です。
 
 ## 1. Zigの環境セットアップ
 
-まずはZigの開発環境を整えます。
+まずは Zig の開発環境を整えます。
 
 ### Zigのインストール方法（Linux/macOS/Windows）
 
-Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます（自己完結型のアーカイブを展開するだけで動作します ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=The%20good%20news%20is%20that,placed%20anywhere%20in%20your%20system))）。各OSごとの概要は以下の通りです:
+Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([Getting Started⚡Zig Programming Language](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます（自己完結型のアーカイブを展開するだけで動作します ([Getting Started⚡Zig Programming Language](https://ziglang.org/learn/getting-started/#:~:text=The%20good%20news%20is%20that,placed%20anywhere%20in%20your%20system))）。各OSごとの概要は以下の通りです:
 
-- **Linux**: 公式サイトからLinux用のtarballをダウンロードして解凍し、そのディレクトリ内の`zig`実行ファイルへのパスを通します ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。一部のディストリではパッケージマネージャ経由でもインストールできますが、提供されるバージョンが古い場合があるので注意してください ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=Zig%20is%20also%20present%20in,bundle%20outdated%20versions%20of%20Zig))。
-- **macOS**: Homebrewを利用して `brew install zig` でインストールするか、公式サイトからmacOS用のアーカイブを入手して展開します ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。パス設定はLinux同様に行います。
-- **Windows**: 公式サイトからzipアーカイブをダウンロード・展開し、中に含まれる`zig.exe`へのパスをシステム環境変数に追加します ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=Setting%20up%20PATH%20on%20Windows)) ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=%5BEnvironment%5D%3A%3ASetEnvironmentVariable%28%20,version%22%2C%20%22Machine%22))。PowerShellを使ったPATH設定方法が公式に案内されています ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=System%20wide%20))。
+- **macOS**: Homebrewを利用して `brew install zig` でインストールします。
 
 インストール後、ターミナル/コマンドプロンプトで `zig version` を実行し、バージョンが表示されれば成功です。
 
 ### ビルドツールとエディタの準備
 
-Zigは独自のビルドシステムを備えており、`zig build`コマンドでプロジェクトのコンパイルや実行が可能です。プロジェクトを開始するには、空のディレクトリで `zig init` コマンドを実行すると、ビルド用の設定ファイルとサンプルのソースコードが生成されます ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=mkdir%20hello,init))。生成された`build.zig`と`src/main.zig`を使って、`zig build run`とするだけでHello Worldプログラムをビルド&実行できます ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=Running%20,run%20it%2C%20ultimately%20resulting%20in))。Zig製の実行ファイルはネイティブなバイナリで、特別なVMは不要です。
-
-エディタはお好みのものを使用できますが、**VSCode**には公式のZig拡張機能がありシンタックスハイライトや補完が利用できます。また、Zig用の言語サーバー (Zig Language Server, *ZLS*) も提供されており、より高度なエディタ連携が可能です ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=Syntax%20Highlighters%20and%20LSP))。主要なテキストエディタにはZigのシンタックスハイライトが用意されていますので、まずはコードが見やすい環境を整えましょう ([
-      Getting Started
-      ⚡
-      Zig Programming Language
-    ](https://ziglang.org/learn/getting-started/#:~:text=Syntax%20Highlighters%20and%20LSP))。
+Zigは独自のビルドシステムを備えており、`zig build`コマンドでプロジェクトのコンパイルや実行が可能です。プロジェクトを開始するには、空のディレクトリで `zig init` コマンドを実行すると、ビルド用の設定ファイルとサンプルのソースコードが生成されます。生成された`build.zig`と`src/main.zig`を使って、`zig build run`とするだけでHello Worldプログラムをビルド&実行できます。Zig製の実行ファイルはネイティブなバイナリで、特別なVMは不要です。
+エディタはお好みのものを使用できますが、**VSCode**には公式のZig拡張機能がありシンタックスハイライトや補完が利用できます。また、Zig用の言語サーバー (Zig Language Server, *ZLS*) も提供されており、より高度なエディタ連携が可能です。主要なテキストエディタにはZigのシンタックスハイライトが用意されていますので、まずはコードが見やすい環境を整えましょう。
 
 ### 簡単なHello Worldプログラムの実行
 
@@ -88,18 +37,18 @@ pub fn main() void {
 このプログラムは`std.debug.print`を使って文字列を出力しています。準備したターミナルで次のコマンドを実行してみましょう。
 
 ```bash
-$ zig run hello.zig
+zig run hello.zig
 ```
 
 `zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, Zig!** と表示されるはずです。これでZigの開発環境は準備完了です。
 
-## 2. ブロックチェーンの基本構造
+## 2. ブロックチェインの基本構造
 
-それでは、ブロックチェーンのコアである「ブロック」の構造を実装していきます。まずはブロックチェーンの基本を簡単におさらいしましょう。
+それでは、ブロックチェインのコアである「ブロック」の構造を実装していきます。まずはブロックチェインの基本を簡単におさらいしましょう。
 
-**ブロックとは**: ブロックチェーンにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェーン）を持ち、これによってブロック同士が鎖状にリンクしています ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。
+**ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェイン）を持ち、これによってブロック同士が鎖状にリンクしています。
 
-**改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると**後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェーン全体の整合性が崩れてしまいます** ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。この仕組みにより、一つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
+**改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェイン全体の整合性が崩れてしまいます。この仕組みにより、一つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
 
 ### Zigでブロック構造体を定義する
 
@@ -130,7 +79,7 @@ const Block = struct {
 
 ### ブロックのハッシュを計算する
 
-ブロックチェーンの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, timestamp, prev_hash, data など）から計算されるハッシュ値です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算を行います。
+ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, timestamp, prev_hash, data など）から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算を行います。
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
@@ -153,13 +102,13 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 上記の`calculateHash`関数では、`Sha256.init(.{})`でハッシュ計算用のコンテキストを作成し、`hasher.update(...)`でブロックの各フィールドをバイト列として順次ハッシュ計算に入力しています。`std.mem.bytesOf(value)`は与えた値をバイト列として扱うためのヘルパーで、整数型の値などをハッシュに含めるのに便利です。最後に`hasher.finalResult()`を呼ぶと、これまでに与えたデータのSHA-256ハッシュが計算され、32バイトの配列として得られます。
 
-**ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=each%20block%20is%20dependent%20on,network%20can%20trust%20the%20data))。
+**ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます。
 
 ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
 
 ## 3. トランザクションの記録
 
-ブロックチェーンは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造で、しばしば**デジタル署名**によって改ざんされていないことを保証します ([Building a Simple Blockchain in C# with .NET | by Mehmet Tosun](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f#:~:text=Building%20a%20Simple%20Blockchain%20in,into%20blocks%2C%20forming%20a%20chain))。
+ブロックチェインは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造で、しばしば**デジタル署名**によって改ざんされていないことを保証します ([Building a Simple Blockchain in C# with .NET | by Mehmet Tosun](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f#:~:text=Building%20a%20Simple%20Blockchain%20in,into%20blocks%2C%20forming%20a%20chain))。
 
 本チュートリアルではシンプルに、送信者・受信者を文字列、金額を数値で扱う構造体としてトランザクションを定義します（署名については概念のみ紹介し、実装は省略します）。ZigでTransaction構造体を定義し、Block構造体にトランザクションのリストを持たせましょう。
 
@@ -222,7 +171,7 @@ fn createBlock(index: u32, prev_hash: [32]u8) !Block {
 
 上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化し（実際のアプリケーションでは適切なメモリアロケータ管理が必要です）、2件のTransactionを`append`しています。`append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
 
-#### ハッシュ計算へのトランザクションの組み込み
+### ハッシュ計算へのトランザクションの組み込み
 
 トランザクションをブロックに含めたことで、ハッシュ計算時に考慮すべきデータも増えます。`calculateHash`関数では、ブロック内の全トランザクションの内容もハッシュ入力に追加する必要があります。例えば以下のように、トランザクションの各フィールドを順番にハッシュへ投入します（擬似コード）:
 
@@ -238,11 +187,11 @@ fn createBlock(index: u32, prev_hash: [32]u8) !Block {
 
 `block.transactions.items`はArrayList内の生のスライス（配列）データです。ループで各`tx`にアクセスし、その中の`sender`文字列、`receiver`文字列、`amount`数値を順次ハッシュに投入しています。こうすることで**ブロック内の全トランザクションデータがハッシュ値計算に反映**されます。トランザクションの追加や変更があればハッシュ値も変化するため、ブロックの改ざん検知において重要な役割を果たします。
 
-> **メモ:** 実際のブロックチェーンでは、各トランザクションは送信者の秘密鍵による**デジタル署名**が含まれます。署名によって取引の正当性（送信者本人が承認した取引であること）が保証されますが、署名の作成と検証には公開鍵暗号が必要で実装が複雑になるため、本チュートリアルでは扱いません。概念として、ブロックに署名付きのトランザクションを入れることで不正な取引が混入しないようにしている点だけ押さえておきましょう。
+> **メモ:** 実際のブロックチェインでは、各トランザクションは送信者の秘密鍵による**デジタル署名**が含まれます。署名によって取引の正当性（送信者本人が承認した取引であること）が保証されますが、署名の作成と検証には公開鍵暗号が必要で実装が複雑になるため、本チュートリアルでは扱いません。概念として、ブロックに署名付きのトランザクションを入れることで不正な取引が混入しないようにしている点だけ押さえておきましょう。
 
 ## 4. 簡単なPoW（Proof of Work）の実装
 
-次に、ブロックチェーンの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェーン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
+次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
 
 **PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証（ハッシュを再計算して条件を満たすか確認）は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
 
@@ -287,23 +236,23 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 
 難易度`difficulty`は調整可能ですが、大きな値にすると探索に非常に時間がかかるため、ローカルで試す場合は小さな値に留めましょう（例えば1や2程度）。`difficulty = 2`でも場合によっては数万回以上のループが必要になることがあります。PoWは計算量をわざと大きくすることで、ブロック生成にコストを課す仕組みだということを念頭に置いてください。
 
-以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェーンに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
+以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェインに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
 
 ## 5. 動作確認とデバッグ
 
-ここまでで、**ブロックチェーンの基本要素**（ブロック構造、トランザクション、ハッシュ計算、PoW）が揃いました。最後に、これらを組み合わせて実際にブロックチェーンを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
+ここまでで、**ブロックチェインの基本要素**（ブロック構造、トランザクション、ハッシュ計算、PoW）が揃いました。最後に、これらを組み合わせて実際にブロックチェインを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
 
-### ブロックチェーンの連結と検証
+### ブロックチェインの連結と検証
 
-まず、簡単にブロックチェーンを連結する処理をおさらいします。新しいブロックをチェーンに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング（`mineBlock`）によってハッシュを確定させてからチェーンに繋ぎます。最初のブロック（ジェネシスブロック）は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値（ゼロハッシュ）を入れておくとよいでしょう。
+まず、簡単にブロックチェインを連結する処理をおさらいします。新しいブロックをチェインに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング（`mineBlock`）によってハッシュを確定させてからチェインに繋ぎます。最初のブロック（ジェネシスブロック）は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値（ゼロハッシュ）を入れておくとよいでしょう。
 
-チェーン全体の検証は各ブロックについて以下をチェックします:
+チェイン全体の検証は各ブロックについて以下をチェックします:
 
 - `prev_hash`が直前のブロックの`hash`と一致しているか
 - ブロックの`hash`がブロック内容（含`nonce`）から正しく計算されているか
 - PoWの難易度条件を満たしているか
 
-上記を各ブロックについて確認し、ひとつでも不整合があればチェーンは無効（改ざんされている）と判断できます。
+上記を各ブロックについて確認し、ひとつでも不整合があればチェインは無効（改ざんされている）と判断できます。
 
 ### Zigでのデバッグ方法（printデバッグやコンパイラオプション）
 
@@ -313,7 +262,7 @@ Zigコンパイラにはデフォルトで**デバッグモード**（安全チ�
 
 ### 簡単なテストコードを書く
 
-Zigには組み込みのテスト機能があり、`test "名前"`ブロックの中にテストコードを書くことができます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。テストブロック内では`std.testing.expect`マクロを使って式が期待通りの結果かチェックできます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。ブロックチェーンの動作検証として、一例として「ブロックが改ざんを検出できること」をテストしてみます。
+Zigには組み込みのテスト機能があり、`test "名前"`ブロックの中にテストコードを書くことができます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。テストブロック内では`std.testing.expect`マクロを使って式が期待通りの結果かチェックできます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。ブロックチェインの動作検証として、一例として「ブロックが改ざんを検出できること」をテストしてみます。
 
 ```zig
 const std = @import("std");
@@ -357,8 +306,8 @@ test "ブロック改ざんの検出" {
 
 ## おわりに
 
-本チュートリアルでは、Zigを用いてブロックチェーンの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェーンの改ざん耐性やワークロード証明の仕組みを備えています。
+本チュートリアルでは、Zigを用いてブロックチェインの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェインの改ざん耐性やワークロード証明の仕組みを備えています。
 
-実際のブロックチェーンシステムでは、この他にも**ピアツーピアネットワーク**による分散ノード間の通信、**トランザクションのデジタル署名と検証**、**コンセンサスアルゴリズムの調整**、**ブロックサイズや報酬の管理**など、様々な要素があります。まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
+実際のブロックチェインシステムでは、この他にも**ピアツーピアネットワーク**による分散ノード間の通信、**トランザクションのデジタル署名と検証**、**コンセンサスアルゴリズムの調整**、**ブロックサイズや報酬の管理**など、様々な要素があります。まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
 
-Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェーンを実装・改良していくことで、低レベルからブロックチェーンの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェーンの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data)) ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))
+Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェインを実装・改良していくことで、低レベルからブロックチェインの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェインの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data)) ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))
