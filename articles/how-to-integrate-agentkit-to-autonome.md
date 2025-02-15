@@ -553,6 +553,17 @@ services:
 
 これで、Docker Hubにプッシュしたイメージを使ってローカルでテストができるようになります。
 
+実際にイメージをプッシュしてみます。
+
+```bash
+make build
+make push
+```
+
+を行いDocker Hubにイメージをプッシュします。
+
+その後プッシュしたイメージを使ってコンテナが立ち上がることを確認します。
+
 ```bash
 docker compose up
 ```
