@@ -8,7 +8,7 @@ lint:
 
 .PHONY: lint_fix
 lint_fix:
-	npm run lint --fix
+	npm run lint:fix
 
 .PHONY: new_article
 new_article:
