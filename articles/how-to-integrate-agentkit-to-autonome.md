@@ -2,8 +2,8 @@
 title: "AutonomeでAgent Kitを使う"
 emoji: "🦁"
 type: "tech"
-topics: [Autonome, AgentKit, Docker]
-published: false
+topics: [Autonome, AgentKit, Docker,TypeScript]
+published: true
 ---
 
 ## AutonomeでAgent Kitを使う
@@ -127,7 +127,34 @@ Coinbase公式ドキュメントの解説ページも参考にしてください
 pnpm install @coinbase/agentkit @coinbase/agentkit-langchain @langchain/openai @langchain/core @langchain/langgraph viem
 ```
 
+追加で必要なものもインストールしておきます。
+
+```bash
+pnpm add @types/express @types/node express swagger-jsdoc swagger-ui-express
+pnpm add -D @types/swagger-jsdoc @types/swagger-ui-express express prettier ts-node typescript
+```
+
+必要なスクリプトも追加しておきます。
+
+```package.json
+{
+  "name": "autonome-coinbase-agentkit-integration",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/index.js",
+  "scripts": {
+    "start": "node --env-file .env build/index.js",
+    "build": "tsc",
+    "format": "prettier --write '**/**/*.{js,ts,tsx,css}'",
+    "format:check": "prettier --check '**/**/*.{ts,tsx,js,jsx,css}'"
+  },
+:
+}
+```
+
 #### 環境変数の設定
+
+.envファイルを作成し、以下の環境変数を設定します。
 
 ```.env
 CDP_API_KEY_NAME=your-cdp-key-name
@@ -139,37 +166,33 @@ DOCKER_USERNAME=your-docker-username # Docker Hubのユーザー名イメージ�
 
 #### Agentの作成
 
-```agent.ts
+Autonomeで動せるようにヘルスチェックとAPI経由で起動できるようにします。
+
+```index.ts
 import {
   AgentKit,
   CdpWalletProvider,
   wethActionProvider,
   walletActionProvider,
   erc20ActionProvider,
+  erc721ActionProvider,
   cdpApiActionProvider,
   cdpWalletActionProvider,
   pythActionProvider,
 } from "@coinbase/agentkit";
-
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
-
 import * as fs from "fs";
-import * as readline from "readline";
+import express, { Request, Response } from "express";
+import swaggerUi from "swagger-ui-express";
+import swaggerJSDoc from "swagger-jsdoc";
 
-/**
- * Validates that required environment variables are set
- *
- * @throws {Error} - If required environment variables are missing
- * @returns {void}
- */
+// 環境変数の検証
 function validateEnvironment(): void {
   const missingVars: string[] = [];
-
-  // Check required variables
   const requiredVars = [
     "OPENAI_API_KEY",
     "CDP_API_KEY_NAME",
@@ -180,269 +203,207 @@ function validateEnvironment(): void {
       missingVars.push(varName);
     }
   });
-
-  // Exit if any required variables are missing
   if (missingVars.length > 0) {
-    console.error("Error: Required environment variables are not set");
+    console.error("Missing required environment variables:", missingVars);
     missingVars.forEach((varName) => {
       console.error(`${varName}=your_${varName.toLowerCase()}_here`);
     });
     process.exit(1);
   }
-
-  // Warn about optional NETWORK_ID
   if (!process.env.NETWORK_ID) {
-    console.warn(
-      "Warning: NETWORK_ID not set, defaulting to base-sepolia testnet",
-    );
+    console.warn("NETWORK_ID not set, defaulting to base-sepolia");
   }
 }
 
-// Add this right after imports and before any other code
 validateEnvironment();
 
-// Configure a file to persist the agent's CDP MPC Wallet Data
 const WALLET_DATA_FILE = "wallet_data.txt";
 
-/**
- * Initialize the agent with CDP Agentkit
- *
- * @returns Agent executor and config
- */
 async function initializeAgent() {
-  try {
-    // Initialize LLM
-    const llm = new ChatOpenAI({
-      model: "gpt-4o-mini",
-    });
-
-    let walletDataStr: string | null = null;
-
-    // Read existing wallet data if available
-    if (fs.existsSync(WALLET_DATA_FILE)) {
-      try {
-        walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
-      } catch (error) {
-        console.error("Error reading wallet data:", error);
-        // Continue without wallet data
-      }
-    }
-
-    // Configure CDP Wallet Provider
-    const config = {
-      apiKeyName: process.env.CDP_API_KEY_NAME,
-      apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-        /\\n/g,
-        "\n",
-      ),
-      cdpWalletData: walletDataStr || undefined,
-      networkId: process.env.NETWORK_ID || "base-sepolia",
-    };
-
-    const walletProvider = await CdpWalletProvider.configureWithWallet(config);
-
-    // Initialize AgentKit
-    const agentkit = await AgentKit.from({
-      walletProvider,
-      actionProviders: [
-        wethActionProvider(),
-        pythActionProvider(),
-        walletActionProvider(),
-        erc20ActionProvider(),
-        cdpApiActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-            /\\n/g,
-            "\n",
-          ),
-        }),
-        cdpWalletActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-            /\\n/g,
-            "\n",
-          ),
-        }),
-      ],
-    });
-
-    const tools = await getLangChainTools(agentkit);
-
-    // Store buffered conversation history in memory
-    const memory = new MemorySaver();
-    const agentConfig = {
-      configurable: { thread_id: "CDP AgentKit Chatbot Example!" },
-    };
-
-    // Create React Agent using the LLM and CDP AgentKit tools
-    const agent = createReactAgent({
-      llm,
-      tools,
-      checkpointSaver: memory,
-      messageModifier: `
-        You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are
-        empowered to interact onchain using your tools. If you ever need funds, you can request them from the
-        faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request
-        funds from the user. Before executing your first action, get the wallet details to see what network
-        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone
-        asks you to do something you can't do with your currently available tools, you must say so, and
-        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to
-        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from
-        restating your tools' descriptions unless it is explicitly requested.
-        `,
-    });
-
-    // Save wallet data
-    const exportedWallet = await walletProvider.exportWallet();
-    fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
-
-    return { agent, config: agentConfig };
-  } catch (error) {
-    console.error("Failed to initialize agent:", error);
-    throw error; // Re-throw to be handled by caller
-  }
-}
-
-/**
- * Run the agent autonomously with specified intervals
- */
-async function runAutonomousMode(agent: any, config: any, interval = 10) {
-  console.log("Starting autonomous mode...");
-
-  while (true) {
+  console.log("Initializing agent...");
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  let walletDataStr: string | null = null;
+  if (fs.existsSync(WALLET_DATA_FILE)) {
     try {
-      const thought =
-        "Be creative and do something interesting on the blockchain. " +
-        "Choose an action or set of actions and execute it that highlights your abilities.";
-
-      const stream = await agent.stream(
-        { messages: [new HumanMessage(thought)] },
-        config,
-      );
-
-      for await (const chunk of stream) {
-        if ("agent" in chunk) {
-          console.log(chunk.agent.messages[0].content);
-        } else if ("tools" in chunk) {
-          console.log(chunk.tools.messages[0].content);
-        }
-        console.log("-------------------");
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+      walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
+      console.log("Wallet data read from file");
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error:", error.message);
-      }
-      process.exit(1);
+      console.error("Error reading wallet data file", error);
     }
   }
+
+  const config = {
+    apiKeyName: process.env.CDP_API_KEY_NAME,
+    apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+      /\\n/g,
+      "\n",
+    ),
+    cdpWalletData: walletDataStr || undefined,
+    networkId: process.env.NETWORK_ID || "base-sepolia",
+  };
+
+  const walletProvider = await CdpWalletProvider.configureWithWallet(config);
+  console.log("Wallet provider configured");
+
+  const agentkit = await AgentKit.from({
+    walletProvider,
+    actionProviders: [
+      wethActionProvider(),
+      pythActionProvider(),
+      walletActionProvider(),
+      erc20ActionProvider(),
+      erc721ActionProvider(),
+      cdpApiActionProvider({
+        apiKeyName: process.env.CDP_API_KEY_NAME,
+        apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+          /\\n/g,
+          "\n",
+        ),
+      }),
+      cdpWalletActionProvider({
+        apiKeyName: process.env.CDP_API_KEY_NAME,
+        apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
+          /\\n/g,
+          "\n",
+        ),
+      }),
+    ],
+  });
+  console.log("AgentKit initialized");
+
+  const tools = await getLangChainTools(agentkit);
+  const memory = new MemorySaver();
+  const agentConfig = {
+    configurable: { thread_id: "CDP AgentKit Chatbot" },
+  };
+  const agent = createReactAgent({
+    llm,
+    tools,
+    checkpointSaver: memory,
+    messageModifier: `
+      You are a helpful agent that can interact onchain using Coinbase Developer Platform AgentKit.
+      If you ever need funds, request them appropriately.
+      Be concise and helpful.
+    `,
+  });
+  console.log("Agent created");
+
+  const exportedWallet = await walletProvider.exportWallet();
+  fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
+  console.log("Wallet data exported and saved");
+
+  return { agent, config: agentConfig };
 }
 
-/**
- * Run the agent interactively based on user input
- */
-async function runChatMode(agent: any, config: any) {
-  console.log("Starting chat mode... Type 'exit' to end.");
+// Swagger の設定
+const swaggerDefinition = {
+  openapi: "3.0.0",
+  info: {
+    title: "Agent API",
+    version: "1.0.0",
+    description: "API documentation for the Coinbase AgentKit based service",
+  },
+  servers: [
+    {
+      url: "http://localhost:3000",
+    },
+  ],
+};
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+const swaggerOptions = {
+  swaggerDefinition,
+  apis: ["./src/index.ts"],
+};
 
-  const question = (prompt: string): Promise<string> =>
-    new Promise((resolve) => rl.question(prompt, resolve));
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
-  try {
-    while (true) {
-      const userInput = await question("\nPrompt: ");
+async function startAgentServer() {
+  const app = express();
+  const port = Number(process.env.PORT) || 3000;
+  app.use(express.json());
 
-      if (userInput.toLowerCase() === "exit") {
-        break;
-      }
+  // Swagger UI のエンドポイント
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+  /**
+   * @swagger
+   * /message:
+   *   post:
+   *     summary: Chat with the agent
+   *     description: Sends a text message to the agent and returns its response.
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - message
+   *             properties:
+   *               message:
+   *                 type: string
+   *                 example: "Hello, Agent!"
+   *     responses:
+   *       200:
+   *         description: Agent response
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 text:
+   *                   type: string
+   *                   example: "This is the agent's response."
+   *       400:
+   *         description: Bad request
+   *       500:
+   *         description: Internal server error
+   */
+  app.post("/message", async (req: Request, res: Response) => {
+    const { message } = req.body;
+    if (!message || typeof message !== "string") {
+      console.error("Invalid request", req.body);
+      return res
+        .status(400)
+        .json({ error: "Invalid request: 'message' field is required." });
+    }
+    if (message === "healthz") {
+      return res.status(200).json({ status: "ok" });
+    }
+    console.log("Processing chat request:", message);
+    try {
+      const { agent, config } = await initializeAgent();
       const stream = await agent.stream(
-        { messages: [new HumanMessage(userInput)] },
+        { messages: [new HumanMessage(message)] },
         config,
       );
-
+      let fullResponse = "";
       for await (const chunk of stream) {
-        if ("agent" in chunk) {
-          console.log(chunk.agent.messages[0].content);
-        } else if ("tools" in chunk) {
-          console.log(chunk.tools.messages[0].content);
+        if (
+          "agent" in chunk &&
+          chunk.agent.messages &&
+          chunk.agent.messages[0]
+        ) {
+          fullResponse += chunk.agent.messages[0].content;
         }
-        console.log("-------------------");
       }
+      console.log("Agent response:", fullResponse);
+      res.json({ text: fullResponse });
+    } catch (error) {
+      console.error("Error processing chat request", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error:", error.message);
-    }
-    process.exit(1);
-  } finally {
-    rl.close();
-  }
-}
-
-/**
- * Choose whether to run in autonomous or chat mode
- */
-async function chooseMode(): Promise<"chat" | "auto"> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
   });
 
-  const question = (prompt: string): Promise<string> =>
-    new Promise((resolve) => rl.question(prompt, resolve));
-
-  while (true) {
-    console.log("\nAvailable modes:");
-    console.log("1. chat    - Interactive chat mode");
-    console.log("2. auto    - Autonomous action mode");
-
-    const choice = (await question("\nChoose a mode (enter number or name): "))
-      .toLowerCase()
-      .trim();
-
-    if (choice === "1" || choice === "chat") {
-      rl.close();
-      return "chat";
-    } else if (choice === "2" || choice === "auto") {
-      rl.close();
-      return "auto";
-    }
-    console.log("Invalid choice. Please try again.");
-  }
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Agent REST server is listening on port ${port}`);
+    console.log(`Swagger UI available at http://localhost:${port}/api-docs`);
+  });
 }
 
-/**
- * Main entry point
- */
-async function main() {
-  try {
-    const { agent, config } = await initializeAgent();
-    const mode = await chooseMode();
-
-    if (mode === "chat") {
-      await runChatMode(agent, config);
-    } else {
-      await runAutonomousMode(agent, config);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error:", error.message);
-    }
-    process.exit(1);
-  }
-}
-
-// Start the agent when running directly
 if (require.main === module) {
-  console.log("Starting Agent...");
-  main().catch((error) => {
-    console.error("Fatal error:", error);
+  startAgentServer().catch((error) => {
+    console.error("Failed to start agent server:", error);
     process.exit(1);
   });
 }
@@ -451,35 +412,33 @@ if (require.main === module) {
 #### Agentの起動確認
 
 ```bash
-❯ pnpm run start
+❯ pnpm run build && pnpm run start
+
+> autonome-coinbase-agentkit-integration@1.0.0 build /Users/susumu/autonome-coinbase-agentkit-integration
+> tsc
+
 
 > autonome-coinbase-agentkit-integration@1.0.0 start /Users/susumu/autonome-coinbase-agentkit-integration
 > node --env-file .env build/index.js
 
-Starting Agent...
-(node:10522) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:3727) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-
-Available modes:
-1. chat    - Interactive chat mode
-2. auto    - Autonomous action mode
-
-Choose a mode (enter number or name): 1
-Starting chat mode... Type 'exit' to end.
-
-Prompt: hi
-Hello! How can I assist you today?
+Agent REST server is listening on port 3000
+Swagger UI available at http://localhost:3000/api-docs
 ```
 
 これでAgent Kitを使ったエージェントが起動しました。
+Swagger UIにアクセスして試すこともできます。
 
 ## Autonomeで動かせるようにする
 
 Autonomeで動かすには以下の作業が必要でした。
 
 1. linux/amd64に対応したDockerイメージの作成
-2. API経由で起動できるようにする
-3. ヘルスチェックの追加
+2. API経由で起動できるようにする(実装済み)
+3. ヘルスチェックの追加(実装済み)
+
+残りのDockerイメージの作成します。
 
 ### linux/amd64に対応したDockerイメージの作成
 
@@ -528,26 +487,7 @@ ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "build/index.js"]
 ```
 
-合わせてテスト用にdocker runを行うための`docker-compose.yml`も作成します。
-
-```docker-compose.yml
-services:
-  autonome-coinbase-agentkit-integration:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      CDP_API_KEY_NAME: ${CDP_API_KEY_NAME}
-      CDP_API_KEY_PRIVATE_KEY: ${CDP_API_KEY_PRIVATE_KEY}
-      NETWORK_ID: ${NETWORK_ID:-base-sepolia}
-    ports:
-      - "3000:3000"
-    stdin_open: true
-    tty: true
-```
-
-またイメージのビルドとプッシュ用のMakefileも作成します。
+イメージのビルドとプッシュ用のMakefileも作成します。
 
 ```Makefile
 # Load .env file if available (.env should contain KEY=VALUE pairs)
@@ -593,34 +533,95 @@ help:
 
 `make all`を実行することでlinux/amd64用のイメージのビルドとDocker Hubへのプッシュが行えるようになります。
 
-### Autonomeへのデプロイ
+さらに合わせてテスト用にdocker runを行うための`docker-compose.yml`も作成します。
 
-次に、DockerイメージをAutonomeにデプロイします。
-大まかな手順は以下の通りです。
+```docker-compose.yml
+services:
+  autonome-coinbase-agentkit-integration:
+    image: ${DOCKER_USERNAME}/autonome-coinbase-agentkit-integration:latest
+    platform: linux/amd64
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CDP_API_KEY_NAME: ${CDP_API_KEY_NAME}
+      CDP_API_KEY_PRIVATE_KEY: ${CDP_API_KEY_PRIVATE_KEY}
+      NETWORK_ID: ${NETWORK_ID:-base-sepolia}
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+```
 
-1. **コンテナイメージのプッシュ**
-   Docker Hubなどのレジストリに、
-   `myagent:latest`イメージをプッシュします。
-   例: `username/myagent:latest`
-2. **Autonomeで新規エージェント作成**
-   ダッシュボードの「+ 新規デプロイ」からエージェント作成画面へ進みます。
-   エージェント名や説明を入力し、**AgentKit**スタックを選択します。
-   コンテナイメージ名を指定してください。
-3. **環境変数の設定**
-   UI上で`OPENAI_API_KEY`や`CDP_API_KEY`、`WALLET_PRIVATE_KEY`を入力します。
-4. **デプロイ実行**
-   デプロイボタンを押して、コンテナが起動するのを待ちます。
-   数分後、ダッシュボードにエージェントが登録されます。
+これで、Docker Hubにプッシュしたイメージを使ってローカルでテストができるようになります。
 
-デプロイ後、AutonomeのUIから
-「Chat with Agent」ボタンをクリックして対話を開始できます。
-なお、一度デプロイしたエージェントは
-その場で編集できません。変更する場合は、
-新しいイメージをビルドして再デプロイしてください。
+```bash
+docker compose up
+```
 
-また、エージェントのエンドポイント設定も重要です。
-必ず`POST /chat`や`GET /`でリクエストを受け付けるようにしてください。
-特に、サーバは0.0.0.0で待機する必要があります。
+を実行してイメージが起動したら成功です。
+
+## Autonomeへのデプロイ
+
+### Frame Workの作成
+
+まず今回プッシュしたイメージをAutonomeで使えるようにします。
+
+Autonomeにサインインしたら[Upload your framework](https://dev.autonome.fun/autonome/publish)を選択します。
+
+フォームに必要項目を入力します。
+
+```text
+Name: 任意の名前
+DESCRIPTION: 任意の説明
+DOCKER IMAGE: 作成したイメージのURL
+AGENT LOGO: 任意の画像
+CAHT EDNPOINT: 任意のエンドポイント今回の場合だと/message
+PORT: 3000
+CHAT REQUEST SCHEMA: デフォルトのまま
+CHAT RESPONSE SCHEMA: デフォルトのまま
+GITHUB URL: 任意のURL
+SPECIFY ENVIRONMENT VARIABLES: 以下の環境変数を設定
+
+- OPENAI_API_KEY
+- CDP_API_KEY_NAME
+- CDP_API_KEY_PRIVATE_KEY
+- NETWORK_ID
+```
+
+これらを入力したらSubmitをクリックします。
+
+## Deploy
+
+https://dev.autonome.fun/autonome/new
+に移動して
+Select a template -> UPLOADをクリックして今回作成したフレームワークを選択します。
+AGENT PREFIX NAME: 任意の名前
+を入力してSubmitをクリックします。
+
+環境変数に値を設定してConfirm
+その後サブスクリプションの選択がありますがfree trialもしくはPromo codeを[Google Form](https://forms.gle/gXWvdVBoxEchu2gp6)から入手して入力してください。
+
+これでエージェントがデプロイされます。
+
+### デプロイの確認
+
+2025/2時点ではベーシック認証を使っているため、ベーシック認証のヘッダを付与してリクエストを送る必要があります。
+
+具体的なやり方は[API guide](https://docs.google.com/document/d/1k9AXoY8Yljw_I_yS3arnALfytqKQiSMfZaYX6GI71qk/edit?tab=t.0)に書かれています。
+
+リクエストの例。
+
+```bash
+curl --location --request POST 'https://autonome.alt.technology/<Project Name>/message' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Basic <BASIC 認証>' \
+--data '{
+    "message": "hi"
+}'
+
+{"text":"Hello! How can I assist you today?"}
+```
+
+のように応答が返ってきます。
 
 ## ハマったポイントと回避策
 
