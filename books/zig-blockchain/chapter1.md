@@ -1,54 +1,364 @@
 ---
-title: "はじめに"
+title: "Zigで始めるブロックチェーン構築: 基本実装チュートリアル"
 free: true
 ---
 
-## ブロックチェーンの基本概念と歴史
+ブロックチェーンの基本概念を学びながら、Zig言語を使って最小限のブロックチェーン・プロトタイプを実装してみましょう。**環境セットアップ**から始めて、**ブロックとトランザクションの構造**、**Proof of Work (PoW)** の簡単な実装、そして**動作確認とデバッグ**まで、手を動かしながら順を追って解説します。最終的に、Zigでブロックチェーンの基礎が動作するプログラムを完成させ、ブロックチェーンの仕組みを体験することが目標です。
 
-ブロックチェーンとは、取引記録をブロックという単位にまとめて鎖状（チェーン）に連結し、ネットワーク上の多数のコンピュータで共有・管理する分散型の台帳技術です。2008年10月、サトシ・ナカモトによってビットコインのホワイトペーパーが公開され ([ビットコイン（BTC）が誕生11周年　ホワイトペーパー公開までの歴史を振り返る](https://coinpost.jp/?p=115638#:~:text=%E3%83%93%E3%83%83%E3%83%88%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%AF31%E6%97%A5%E3%80%81%E3%83%9B%E3%83%AF%E3%82%A4%E3%83%88%E3%83%9A%E3%83%BC%E3%83%91%E3%83%BC%E3%81%AE%E5%85%AC%E9%96%8B%E6%97%A5%E3%81%8B%E3%82%8911%E5%91%A8%E5%B9%B4%E3%82%92%E8%BF%8E%E3%81%88%E3%81%9F%E3%80%82%E3%83%9B%E3%83%AF%E3%82%A4%E3%83%88%E3%83%9A%E3%83%BC%E3%83%91%E3%83%BC%E3%81%AF2008%E5%B9%B410%E6%9C%8831%E6%97%A5%E3%80%81%E3%82%B5%E3%83%88%E3%82%B7%E3%83%BB%E3%83%8A%E3%82%AB%E3%83%A2%E3%83%88%E3%81%AB%E3%82%88%E3%82%8A%E5%85%AC%E9%96%8B%E3%81%95%E3%82%8C%E3%81%9F%E3%80%82%E4%BB%AE%E6%83%B3%E9%80%9A%E8%B2%A8%E5%8F%96%E5%BC%95%E6%89%80%E3%83%90%20%E3%82%A4%E3%83%8A%E3%83%B3%E3%82%B9%E3%82%92%E3%81%AF%E3%81%98%E3%82%81%E3%80%81%E5%A4%9A%E3%81%8F%E3%81%AE%E4%BA%BA%E3%80%85%E3%81%8C%E3%80%81%E3%81%93%E3%81%AE%E5%81%89%E6%A5%AD%E3%82%92%E7%A5%9D%E7%A6%8F%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E3%80%82))、2009年初頭には最初のブロック（ジェネシスブロック）が生成されてビットコインネットワークが稼働しました。ビットコインは中央管理者不在で二重支払い問題を解決する画期的なシステムとして注目され、これがブロックチェーン技術の幕開けとなりました。
+## 1. Zigの環境セットアップ
 
-その後、2015年にローンチされたイーサリアム（Ethereum）はブロックチェーン上で**スマートコントラクト**と呼ばれるプログラムを実行できるようにし、ブロックチェーンの可能性を大きく拡張しました ([Testing the Ethereum merge](https://antithesis.com/case_studies/ethereum_merge/#:~:text=Ethereum%20is%20a%20decentralized%20blockchain,crypto%20projects%20across%20the%20globe))。スマートコントラクトにより、ブロックチェーン上で通貨の送受信だけでなく、自動的に実行される契約や複雑なアプリケーションを構築できるようになり、分散型アプリケーション(dApps)という新たな分野が開花しました。現在ではEthereumをはじめ多くのブロックチェーンプラットフォームが存在し、金融（暗号資産やDeFi）、アート（NFT）、ゲーム（ブロックチェーンゲーム）など様々な領域で活用が進んでいます。
+まずはZigの開発環境を整えます。
 
-**分散型システムの利点:** ブロックチェーンのような分散型ネットワークにはいくつもの利点があります。単一の管理者を必要としないため信頼性が高く、ネットワーク全体でデータを検証・保持するため改ざん耐性も強いです。また、システムが冗長化されているので障害に強く、透明性の高い取引記録を残せます。実際、ブロックチェーンは安全性、透明性、不変性を備えた分散型システムを構築できる技術として注目されており ([ブロックチェーンのレイヤー2とは｜種類や注目点、代表的なネットワークを解説](https://coinpost.jp/?p=450171#:~:text=%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%81%AF%E5%AE%89%E5%85%A8%E6%80%A7%E3%80%81%E9%80%8F%E6%98%8E%E6%80%A7%E3%80%81%E4%B8%8D%E5%A4%89%E6%80%A7%E3%82%92%E5%82%99%E3%81%88%E3%81%9F%E5%88%86%E6%95%A3%E5%9E%8B%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0%E3%82%92%E6%A7%8B%E7%AF%89%E3%81%A7%E3%81%8D%E3%82%8B%E5%88%A9%E7%82%B9%E3%81%8C%E3%81%82%E3%82%8A%E3%80%81%E3%81%9D%E3%81%AE%E6%99%AE%E5%8F%8A%E3%81%8C%E9%80%B2%E3%82%93%E3%81%A7%E3%81%84%E3%82%8B%E3%80%82))、中央集権型システムでは実現しにくい信頼の構築を可能にしています。
+### Zigのインストール方法（Linux/macOS/Windows）
 
-**分散型システムの課題:** 一方で、ブロックチェーン技術にはいくつかの課題も存在します。代表的なものに**スケーラビリティ（拡張性）**の問題があります。ユーザーやトランザクションの増加に伴い、ネットワーク全体で取引を検証する仕組みのため処理が遅延・非効率になりがちです ([Google Cloud ❤ Web3](https://zenn.dev/google_cloud_jp/articles/0795db18a936ba#:~:text=%E3%82%B9%E3%82%B1%E3%83%BC%E3%83%A9%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3%3A%20%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%83%8D%E3%83%83%E3%83%88%E3%83%AF%E3%83%BC%E3%82%AF%E3%81%AF%E3%80%81%E7%89%B9%E3%81%AB%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC%E6%95%B0%E3%81%A8%E3%83%88%E3%83%A9%E3%83%B3%E3%82%B6%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E6%95%B0%E3%81%8C%E5%A2%97%E3%81%88%E3%82%8B%E3%81%AB%E3%81%A4%E3%82%8C%E3%81%A6%E3%80%81%E9%81%85%E3%81%8F%E3%81%A6%E9%9D%9E%E5%8A%B9%E7%8E%87%E3%81%AB%E3%81%AA%E3%82%8B%E5%8F%AF%E8%83%BD%E6%80%A7%E3%81%8C%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%80%82%E3%81%93%E3%82%8C%E3%81%AF%E3%80%81%E3%81%99%E3%81%B9%E3%81%A6%E3%81%AE%E3%83%88%E3%83%A9%20%E3%83%B3%E3%82%B6%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%81%8C%E3%83%8D%E3%83%83%E3%83%88%E3%83%AF%E3%83%BC%E3%82%AF%E4%B8%8A%E3%81%AE%E3%81%99%E3%81%B9%E3%81%A6%E3%81%AE%E3%83%8E%E3%83%BC%E3%83%89%E3%81%AB%E3%82%88%E3%81%A3%E3%81%A6%E6%A4%9C%E8%A8%BC%E3%81%95%E3%82%8C%E3%82%8B%E5%BF%85%E8%A6%81%E3%81%8C%E3%81%82%E3%82%8B%E3%81%9F%E3%82%81%E3%81%A7%E3%81%82%E3%82%8A%E3%80%81%E3%81%93%E3%82%8C%E3%81%AF%E9%9D%9E%E5%B8%B8%E3%81%AB%E6%99%82%E9%96%93%E3%81%8C%E3%81%8B%E3%81%8B%E3%82%8B%E3%83%97%E3%83%AD%E3%82%BB%E3%82%B9%E3%81%A8%E3%81%AA%E3%82%8B%E5%8F%AF%E8%83%BD%E6%80%A7%E3%81%8C%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%80%82))。例えばビットコインやイーサリアムでは1秒間に処理できる取引数が限られており、利用者が急増すると手数料の高騰や取引確認の遅延が発生します。また、ブロックチェーン上で合意を取るコンセンサスアルゴリズム（後述）の種類によってはエネルギー消費が非常に大きくなる（例：Proof of Workによるマイニング競争）点も課題です。このように、分散型ならではのトレードオフとして**性能**や**スケーラビリティ**の問題を克服する必要があり、現在も技術的な改良が続けられています。
+Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます（自己完結型のアーカイブを展開するだけで動作します ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=The%20good%20news%20is%20that,placed%20anywhere%20in%20your%20system))）。各OSごとの概要は以下の通りです:
 
-## なぜZigを使うのか？EVM互換ブロックチェーンを作る理由
+- **Linux**: 公式サイトからLinux用のtarballをダウンロードして解凍し、そのディレクトリ内の`zig`実行ファイルへのパスを通します ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。一部のディストリではパッケージマネージャ経由でもインストールできますが、提供されるバージョンが古い場合があるので注意してください ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=Zig%20is%20also%20present%20in,bundle%20outdated%20versions%20of%20Zig))。
+- **macOS**: Homebrewを利用して `brew install zig` でインストールするか、公式サイトからmacOS用のアーカイブを入手して展開します ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=This%20is%20the%20most%20straight,from%20any%20location))。パス設定はLinux同様に行います。
+- **Windows**: 公式サイトからzipアーカイブをダウンロード・展開し、中に含まれる`zig.exe`へのパスをシステム環境変数に追加します ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=Setting%20up%20PATH%20on%20Windows)) ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=%5BEnvironment%5D%3A%3ASetEnvironmentVariable%28%20,version%22%2C%20%22Machine%22))。PowerShellを使ったPATH設定方法が公式に案内されています ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=System%20wide%20))。
 
-本書ではブロックチェーンの実装言語に**Zig**を採用します。Zigは2015年頃に登場した比較的新しいオープンソースのプログラミング言語で、C言語の現代的な代替を目指して作られました ([世界のプログラミング言語(44) シンプルで現代的なZig言語、RustやC++が複雑すぎると嘆く人の福音となるか | TECH+（テックプラス）](https://news.mynavi.jp/techplus/article/programinglanguageoftheworld-44/#:~:text=Zig%E3%81%AF2015%E5%B9%B4%E3%81%AB%E7%99%BB%E5%A0%B4%E3%81%97%E3%81%9F%E6%96%B0%E3%81%97%E3%81%84%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%BD%E3%83%BC%E3%82%B9%E3%81%AE%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0%E8%A8%80%E8%AA%9E%E3%81%A7%E3%81%99%E3%80%82Go%E8%A8%80%E8%AA%9E%E3%82%84Rust%E8%A8%80%E8%AA%9E%E3%81%AE%E3%82%88%E3%81%86%E3%81%AB%E3%80%81C%E8%A8%80%E8%AA%9E%E3%81%AE%E7%BD%AE%E3%81%8D%E6%8F%9B%E3%81%88%E3%82%92%E7%9B%AE%E6%A8%99%E3%81%AB%E3%81%97%E3%81%9F%E3%82%B3%E3%83%B3%E3%83%91%E3%82%A4%E3%83%A9%E8%A8%80%E8%AA%9E%E3%81%A7%E3%81%99%E3%80%82%E3%81%9D%E3%81%AE%E6%9C%80%20%E5%A4%A7%E3%81%AE%E7%89%B9%E5%BE%B4%E3%81%AF%E3%82%B7%E3%83%B3%E3%83%97%E3%83%AB%E3%81%A7%E3%81%82%E3%82%8B%E3%81%93%E3%81%A8%E3%81%A7%E3%81%99%E3%80%82%E7%A2%BA%E3%81%8B%E3%81%AB%E3%80%81%E3%83%9E%E3%82%AF%E3%83%AD%E3%82%82%E3%83%97%E3%83%AA%E3%83%97%E3%83%AD%E3%82%BB%E3%83%83%E3%82%B5%E3%82%82%E3%81%82%E3%82%8A%E3%81%BE%E3%81%9B%E3%82%93%E3%81%8C%E3%80%81%E7%8F%BE%E4%BB%A3%E7%9A%84%E3%81%AA%E8%A8%80%E8%AA%9E%E3%81%AB%E4%BB%95%E4%B8%8A%E3%81%8C%E3%81%A3%E3%81%A6%E3%81%84%E3%81%BE%E3%81%99%E3%80%82%E6%9C%80%E8%BF%91%E8%A9%B1%E9%A1%8C%E3%81%AB%E3%81%AA%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C%E5%A2%97%E3%81%88%E3%81%A6%E3%81%8D%E3%81%9F%E3%81%AE%E3%81%A7%E8%A9%A6%E3%81%97%E3%81%A6%E3%81%BF%E3%81%BE%E3%81%97%E3%82%87%20%E3%81%86%E3%80%82))。低レベルな制御と高い実行性能を備えつつ、安全性とシンプルさを両立した設計が特徴です。主な特徴として、明示的なメモリ管理とエラーハンドリング、コンパイル時実行機能（コンptime）、そしてC言語との高い互換性などが挙げられます ([Zigプログラミング言語とは？RustやC++との違いを解説 – せせらブログ](https://sesera231.com/archives/7703#:~:text=,C%E8%A8%80%E8%AA%9E%E3%81%A8%E3%81%AE%E7%9B%B8%E4%BA%92%E9%81%8B%E7%94%A8%E6%80%A7%E3%81%8C%E9%AB%98%E3%81%84))。ガベージコレクションを持たないため予測しやすいパフォーマンスが得られ、システムプログラミングや組み込み開発の分野で注目を集めています。
+インストール後、ターミナル/コマンドプロンプトで `zig version` を実行し、バージョンが表示されれば成功です。
 
-**他の言語との比較:** Zigを使う理由の一つは、そのシンプルさと制御性にあります。例えば同じシステムプログラミング向け言語でも、Rustは所有権システムによる高いメモリ安全性を提供しますが、その分学習コストが高く、低レベルコードを書く際には複雑なルールに直面します。Zigには所有権や借用といった概念がないため低レベルのコードを書きやすく、いわば「Cを少しだけ安全で便利にしたモダンな言語」を目指しています ([Zigのすすめ Rustとの比較 #ZIG - Qiita](https://qiita.com/lechatthecat/items/d448727b817b7b03b535#:~:text=%E4%B8%80%E6%96%B9%E3%81%A7%E3%80%81%E3%80%8CC%E3%81%AE%E3%82%88%E3%81%86%E3%81%AB%E3%82%B7%E3%83%B3%E3%83%97%E3%83%AB%E3%81%A0%E3%81%91%E3%81%A9%E3%80%81%E3%82%82%E3%81%86%E5%B0%91%E3%81%97%E4%BE%BF%E5%88%A9%E3%81%AA%E6%A9%9F%E8%83%BD%E3%82%84%E5%8E%B3%E6%A0%BC%E3%81%AA%E5%9E%8B%E3%83%81%E3%82%A7%E3%83%83%E3%82%AF%E3%81%8C%E6%AC%B2%E3%81%97%E3%81%84%E3%80%8D%E3%81%A8%E3%81%84%E3%81%A3%E3%81%9F%E3%83%8B%E3%83%BC%E3%82%BA%E3%81%AB%E5%AF%BE%E3%81%97%E3%81%A6%E3%81%AF%E3%80%81Zig%E3%81%AE%E3%82%88%E3%81%86%E3%81%AA%E3%82%A2%E3%83%97%E3%83%AD%E3%83%BC%E3%83%81%E3%81%AF%E9%9D%9E%E5%B8%B8%E3%81%AB%E9%AD%85%E5%8A%9B%E7%9A%84%E3%81%AB%E8%A6%8B%E3%81%88%E3%81%BE%E3%81%99%E3%80%82Z%20ig%E3%81%AF%E6%89%80%E6%9C%89%E6%A8%A9%E3%82%84%E5%80%9F%E7%94%A8%E3%81%AA%E3%81%A9%E3%81%AE%E6%A6%82%E5%BF%B5%E3%81%8C%E3%81%AA%E3%81%84%E3%81%9F%E3%82%81%E3%80%81%E4%BD%8E%E3%83%AC%E3%83%99%E3%83%AB%E3%81%AB%E8%B8%8F%E3%81%BF%E8%BE%BC%E3%82%93%E3%81%A0%E3%82%B3%E3%83%BC%E3%83%89%E3%82%92%E6%9B%B8%E3%81%8F%E9%9A%9B%E3%81%AE%E7%85%A9%E3%82%8F%E3%81%97%E3%81%95%E3%81%8C%E3%81%82%E3%82%8A%E3%81%BE%E3%81%9B%E3%82%93%E3%80%82%E8%A8%80%E3%81%84%E6%8F%9B%E3%81%88%E3%82%8B%E3%81%A8%E3%80%81%E2%80%9CC%E3%82%92%E3%81%A1%E3%82%87%E3%81%A3%E3%81%A8%E3%81%A0%E3%81%91%E5%AE%89%E5%85%A8%E3%83%BB%E4%BE%BF%E5%88%A9%E3%81%AB%E3%81%97%E3%81%9F%E3%83%A2%E3%83%80%E3%83%B3%E3%81%AA%E8%A8%80%E8%AA%9E))。実際、Rustと比べて文法やルールがシンプルで学習のハードルが低く、コンパイル速度も高速である傾向があります ([Zigプログラミング言語とは？RustやC++との違いを解説 – せせらブログ](https://sesera231.com/archives/7703#:~:text=,%E3%82%B3%E3%83%B3%E3%83%91%E3%82%A4%E3%83%AB%E9%80%9F%E5%BA%A6%E3%81%AFZig%E3%81%AE%E6%96%B9%E3%81%8C%E9%80%9F%E3%81%84%E5%82%BE%E5%90%91))。一方、C++と比較すると、Zigは言語仕様がはるかに小さく整然としており、暗黙的な動作やマクロ機能を排して可読性・保守性を高めています ([Zigプログラミング言語とは？RustやC++との違いを解説 – せせらブログ](https://sesera231.com/archives/7703#:~:text=,%E3%82%AC%E3%83%99%E3%83%BC%E3%82%B8%E3%82%B3%E3%83%AC%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%81%8C%E3%81%AA%E3%81%84%E7%82%B9%E3%81%AF%E5%85%B1%E9%80%9A))。ガベージコレクションを持たないという点ではGoやC++、Rustと共通しますが、Goと比べてもZigはより低レイヤーに踏み込んだ制御が可能であり、細かな最適化やリソース管理を自前で行える強みがあります。このような理由から、本書ではブロックチェーンのようにパフォーマンスと信頼性が要求されるシステムを実装する言語としてZigを選択しました。
+### ビルドツールとエディタの準備
 
-**EVM互換にする理由:** 加えて、本書が目指すブロックチェーンは**EVM互換**とします。EVM（Ethereum Virtual Machine）とは、前述のEthereumが採用するスマートコントラクト実行環境のことで、Ethereumにおける取引やコントラクトのロジックはすべてEVM上で動作します ([Testing the Ethereum merge](https://antithesis.com/case_studies/ethereum_merge/#:~:text=Ethereum%20is%20a%20decentralized%20blockchain,crypto%20projects%20across%20the%20globe))。EVM互換のチェーンにすることで、既存のEthereum向けツールやライブラリ、ウォレット（Metamaskなど）をそのまま利用でき、Solidityなどで書かれたスマートコントラクトをデプロイして動作させることが可能になります。現在EVMは事実上Web3開発者にとっての標準プラットフォームとなっており、活発な開発者コミュニティと多数の互換チェーン（高い時価総額を持つプロジェクト群）によって支えられています ([レイヤ 1 ブロックチェーンが EVM の完全な互換性を目指すべき理由は次のとおりです | HackerNoon](https://hackernoon.com/lang/ja/%E3%83%AC%E3%82%A4%E3%83%A4-1-%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%81%8C%E5%AE%8C%E5%85%A8%E3%81%AA-evm-%E4%BA%92%E6%8F%9B%E6%80%A7%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%99%E3%81%B9%E3%81%8D%E7%90%86%E7%94%B1%E3%81%AF%E3%81%93%E3%81%93%E3%81%AB%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99#:~:text=%E6%B4%BB%E7%99%BA%E3%81%AA%E9%96%8B%E7%99%BA%E8%80%85%E3%82%B3%E3%83%9F%E3%83%A5%E3%83%8B%E3%83%86%E3%82%A3%E3%81%A8%E4%BA%92%E6%8F%9B%E6%80%A7%E3%81%AE%E3%81%82%E3%82%8B%E6%99%82%E4%BE%A1%E7%B7%8F%E9%A1%8D%E3%81%AE%E9%AB%98%E3%81%84%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%81%8C%E5%A4%9A%E6%95%B0%E3%81%82%E3%82%8B%20EVM%20%E3%81%AF%E3%80%81Web3%20%E9%96%8B%E7%99%BA%E8%80%85%E3%81%AB%E3%81%A8%E3%81%A3%E3%81%A6%E3%81%AE%E4%BA%8B%E5%AE%9F%E4%B8%8A%E3%81%AE%E6%A8%99%E6%BA%96%E3%81%A7%E3%81%99%E3%80%82%E6%A5%AD%E7%95%8C%E3%81%8C%E5%9B%9E%E5%BE%A9%E3%81%AE%E6%BA%96%E5%82%99%E3%82%92%E3%81%97%E3%81%A6%E3%81%84%20%E3%82%8B%E3%81%9F%E3%82%81%E3%80%81%E4%BB%96%E3%81%AE%E3%83%95%E3%83%AC%E3%83%BC%E3%83%A0%E3%83%AF%E3%83%BC%E3%82%AF%E4%B8%8A%E3%81%AB%E6%A7%8B%E7%AF%89%E3%81%95%E3%82%8C%E3%81%9F%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%81%AF%E3%80%81%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%83%81%E3%82%A7%E3%83%BC%E3%83%B3%E3%81%B8%E3%81%AE%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%E3%81%AE%E8%BF%BD%E5%8A%A0%E3%82%92%E5%84%AA%E5%85%88%E3%81%99%E3%82%8B%E5%BF%85%E8%A6%81%E3%81%8C%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%80%82))。自前でブロックチェーンを作るにしてもEVMと互換性を持たせることで、この巨大なエコシステムの恩恵にあずかることができるのです。要するに、ゼロからブロックチェーンを実装しつつも、スマートコントラクトやdAppが動くプラットフォームとして実用的なものを目指すために、EVM互換という目標を掲げています。
+Zigは独自のビルドシステムを備えており、`zig build`コマンドでプロジェクトのコンパイルや実行が可能です。プロジェクトを開始するには、空のディレクトリで `zig init` コマンドを実行すると、ビルド用の設定ファイルとサンプルのソースコードが生成されます ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=mkdir%20hello,init))。生成された`build.zig`と`src/main.zig`を使って、`zig build run`とするだけでHello Worldプログラムをビルド&実行できます ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=Running%20,run%20it%2C%20ultimately%20resulting%20in))。Zig製の実行ファイルはネイティブなバイナリで、特別なVMは不要です。
 
-## 本書の対象読者と前提知識
+エディタはお好みのものを使用できますが、**VSCode**には公式のZig拡張機能がありシンタックスハイライトや補完が利用できます。また、Zig用の言語サーバー (Zig Language Server, *ZLS*) も提供されており、より高度なエディタ連携が可能です ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=Syntax%20Highlighters%20and%20LSP))。主要なテキストエディタにはZigのシンタックスハイライトが用意されていますので、まずはコードが見やすい環境を整えましょう ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=Syntax%20Highlighters%20and%20LSP))。
 
-本書は、**ブロックチェーンやスマートコントラクトの基礎知識を持ち、さらに深く理解したいエンジニア**を主な対象としています。以下のような読者に向けて執筆しています。
+### 簡単なHello Worldプログラムの実行
 
-- **ブロックチェーンの基本を触ったことがある人:** ビットコインやイーサリアムなどを使ったことがある、あるいはブロックチェーンの概念を一通り学んだことがある方。トランザクションやマイニングといった用語に馴染みがあることを前提に進めます。
-- **Solidityやスマートコントラクト開発に興味がある人:** 分散型アプリケーション（dApp）の開発やEthereum上でのスマートコントラクトに興味を持っている方。本書ではEVM互換チェーンを実装する過程で、スマートコントラクトがブロックチェーン上でどう動くかも扱いますので、その点に興味がある読者に有益です。
-- **Zigに興味があり、実践的なプロジェクトで学びたい人:** Zig言語自体に興味がある方や、新しいシステムプログラミング言語を触れてみたい方。本書では実際のブロックチェーンという大型プロジェクトを題材にZigのコードを書いていくため、言語の学習と応用を同時に体験できます。
+環境確認のため、簡単なZigプログラムを作成してみます。適当なディレクトリに`hello.zig`というファイルを作り、以下のコードを書いてください。
 
-前提として、何らかのプログラミング言語での開発経験があることを想定しています（C言語やRust, Go, C++などシステムレベルの言語経験があれば尚良いですが、必須ではありません）。またブロックチェーン特有の暗号技術やネットワークの知識については序盤で解説しますが、基本的な概念を知っていると理解がスムーズになるでしょう。
+```zig
+const std = @import("std");
 
-## 各章で扱う内容の概要（ロードマップ）
+pub fn main() void {
+    std.debug.print("Hello, Zig!\n", .{}); // "Hello, Zig!"と出力する
+}
+```
 
-本書はステップバイステップでシンプルなブロックチェーンを作り上げ、機能を拡張していく構成になっています。各章の大まかなロードマップは次の通りです。
+このプログラムは`std.debug.print`を使って文字列を出力しています。準備したターミナルで次のコマンドを実行してみましょう。
 
-1. **ブロックチェーンの基本的な実装:** 最初に、ブロックチェーンのコアとなるデータ構造と機能を実装します。ブロックやトランザクションの構造を定義し、ハッシュチェーンによるブロックの連結や、簡単なプルーフ・オブ・ワーク（PoW）によるマイニングを行えるようにします。まずは単一ノード上で動くシンプルなブロックチェーンを作成し、ブロック生成と検証の流れを理解します。
+```bash
+$ zig run hello.zig
+```
 
-2. **ネットワーク化と分散ノード:** 次に、作成したブロックチェーンをネットワーク対応させ、複数のノードで分散稼働できるようにします。P2Pネットワーク上でノード間がブロックやトランザクションをやり取りし、全ノードで台帳を同期する仕組みを実装します。ここではノード間通信のプロトコル設計やブロードキャストの方法、基本的な**合意形成**（コンセンサス）の考え方を学びます。
+`zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, Zig!** と表示されるはずです。これでZigの開発環境は準備完了です。
 
-3. **コンセンサスアルゴリズム（PoWとPoS）:** ブロックチェーンの肝であるコンセンサスアルゴリズムについて、代表的なProof of Work（仕事量証明）とProof of Stake（保有量証明）を中心に解説・実装します。前章までで実装したPoWを拡張し、難易度調整やブロック承認の仕組みを掘り下げます。また、可能であれば簡易的なPoSの実験的実装や、他のコンセンサスメカニズム（例: Byzantine Fault Tolerance系）の紹介も行い、それぞれの利点・欠点を考察します。
+## 2. ブロックチェーンの基本構造
 
-4. **スマートコントラクトとEVM互換:** いよいよブロックチェーン上でスマートコントラクトを動かす仕組みを作ります。本章ではEthereumのEVMをモデルに、シンプルなバイトコード実行環境（仮想マシン）を実装し、トランザクションによってコントラクトのコードを保存・実行できるようにします。Solidityで書かれたコントラクトをコンパイルしたバイトコードを我々のチェーン上で実行し、Ethereumと同様に状態遷移やガス消費の概念を再現します。難易度は高いですが、EVM互換にすることで既存の豊富なツール群を活用できるようになり、実用的なブロックチェーンに一歩近づきます。
+それでは、ブロックチェーンのコアである「ブロック」の構造を実装していきます。まずはブロックチェーンの基本を簡単におさらいしましょう。
 
-5. **最新技術への対応と発展的トピック:** 最終章では、現在注目されているブロックチェーンの最新技術動向に触れ、本書で作成したチェーンへの応用可能性を探ります。例えば、ゼロ知識証明を活用した新技術である**zkTLS**（Zero-Knowledge TLS）の概念を紹介し、ブロックチェーンとWeb2のデータ連携を安全に行う仕組みについて考察します。そのほか、スケーラビリティ向上のためのレイヤー2技術やブロックチェーンの相互運用（ブリッジやクロスチェーン）、分散型識別子(DID)や最新の暗号アルゴリズムなど、チェーン開発の次のステップとなり得るトピックについて議論します。最後に、本書の集大成としてEVM互換チェーンの全体像を振り返り、読者が今後独自に機能拡張や新機能の実装に挑戦できるよう展望を示します。
+**ブロックとは**: ブロックチェーンにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェーン）を持ち、これによってブロック同士が鎖状にリンクしています ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。
 
-以上のような流れで章立てを行い、徐々に機能を追加しながら最終的にEVM互換のブロックチェーンを完成させていきます。
+**改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると**後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェーン全体の整合性が崩れてしまいます** ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。この仕組みにより、一つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
 
-## 執筆スタイルと進め方
+### Zigでブロック構造体を定義する
 
-本書は実装重視のハンズオンスタイルで進めていきます。各章では具体的な機能をテーマに据え、実際のZigコードを書きながら解説を行います。文章だけでなくコードリストを交え、読者の皆さんが手を動かして試せるように構成しています。可能な限りカジュアルで親しみやすい語り口で説明しますが、内容は技術的に正確であることを重視しています。専門用語や難しい概念については丁寧に補足し、ブロックチェーン初心者の方でも理解を深められるよう配慮しています。
+上記の概念を踏まえて、Zigでブロックを表現する構造体を作ってみましょう。ブロックに含める主な情報は以下の通りです。
 
-実装したコードは章ごとにGitHubの[リポジトリ](https://github.com/susumutomita/BlockChain)で公開していきます。読者はそのコードをクローンして実行したり、自分で改良を加えたりすることができます。また、本書の原稿もGitHub上の[`zenn-article`リポジトリ](https://github.com/susumutomita/zenn-article)で管理し、誤字脱字の修正や読者からのフィードバック反映を行いながら執筆を進めます。最終的にはZennの記事として公開し、オンラインで幅広く読める形にする予定です。
+- `index`: ブロック番号（第何番目のブロックかを示す整数）
+- `timestamp`: ブロックが作られた時刻（Unixエポック秒などで保存）
+- `prev_hash`: 直前のブロックのハッシュ値
+- `data`: ブロックに格納する任意のデータ（まずはシンプルに文字列など）
+- `hash`: ブロック自身のハッシュ値（このブロックの`index`や`data`等から計算された値）
+
+Zigでは以下のように`struct`を使ってブロックの型を定義できます。
+
+```zig
+const std = @import("std");
+
+// ブロックを表す構造体
+const Block = struct {
+    index: u32,             // ブロック番号
+    timestamp: u64,         // 作成時刻（Unix時間など）
+    prev_hash: [32]u8,      // 前のブロックのハッシュ値（32バイト＝256ビット）
+    data: []const u8,       // ブロックに含めるデータ（今回はバイト列）
+    hash: [32]u8,           // このブロックのハッシュ値（32バイト）
+};
+```
+
+上記ではハッシュ値を256ビット（32バイト）長の配列 `[32]u8` で表しています。これはSHA-256などの暗号学的ハッシュ関数で得られるハッシュのサイズに合わせたものです。`data`フィールドは`[]const u8`（バイト列）としており、簡単のためブロックに格納するデータを文字列やバイナリ列で扱えるようにしています。
+
+### ブロックのハッシュを計算する
+
+ブロックチェーンの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, timestamp, prev_hash, data など）から計算されるハッシュ値です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算を行います。
+
+ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
+
+```zig
+const std = @import("std");
+const crypto = std.crypto.hash;  // ハッシュ用の名前空間
+const Sha256 = crypto.sha2.Sha256;
+
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});        // SHA-256ハッシュ計算器を初期化
+    // ハッシュに含める要素を順次与える（順序も固定）
+    hasher.update(std.mem.bytesOf(block.index));       // indexをバイト列として追加
+    hasher.update(std.mem.bytesOf(block.timestamp));   // timestampを追加
+    hasher.update(&block.prev_hash);                   // 前ブロックのハッシュを追加
+    hasher.update(block.data);                         // データ本体を追加
+    const result = hasher.finalResult();              // 最終的なハッシュ値を取得（32バイト配列）
+    return result;
+}
+```
+
+上記の`calculateHash`関数では、`Sha256.init(.{})`でハッシュ計算用のコンテキストを作成し、`hasher.update(...)`でブロックの各フィールドをバイト列として順次ハッシュ計算に入力しています。`std.mem.bytesOf(value)`は与えた値をバイト列として扱うためのヘルパーで、整数型の値などをハッシュに含めるのに便利です。最後に`hasher.finalResult()`を呼ぶと、これまでに与えたデータのSHA-256ハッシュが計算され、32バイトの配列として得られます。
+
+**ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=each%20block%20is%20dependent%20on,network%20can%20trust%20the%20data))。
+
+ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
+
+## 3. トランザクションの記録
+
+ブロックチェーンは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造で、しばしば**デジタル署名**によって改ざんされていないことを保証します ([Building a Simple Blockchain in C# with .NET | by Mehmet Tosun](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f#:~:text=Building%20a%20Simple%20Blockchain%20in,into%20blocks%2C%20forming%20a%20chain))。
+
+本チュートリアルではシンプルに、送信者・受信者を文字列、金額を数値で扱う構造体としてトランザクションを定義します（署名については概念のみ紹介し、実装は省略します）。ZigでTransaction構造体を定義し、Block構造体にトランザクションのリストを持たせましょう。
+
+```zig
+const Transaction = struct {
+    sender: []const u8,    // 送信者アドレス（文字列で表現）
+    receiver: []const u8,  // 受信者アドレス
+    amount: u64,           // 取引金額（今回は整数で表現）
+    // 本来は署名フィールドなども必要
+};
+
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    /// トランザクションのリスト（動的配列）
+    transactions: std.ArrayList(Transaction),
+    nonce: u64,           // (後述のPoWで使うnonce、ここで定義だけ追加)
+    hash: [32]u8,
+};
+```
+
+上記のように、Block構造体に`transactions`フィールドを追加しました。ここでは Zig標準ライブラリの `std.ArrayList` を利用してトランザクションのリストを表現しています。`std.ArrayList(T)`はC++の`std::vector<T>`やRustの`Vec<T>`に相当し、動的にサイズが変えられる配列です ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=The%20std,%60.items))。Zigでは動的配列を扱う際に明示的なメモリ割り当てが必要ですが、`ArrayList`型は内部でメモリ管理を行ってくれるので、使い方は比較的簡単です。
+
+**トランザクションをブロックへ追加する**: 新しいブロックを作る際には、まず空の`ArrayList(Transaction)`を初期化し、取引を`append`メソッドで追加していきます。例えば1件のトランザクションを追加するコードは以下のようになります。
+
+```zig
+const std = @import("std");
+const allocator = std.heap.page_allocator; // 簡易的にページアロケータを使用
+
+// 新しいブロックを作成する例（prev_hashは引数でもらう想定）
+fn createBlock(index: u32, prev_hash: [32]u8) !Block {
+    var block = Block{
+        .index = index,
+        .timestamp = @intCast(u64, std.time.timestamp()), // 現在時刻を取得
+        .prev_hash = prev_hash,
+        .transactions = undefined, // 後で初期化
+        .nonce = 0,
+        .hash = undefined,
+    };
+    // トランザクションリストを初期化（メモリ割り当て）
+    block.transactions = std.ArrayList(Transaction).init(allocator);
+    // トランザクションを追加
+    try block.transactions.append(Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 100,
+    });
+    try block.transactions.append(Transaction{
+        .sender = "Charlie",
+        .receiver = "Dave",
+        .amount = 50,
+    });
+    // （必要に応じてさらにトランザクション追加）
+    // ブロックのハッシュを計算（トランザクションも含める）
+    block.hash = calculateHash(&block);
+    return block;
+}
+```
+
+上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化し（実際のアプリケーションでは適切なメモリアロケータ管理が必要です）、2件のTransactionを`append`しています。`append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
+
+#### ハッシュ計算へのトランザクションの組み込み
+
+トランザクションをブロックに含めたことで、ハッシュ計算時に考慮すべきデータも増えます。`calculateHash`関数では、ブロック内の全トランザクションの内容もハッシュ入力に追加する必要があります。例えば以下のように、トランザクションの各フィールドを順番にハッシュへ投入します（擬似コード）:
+
+```zig
+    // ...（他のフィールドのハッシュ計算）...
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(std.mem.bytesOf(tx.amount));
+        // （署名フィールドがあればそれも含める）
+    }
+```
+
+`block.transactions.items`はArrayList内の生のスライス（配列）データです。ループで各`tx`にアクセスし、その中の`sender`文字列、`receiver`文字列、`amount`数値を順次ハッシュに投入しています。こうすることで**ブロック内の全トランザクションデータがハッシュ値計算に反映**されます。トランザクションの追加や変更があればハッシュ値も変化するため、ブロックの改ざん検知において重要な役割を果たします。
+
+> **メモ:** 実際のブロックチェーンでは、各トランザクションは送信者の秘密鍵による**デジタル署名**が含まれます。署名によって取引の正当性（送信者本人が承認した取引であること）が保証されますが、署名の作成と検証には公開鍵暗号が必要で実装が複雑になるため、本チュートリアルでは扱いません。概念として、ブロックに署名付きのトランザクションを入れることで不正な取引が混入しないようにしている点だけ押さえておきましょう。
+
+## 4. 簡単なPoW（Proof of Work）の実装
+
+次に、ブロックチェーンの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェーン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
+
+**PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証（ハッシュを再計算して条件を満たすか確認）は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
+
+**難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量（難易度）が指数関数的に増大します ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=Difficulty%20is%20quantified%20by%20the,increases%20the%20computational%20effort%20needed))。ネットワーク全体のマイニング速度に応じて、この難易度は適宜調整されるようになっています ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=To%20maintain%20a%20consistent%20block,block%20approximately%20every%2010%20minutes))（ビットコインでは約2週間ごとにブロック生成速度が10分/blockになるよう難易度調整）。
+
+それでは、このPoWのアイデアを使って、ブロックに**マイニング（nonce探し）**の処理を追加しましょう。
+
+### nonceフィールドの活用
+
+先ほどBlock構造体に追加した`nonce`（ナンス）を利用します。ブロックのハッシュ計算時に、この`nonce`も入力データに含めるよう`calculateHash`関数を修正しておきます（`hasher.update(std.mem.bytesOf(block.nonce))`を追加）。
+
+マイニングでは、`nonce`の値を0から始めて1ずつ増やしながら繰り返しハッシュを計算し、条件に合致するハッシュが出るまでループします。条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0x00であること」とします（これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です）。
+
+### PoWマイニングのコード実装
+
+以下に、与えられたブロックに対してマイニングを行い、条件を満たすハッシュとnonceを見つける関数`mineBlock`の例を示します。
+
+```zig
+fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
+    // 先頭difficultyバイトがすべて0か確認
+    for (hash[0..difficulty]) |byte| {
+        if (byte != 0) return false;
+    }
+    return true;
+}
+
+fn mineBlock(block: *Block, difficulty: u8) void {
+    while (true) {
+        const new_hash = calculateHash(block);
+        if (meetsDifficulty(new_hash, difficulty)) {
+            // 条件を満たすハッシュが見つかったらブロックに設定して終了
+            block.hash = new_hash;
+            break;
+        }
+        // 条件未達ならnonceをインクリメントして再度ループ
+        block.nonce += 1;
+    }
+}
+```
+
+`meetsDifficulty`はハッシュ配列の先頭から指定バイト数をチェックし、すべて`0x00`ならtrueを返す関数です。`mineBlock`では無限ループの中で`calculateHash`を呼び出し、難易度条件を満たしたらループを抜けます。見つからなければ`nonce`を増やして再度ハッシュ計算、という流れです。
+
+難易度`difficulty`は調整可能ですが、大きな値にすると探索に非常に時間がかかるため、ローカルで試す場合は小さな値に留めましょう（例えば1や2程度）。`difficulty = 2`でも場合によっては数万回以上のループが必要になることがあります。PoWは計算量をわざと大きくすることで、ブロック生成にコストを課す仕組みだということを念頭に置いてください。
+
+以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェーンに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
+
+## 5. 動作確認とデバッグ
+
+ここまでで、**ブロックチェーンの基本要素**（ブロック構造、トランザクション、ハッシュ計算、PoW）が揃いました。最後に、これらを組み合わせて実際にブロックチェーンを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
+
+### ブロックチェーンの連結と検証
+
+まず、簡単にブロックチェーンを連結する処理をおさらいします。新しいブロックをチェーンに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング（`mineBlock`）によってハッシュを確定させてからチェーンに繋ぎます。最初のブロック（ジェネシスブロック）は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値（ゼロハッシュ）を入れておくとよいでしょう。
+
+チェーン全体の検証は各ブロックについて以下をチェックします:
+
+- `prev_hash`が直前のブロックの`hash`と一致しているか
+- ブロックの`hash`がブロック内容（含`nonce`）から正しく計算されているか
+- PoWの難易度条件を満たしているか
+
+上記を各ブロックについて確認し、ひとつでも不整合があればチェーンは無効（改ざんされている）と判断できます。
+
+### Zigでのデバッグ方法（printデバッグやコンパイラオプション）
+
+Zigでデバッグを行う方法としては、**printデバッグ**（プログラム中に変数値を出力して追跡する）や、組み込みのテストフレームワークを使う方法があります。`std.debug.print`や`std.log.info`を使って適宜値を表示すれば、ブロック生成の過程やハッシュ計算結果を確認できます。例えばマイニング中に`nonce`の値を一定間隔で表示したり、ブロック完成時に`hash`を16進数で表示したりすると、処理の様子が掴みやすいでしょう。
+
+Zigコンパイラにはデフォルトで**デバッグモード**（安全チェック有効）と**最適化モード**（安全チェック無効で高速化）のビルドオプションがあります。何も指定しなければデフォルトでデバッグ用ビルドになります。コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能ですが、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
+
+### 簡単なテストコードを書く
+
+Zigには組み込みのテスト機能があり、`test "名前"`ブロックの中にテストコードを書くことができます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。テストブロック内では`std.testing.expect`マクロを使って式が期待通りの結果かチェックできます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。ブロックチェーンの動作検証として、一例として「ブロックが改ざんを検出できること」をテストしてみます。
+
+```zig
+const std = @import("std");
+const allocator = std.testing.allocator; // テスト用アロケータ
+test "ブロック改ざんの検出" {
+    // 1件のトランザクションを持つブロックを作成（ジェネシスブロック想定）
+    var tx_list = std.ArrayList(Transaction).init(allocator);
+    defer tx_list.deinit();  // テスト終了時にメモリ解放 ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))
+    try tx_list.append(Transaction{ .sender = "Alice", .receiver = "Bob", .amount = 100 });
+    var block = Block{
+        .index = 0,
+        .timestamp = 0,
+        .prev_hash = [_]u8{0} ** 32,  // 前ブロックがないのでゼロで初期化
+        .transactions = tx_list,
+        .nonce = 0,
+        .hash = undefined,
+    };
+    block.hash = calculateHash(&block); // ハッシュ計算
+
+    // ブロックを書き換えてみる（トランザクションの金額を改ざん）
+    block.transactions.items[0].amount = 200;
+    const new_hash = calculateHash(&block);
+    // 改ざん前後でハッシュ値が異なることを確認
+    std.testing.expect(std.mem.eql(u8, block.hash[0..], new_hash[0..]) == false);
+}
+```
+
+このテストでは、最初にAliceからBobへ100の送金トランザクションを含むブロックを作り、そのブロックのハッシュを求めています。次にブロック内の取引金額を100から200に改ざんし、再度ハッシュを計算します。`std.testing.expect(... == false)`によって、改ざん前後でハッシュが一致しない（つまり改ざんを検出できる）ことを検証しています。実行時にこの期待が満たされない場合（もし改ざんしてもハッシュが変わらなかった場合など）はテストが失敗し、エラーが報告されます。
+
+テストコードは、ファイル内に記述して`zig test ファイル名.zig`で実行できます。`zig build test`を使えばビルドシステム経由でプロジェクト内のすべてのテストを実行することも可能です ([
+      Getting Started
+      ⚡
+      Zig Programming Language
+    ](https://ziglang.org/learn/getting-started/#:~:text=All%20your%20codebase%20are%20belong,to%20run%20the%20tests))。上記テストを走らせて**パスすれば、ブロックの改ざん検知ロジックが正しく機能している**ことになります。
+
+### その他のデバッグヒント
+
+- **ログ出力**: Zigの標準ライブラリにはログ機能（`std.log`）もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です（事前に`std.log.global_level`の設定が必要ですが、簡単な用途では`std.debug.print`で十分でしょう）。
+- **メモリ管理のチェック**: Zigは低レベル言語なのでメモリ管理に注意が必要です。今回`std.ArrayList`を使いましたが、使用後に`deinit()`で確保したメモリを解放することを忘れないようにしましょう ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。Zigのテストでは`std.testing.allocator`を使うことで、テスト終了時にメモリリークがないか自動チェックすることもできます。
+- **スタックトレース**: 実行時エラーが発生すると、Zigはデフォルトでスタックトレースを表示します。どの関数のどの行でエラーが起きたか追跡できるので、バグ修正に役立ちます。
+
+## おわりに
+
+本チュートリアルでは、Zigを用いてブロックチェーンの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェーンの改ざん耐性やワークロード証明の仕組みを備えています。
+
+実際のブロックチェーンシステムでは、この他にも**ピアツーピアネットワーク**による分散ノード間の通信、**トランザクションのデジタル署名と検証**、**コンセンサスアルゴリズムの調整**、**ブロックサイズや報酬の管理**など、様々な要素があります。まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
+
+Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェーンを実装・改良していくことで、低レベルからブロックチェーンの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェーンの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data)) ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))

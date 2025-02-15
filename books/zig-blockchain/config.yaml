@@ -5,7 +5,7 @@ published: false
 price: 500
 chapters:
   - intro
-  - ブロックチェーンの基本的な実装
+  - chapter1
   - ネットワーク化と分散ノード
   - コンセンサスアルゴリズム（PoWとPoS）
   - スマートコントラクトとEVM互換
