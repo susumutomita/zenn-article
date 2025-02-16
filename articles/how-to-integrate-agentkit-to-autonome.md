@@ -41,8 +41,11 @@ Autonomeのエージェントは、通常のチャットボットのように
 Autonomeはエージェントの動作信頼性を担保するため、
 Trusted Execution Environment (TEE) により保護します。
 
-<details>
-<summary>TEEがなぜ必要か？</summary>
+なお、Autonomeではエージェント構築時に複数のフレームワークを選択できます。
+現在は**AgentKit**、Based Agent、Eliza、Perplexicaに対応しています。
+本記事では**AgentKit**を用いた開発方法に焦点をあてます。
+
+### TEEがなぜ必要か
 
 ブロックチェインはオープンで誰でも検証可能なパーミッションレスなシステムであるため、信頼性の担保が重要です。
 しかし、オフチェインでの計算処理やAPI経由でのAI利用など外部リソースを用いると、各ノードで結果が異なったり不正な操作が介在することもあります。
@@ -54,11 +57,6 @@ Trusted Execution Environment (TEE) により保護します。
 が実現され、ユーザーはエージェントの動作結果に対して高い信頼性を持つことができます。
 
 つまり、TEEは「この処理は確実に安全な環境で実行され、改ざんがない」という証明を提供するための技術なのです。
-</details>
-
-なお、Autonomeではエージェント構築時に複数のフレームワークを選択できます。
-現在は**AgentKit**、Based Agent、Eliza、Perplexicaに対応しています。
-本記事では**AgentKit**を用いた開発方法に焦点をあてます。
 
 ### Agent Kitとは
 
