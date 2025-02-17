@@ -76,11 +76,11 @@ pub fn main() !void {
 
 **ポイント解説:**
 
-- **ソケットの生成とバインド**: `Address.resolveIp("0.0.0.0", port)`で待ち受け用のアドレス構造体を作成し、`listen()`を呼ぶことでサーバソケット（リスナー）を生成します。`0.0.0.0`は「全てのインターフェースで待つ」ことを意味し、ローカルPC上どのIPでも接続可能になります ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))。`listen()`にはオプションとしてバックログサイズなどを指定できますが、ここではデフォルト設定`.{}`を使用しています。
+- **ソケットの生成とバインド**: `Address.resolveIp("0.0.0.0", port)`で待ち受け用のアドレス構造体を作成し、`listen()`を呼ぶことでサーバソケット（リスナー）を生成します。`0.0.0.0`は「全てのインタフェースで待つ」ことを意味し、ローカルPC上どのIPでも接続可能になります ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))。`listen()`にはオプションとしてバックログサイズなどを指定できますが、ここではデフォルト設定`.{}`を使用しています。
 
 - **接続の受け入れ**: `accept()`はブロッキング呼び出しで、クライアントから接続要求が来るまで待機します（別スレッドや非同期処理で受け入れることも可能です）。戻り値は新たに確立した接続を表すオブジェクトで、`connection.stream`プロパティに読み書き用のストリームが含まれています。
 
-- **データ送受信**: Zigでは`stream.reader()`と`stream.writer()`からリーダ/ライタを取得できます。文字列などの送信には`writeAll()`, 受信には`readAll()`や`readUntilDelimiterOrEofAlloc()`といった便利関数が利用できます ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20client_reader%20%3D%20client,free%28msg))。上記の例では簡単のため、一度に全て読み取る`readAll()`を使っています。
+- **データ送受信**: Zigでは`stream.reader()`と`stream.writer()`からリーダー/ライタを取得できます。文字列などの送信には`writeAll()`, 受信には`readAll()`や`readUntilDelimiterOrEofAlloc()`といった便利関数が利用できます ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20client_reader%20%3D%20client,free%28msg))。上記の例では簡単のため、一度に全て読み取る`readAll()`を使っています。
 
 - **クリーンアップ**: 通信が終わったら`connection.stream.close()`でソケットを閉じます。また、サーバソケット自体も`listener.deinit()`で閉じる必要があります（上記では`defer`で自動クローズ指定）。適切にクローズしないと、プログラム終了後もしばらくポートが「使用中」の状態になり再起動時にエラーになることがあります ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=pub%20fn%20main%28%29%20%21void%20,allocator))。
 
@@ -146,7 +146,7 @@ const Block = struct {
 
 4. **転送**: 新ブロックを他のピアにも知らせます。自分が最初に受信したノード以外の全ての接続ピアに向けて、そのブロックデータを再送信します。これによりネットワーク内にブロックが徐々に伝搬していきます ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=))。
 
-以上により、一つのノードがブロックを受け取ると全ノードへ広まる仕組み（ブロードキャスト）が実現されます。**重要なのは検証**で、不正なブロック（チェインに繋がらない等）はここで弾くことで、ネットワーク全体の整合性が保たれます。
+以上により、1つのノードがブロックを受け取ると全ノードへ広まる仕組み（ブロードキャスト）が実現されます。**重要なのは検証**で、不正なブロック（チェインに繋がらない等）はここで弾くことで、ネットワーク全体の整合性が保たれます。
 
 ### 未承認トランザクションの共有とリレー
 
@@ -160,7 +160,7 @@ const Block = struct {
 
 ### Zigのマルチスレッド・非同期処理によるネットワーク通信
 
-P2Pノードは同時に複数の相手と通信を行う必要があるため、一つのスレッドで順番に処理しているだけでは効率が悪くなります。Zigにはスレッドを生成する仕組みや、非同期I/Oを扱うイベントループの仕組みがあります ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。適切に活用することで並行処理が可能です。
+P2Pノードは同時に複数の相手と通信を行う必要があるため、1つのスレッドで順番に処理しているだけでは効率が悪くなります。Zigにはスレッドを生成する仕組みや、非同期I/Oを扱うイベントループの仕組みがあります ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。適切に活用することで並行処理が可能です。
 
 **マルチスレッドによる実装:**
 最も分かりやすいのは**接続ごとにスレッドを分ける**方法です。新しい接続を`accept()`したら、新規スレッドを起動し、その中でメッセージ受信処理を行います。本体（メインスレッド）は引き続き次の`accept()`待ちに戻ります。こうすれば複数クライアントから同時にメッセージが来ても並行して処理できます。ただし共有データ（ブロックチェインやmempool、ノードリストなど）にアクセスするときは適切な同期（Mutex等）が必要です。
@@ -191,7 +191,7 @@ _ = try std.Thread.spawn(handle_conn.run, .{connection});
 上記のように、`handle_conn.run`関数を別スレッドで実行することで、メインスレッドから独立した通信処理ができます。なお、スレッド終了後に`connection.stream.close()`を呼ぶように注意します（`defer`でスレッド内に書くか、Main側でjoinして後処理）。
 
 **非同期I/Oとイベントループ:**
-Zigのもう一つのアプローチは、**async/await**を用いた非同期処理です。Zigのasyncはカラーブラインド(colorblind)アプローチと呼ばれ、通常の関数と同様に扱える軽量なスレッドのようなものです ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。Zig標準ライブラリには`async`に対応したI/Oイベントループ (`std.async.Loop`) があり、同一スレッド内で複数の非同期タスクを実行できます ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。
+Zigのもう1つのアプローチは、**async/await**を用いた非同期処理です。Zigのasyncはカラーブラインド(colorblind)アプローチと呼ばれ、通常の関数と同様に扱える軽量なスレッドのようなものです ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。Zig標準ライブラリには`async`に対応したI/Oイベントループ (`std.async.Loop`) があり、同一スレッド内で複数の非同期タスクを実行できます ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。
 
 例えば、各接続ごとに非同期タスクを開始し、`reader.read`を`async`で待機しつつ他の接続処理と並行させる、といったことが可能です。現在(zig 0.11)の標準ではまだ一部機能が発展途上ですが、Linux環境であればio_uringを使った効率的な非同期I/Oも実験的に利用できます ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。
 
@@ -230,7 +230,7 @@ Zigのもう一つのアプローチは、**async/await**を用いた非同期�
 
 4. **Merkleルートの照合**: フルノードから提供されたそのトランザクションのMerkleパスを使い、自分で計算したMerkleルートと、先に保存してあるブロックヘッダ中のMerkleルート値を比較します。一致すれば、そのトランザクションは確かにそのブロックに含まれており、さらにそのブロック自体は最長チェインに載っている（=承認済み）ことが保証されます ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation))。SPVノードはこれによって**自分に関係する取引だけ**の検証を簡易に行います。
 
-SPVのポイントは、「ブロック全体は見ずとも、そのブロックが確かに正当なチェインの一部であり、特定の取引が含まれている事実を確認できる」点です ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation))。ただし、SPVは**完全な検証ではない**ことにも注意しましょう。例えば、SPVノードは各トランザクションの署名有効性や二重支出検出を自力では行いません。それらは**ネットワーク（マイナーやフルノード）を信頼**する形になります。一応、最長チェイン原則（もっとも多くのPoWを積んだチェインを信用）によって、改竄された取引が含まれるチェインは最長になり得ないため、現実的には安全と考えられています。しかし100%ではなく、理論上は権悪なマイナーが多数存在するとSPVノードは欺かれる可能性もあります ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=The%20SPV%20client%20can%20request%C2%A0,SPV%20proofs%20to%20confirm%20invalid))。このトレードオフを理解した上で、用途に応じてSPVノードは活用されています。
+SPVのポイントは、「ブロック全体は見ずとも、そのブロックが確かに正当なチェインの一部であり、特定の取引が含まれている事実を確認できる」点です ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation))。ただし、SPVは**完全な検証ではない**ことにも注意しましょう。例えば、SPVノードは各トランザクションの署名有効性や二重支出検出を自力では行いません。それらは**ネットワーク（マイナーやフルノード）を信頼**する形になります。一応、最長チェイン原則（もっとも多くのPoWを積んだチェインを信用）によって、改竄された取引が含まれるチェインは最長になり得ないため、現実的には安全と考えられています。しかし100％ではなく、理論上は権悪なマイナーが多数存在するとSPVノードは欺かれる可能性もあります ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=The%20SPV%20client%20can%20request%C2%A0,SPV%20proofs%20to%20confirm%20invalid))。このトレードオフを理解した上で、用途に応じてSPVノードは活用されています。
 
 **実装面の工夫:**
 SPVノードを実装する場合、フルノードとの通信プロトコルが重要です。ブロックヘッダだけ大量に取得する手段や、特定トランザクションのMerkleブランチを問い合わせるメッセージなどを設計します。Bitcoinでは`getheaders`や`getdata (merkleblock)`メッセージでこれらを実現しています。簡単な実装では、「ライトノードモード」のフラグを用意し、それが有効なら起動時に**ヘッダのみ同期**するようなロジックを入れることになります。フルノードではブロック全体を要求する処理（例えば`getblocks`を送って全ブロックダウンロード）を、ライトノード時には`getheaders`だけ送る、といった分岐です。
@@ -239,7 +239,7 @@ SPVノードを実装する場合、フルノードとの通信プロトコル�
 
 フルノードは膨大なブロックチェインデータを保持するため、効率的なストレージ戦略が必要です。実装段階では、まず**シンプルに動作させる**ことを優先し、メモリ上のデータ構造でチェインを保持しても構いません。しかし本格的には以下の点を検討します。
 
-- **永続ストレージ**: ノードを再起動してもブロックチェインを再同期し直さなくて済むよう、ディスク上にデータベースを持つことが多いです。Bitcoin CoreではLevelDB、EthereumではLMDBなどのキーバリューストアにブロックやトランザクションインデックスを保存しています。Zigからは`std.fs`でファイル操作が可能なので、シリアライズしたブロックをファイルに追記する簡易実装や、SQLiteなど外部データベースを利用する方法も取れます。
+- **永続ストレージ**: ノードを再起動してもブロックチェインを再同期し直さなくて済むよう、ディスク上にデータベースを持つことが多いです。Bitcoin CoreではLevelDB、EthereumではLMDBなどのkey-valueストアにブロックやトランザクションインデックスを保存しています。Zigからは`std.fs`でファイル操作が可能なので、シリアライズしたブロックをファイルに追記する簡易実装や、SQLiteなど外部データベースを利用する方法も取れます。
 
 - **インデックス管理**: 単にブロックをチェイン順に保存するだけでなく、特定のトランザクションを探すためのインデックス（例えばTxID→ブロック番号）の構築もフルノードでは必要になります。小規模実装では全ブロックを線形検索しても問題ないですが、実際のブロックチェインは何十万～何百万ブロックにもなるため、効率化が課題です。
 
@@ -275,7 +275,7 @@ SPVノードを実装する場合、フルノードとの通信プロトコル�
 
 1. **ノードA・B稼働中**: ノードAとBは引き続き動かしておきます（ブロック高10くらいまで成長しているとします）。
 
-2. **ノードC起動**: ノードCを起動し、起動時に既知ノードとしてAかBのアドレスを指定します。ノードCは接続後、まず自分のチェインが空（もしくはジェネシスのみ）であることを認識し、ネットワークからブロックを貰う必要があります。そこで**同期要求**を送ります。簡単な実装では、接続直後に自分の最新ブロックハッシュ（あるいは高さ）を相手に送り、相手はその次のブロック以降を順次送ってくれる、というプロトコルが考えられます。Bitcoinでは新規ノードは`getheaders`を送り、知らないブロックのヘッダ一覧を取得した後、`getdata`で実際のブロック本体を要求するという流れになっています ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Imagine%20you%20just%20set%20up,getheaders%20message%20to%20your%20peers))。
+2. **ノードC起動**: ノードCを起動し、起動時に既知ノードとしてAかBのアドレスを指定します。ノードCは接続後、まず自分のチェインが空（もしくはジェネシスのみ）であることを認識し、ネットワークからブロックを貰う必要があります。そこで**同期要求**を送ります。簡単な実装では、接続直後に自分の最新ブロックハッシュ（あるいは高さ）を相手に送り、相手はその次のブロック以降を順次送ってくれる、というプロトコルが考えられます。Bitcoinでは新規ノードは`getheaders`を送り、使うべきではない言葉なので修正してくださいブロックのヘッダ一覧を取得した後、`getdata`で実際のブロック本体を要求するという流れになっています ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Imagine%20you%20just%20set%20up,getheaders%20message%20to%20your%20peers))。
 
 3. **ブロック同期**: ノードCはノードA(B)から送られてくるブロックを受信し、自身のチェインに追加していきます。例えばジェネシス以降の10ブロックを順番に受け取って検証・追加する処理を実装します。一度に大量に送るのではなく、1ブロック受信・追加完了したら次を要求する形にすると安全です。全てのブロックを取り込んだら、ノードCのブロック高も10に追いつき、他のノードと同期完了です。
 

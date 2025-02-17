@@ -4,8 +4,8 @@
   "description": "Zenn article repository",
   "main": "index.js",
   "scripts": {
-    "lint": "npx textlint ./**/*.md",
-    "lint:fix": "npx textlint --fix ./**/*.md",
+    "lint": "npx textlint ./**/*.md ./books/**/intro.md ",
+    "lint:fix": "npx textlint --fix ./**/*.md ./books/**/intro.md",
     "preview": "npx zenn preview"
   },
   "keywords": [],
