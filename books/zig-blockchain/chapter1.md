@@ -7,7 +7,7 @@ free: true
 
 ## はじめに
 
-Zigは**モダンで効率的なプログラミング言語**で、C言語に近い構文と性能を持ちながらも、メモリセーフティやエラーハンドリングなどの機能を備えています。ブロックチェインのような**高い信頼性が求められるアプリケーション**にも適しており、本チュートリアルではその特性を活かしてブロックチェインの基本構造を実装していきます。
+ZigはC言語に近い構文と性能を持ちながらも、メモリセーフティやエラーハンドリングなどの機能を備えています。ブロックチェインのような**高い信頼性が求められるアプリケーション**にも適しており、本チュートリアルではその特性を活かしてブロックチェインの基本構造を実装していきます。
 本チュートリアルでは、Zigを使って**ブロックチェインの基本要素**（ブロック、トランザクション、ハッシュ計算、Proof of Work）を実装し、最終的には**シンプルなブロックチェイン**を完成させます。ブロックチェインの仕組みやZigの基本的な使い方についても解説しますので、Zigやブロックチェインに興味がある方はぜひお試しください。
 
 学習ソースとしては[Zig Book](https://github.com/pedropark99/zig-book)がオススメです。
@@ -18,7 +18,7 @@ Zigは**モダンで効率的なプログラミング言語**で、C言語に近
 
 ### Zigのインストール方法
 
-Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([Getting Started⚡Zig Programming Language](https://ziglang.org/learn/getting-started/))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます（自己完結型のアーカイブを展開するだけで動作します。
+Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([Getting Started⚡Zig Programming Language](https://ziglang.org/learn/getting-started/))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます。
 インストール後、ターミナル/コマンドプロンプトで `zig version` を実行し、バージョンが表示されれば成功です。
 
 ```bash
@@ -42,18 +42,16 @@ info: created src/root.zig
 info: see `zig build --help` for a menu of options
 ```
 
-
 ### 簡単なHello Worldプログラムの実行
-
-
 
 環境確認のため、簡単なZigプログラムを作成してみます。適当なディレクトリに`hello.zig`というファイルを作り、以下のコードを書いてください。
 
 ```zig
 const std = @import("std");
 
-pub fn main() void {
-    std.debug.print("Hello, Zig!\n", .{}); // "Hello, Zig!"と出力する
+pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("Hello, {s}\n", .{"world"});
 }
 ```
 
@@ -63,13 +61,15 @@ pub fn main() void {
 zig run hello.zig
 ```
 
-`zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, Zig!** と表示されるはずです。これでZigの開発環境は準備完了です。
+`zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, world** と表示されるはずです。これでZigの開発環境は準備完了です。
 
 ## ブロックチェインの基本構造
 
 それでは、ブロックチェインのコアである「ブロック」の構造を実装していきます。まずはブロックチェインの基本を簡単におさらいしましょう。
 
-**ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェイン）を持ち、これによってブロック同士が鎖状にリンクしています。
+**ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です。
+ ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。
+ 各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェイン）を持ち、これによってブロック同士が鎖状にリンクしています。
 
 **改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェイン全体の整合性が崩れてしまいます。この仕組みにより、1つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
 
@@ -102,7 +102,7 @@ const Block = struct {
 
 ### ブロックのハッシュを計算する
 
-ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, タイムスタンプ, prev_hash, dataなど）から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算を行います。
+ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, タイムスタンプ, prev_hash, dataなど）から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算をします。
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
@@ -123,7 +123,9 @@ fn calculateHash(block: *const Block) [32]u8 {
 }
 ```
 
-上記の`calculateHash`関数では、`Sha256.init(.{})`でハッシュ計算用のコンテキストを作成し、`hasher.update(...)`でブロックの各フィールドをバイト列として順次ハッシュ計算に入力しています。`std.mem.bytesOf(value)`は与えた値をバイト列として扱うためのヘルパーで、整数型の値などをハッシュに含めるのに便利です。最後に`hasher.finalResult()`を呼ぶと、これまでに与えたデータのSHA-256ハッシュが計算され、32バイトの配列として得られます。
+上記の`calculateHash`関数では、`Sha256.init(.{})`でハッシュ計算用のコンテキストを作成します。その後`hasher.update(...)`でブロックの各フィールドをバイト列として順次ハッシュ計算に入力しています。
+`std.mem.bytesOf(value)`は与えた値をバイト列として扱うためのヘルパーで、整数型の値などをハッシュに含められて便利です。
+最後に`hasher.finalResult()`を呼ぶと、これまでに与えたデータのSHA-256ハッシュが計算され、32バイトの配列として得られます。
 
 **ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます。
 
@@ -131,9 +133,13 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 ## トランザクションの記録
 
-ブロックチェインは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造で、しばしば**デジタル署名**によって改ざんされていないことを保証します ([Building a Simple Blockchain in C# with .NET | by Mehmet Tosun](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f#:~:text=Building%20a%20Simple%20Blockchain%20in,into%20blocks%2C%20forming%20a%20chain))。
+ブロックチェインは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。
 
-本チュートリアルではシンプルに、送信者・受信者を文字列、金額を数値で扱う構造体としてトランザクションを定義します（署名については概念のみ紹介し、実装は省略します）。ZigでTransaction構造体を定義し、Block構造体にトランザクションのリストを持たせましょう。
+トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造です。
+しばしば**デジタル署名**によって改ざんされていないことを保証します。 ([link](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f))。
+
+本チュートリアルではシンプルに、送信者・受信者を文字列、金額を数値で扱う構造体としてトランザクションを定義します（署名については概念のみ紹介し、実装は省略します）。
+ZigでTransaction構造体を定義し、Block構造体にトランザクションのリストを持たせましょう。
 
 ```zig
 const Transaction = struct {
@@ -154,7 +160,7 @@ const Block = struct {
 };
 ```
 
-上記のように、Block構造体に`transactions`フィールドを追加しました。ここではZig標準ライブラリの `std.ArrayList` を利用してトランザクションのリストを表現しています。`std.ArrayList(T)`はC++の`std::vector<T>`やRustの`Vec<T>`に相当し、動的にサイズが変えられる配列です ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=The%20std,%60.items))。Zigでは動的配列を扱う際に明示的なメモリ割り当てが必要ですが、`ArrayList`型は内部でメモリ管理を行ってくれるので、使い方は比較的簡単です。
+上記のように、Block構造体に`transactions`フィールドを追加しました。ここではZig標準ライブラリの `std.ArrayList` を利用してトランザクションのリストを表現しています。`std.ArrayList(T)`はC++の`std::vector<T>`やRustの`Vec<T>`に相当し、動的にサイズが変えられる配列です ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=The%20std,%60.items))。Zigでは動的配列を扱う際に明示的なメモリ割り当てが必要ですが、`ArrayList`型は内部でメモリ管理をするので、使い方は比較的簡単です。
 
 **トランザクションをブロックへ追加する**: 新しいブロックを作る際には、まず空の`ArrayList(Transaction)`を初期化し、取引を`append`メソッドで追加していきます。例えば1件のトランザクションを追加するコードは以下のようになります。
 
@@ -192,11 +198,13 @@ fn createBlock(index: u32, prev_hash: [32]u8) !Block {
 }
 ```
 
-上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化し（実際のアプリケーションでは適切なメモリアロケータ管理が必要です）、2件のTransactionを`append`しています。`append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
+上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化します。
+その後、2件のTransactionを`append`しています。
+`append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
 
 ### ハッシュ計算へのトランザクションの組み込み
 
-トランザクションをブロックに含めたことで、ハッシュ計算時に考慮すべきデータも増えます。`calculateHash`関数では、ブロック内の全トランザクションの内容もハッシュ入力に追加する必要があります。例えば以下のように、トランザクションの各フィールドを順番にハッシュへ投入します（擬似コード）:
+トランザクションをブロックに含めたことで、ハッシュ計算時に考慮すべきデータも増えます。`calculateHash`関数では、ブロック内の全トランザクションの内容もハッシュ入力に追加する必要があります。例えば以下のように、トランザクションの各フィールドを順番にハッシュへ投入します。
 
 ```zig
     // ...（他のフィールドのハッシュ計算）...
@@ -216,17 +224,28 @@ fn createBlock(index: u32, prev_hash: [32]u8) !Block {
 
 次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
 
-**PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証（ハッシュを再計算して条件を満たすか確認）は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
+**PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。
 
-**難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量（難易度）が指数関数的に増大します ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=Difficulty%20is%20quantified%20by%20the,increases%20the%20computational%20effort%20needed))。ネットワーク全体のマイニング速度に応じて、この難易度は適宜調整されるようになっています ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=To%20maintain%20a%20consistent%20block,block%20approximately%20every%2010%20minutes))（ビットコインでは約2週間ごとにブロック生成速度が10分/blockになるよう難易度調整）。
+特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
+
+この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証（ハッシュを再計算して条件を満たすか確認）は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
+
+**難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量（難易度）が指数関数的に増大します。
+ ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=Difficulty%20is%20quantified%20by%20the,increases%20the%20computational%20effort%20needed))。
+
+ ネットワーク全体のマイニング速度に応じて、この難易度は適宜調整されるようになっています。ビットコインでは約2週間ごとにブロック生成速度が10分/blockになるよう難易度調整。
 
 それでは、このPoWのアイデアを使って、ブロックに**マイニング（nonce探し）**の処理を追加しましょう。
 
 ### nonceフィールドの活用
 
-先ほどBlock構造体に追加した`nonce`（ナンス）を利用します。ブロックのハッシュ計算時に、この`nonce`も入力データに含めるよう`calculateHash`関数を修正しておきます（`hasher.update(std.mem.bytesOf(block.nonce))`を追加）。
+先ほどBlock構造体に追加した`nonce`（ナンス）を利用します。ブロックのハッシュ計算時に、この`nonce`も入力データに含めるよう`calculateHash`関数を修正しておきます。
+（`hasher.update(std.mem.bytesOf(block.nonce))`を追加）。
 
-マイニングでは、`nonce`の値を0から始めて1ずつ増やしながら繰り返しハッシュを計算し、条件に合致するハッシュが出るまでループします。条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0×00であること」とします（これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です）。
+マイニングでは、`nonce`の値を0から始めて1ずつ増やしながら繰り返しハッシュを計算し、条件に合致するハッシュが出るまでループします。
+
+条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0×00であること」とします。
+（これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です）。
 
 ### PoWマイニングのコード実装
 
@@ -269,7 +288,7 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 
 まず、簡単にブロックチェインを連結する処理をおさらいします。新しいブロックをチェインに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング（`mineBlock`）によってハッシュを確定させてからチェインに繋ぎます。最初のブロック（ジェネシスブロック）は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値（ゼロハッシュ）を入れておくとよいでしょう。
 
-チェイン全体の検証は各ブロックについて以下をチェックします:
+チェイン全体の検証は各ブロックについて以下をチェックします。
 
 - `prev_hash`が直前のブロックの`hash`と一致しているか
 - ブロックの`hash`がブロック内容（含`nonce`）から正しく計算されているか
@@ -281,7 +300,11 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 
 Zigでデバッグを行う方法としては、**printデバッグ**（プログラム中に変数値を出力して追跡する）や、組み込みのテストフレームワークを使う方法があります。`std.debug.print`や`std.log.info`を使って適宜値を表示すれば、ブロック生成の過程やハッシュ計算結果を確認できます。例えばマイニング中に`nonce`の値を一定間隔で表示したり、ブロック完成時に`hash`を16進数で表示したりすると、処理の様子が掴みやすいでしょう。
 
-Zigコンパイラにはデフォルトで**デバッグモード**（安全チェック有効）と**最適化モード**（安全チェック無効で高速化）のビルドオプションがあります。何も指定しなければデフォルトでデバッグ用ビルドになります。コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能ですが、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
+Zigコンパイラにはデフォルトで**デバッグモード**（安全チェック有効）と**最適化モード**（安全チェック無効で高速化）のビルドオプションがあります。
+
+何も指定しなければデフォルトでデバッグ用ビルドになります。
+
+コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能です。ただし、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
 
 ### 簡単なテストコードを書く
 
@@ -315,18 +338,27 @@ test "ブロック改ざんの検出" {
 
 このテストでは、最初にAliceからBobへ100の送金トランザクションを含むブロックを作り、そのブロックのハッシュを求めています。次にブロック内の取引金額を100から200に改ざんし、再度ハッシュを計算します。`std.testing.expect(... == false)`によって、改ざん前後でハッシュが一致しない（つまり改ざんを検出できる）ことを検証しています。実行時にこの期待が満たされない場合（もし改ざんしてもハッシュが変わらなかった場合など）はテストが失敗し、エラーが報告されます。
 
-テストコードは、ファイル内に記述して`zig test ファイル名.zig`で実行できます。`zig build test`を使えばビルドシステム経由でプロジェクト内のすべてのテストを実行することも可能です。上記テストを走らせて**パスすれば、ブロックの改ざん検知ロジックが正しく機能している**ことになります。
+テストコードは、ファイル内に記述して`zig test ファイル名.zig`で実行できます。`zig build test`を使えばビルドシステム経由でプロジェクト内のすべてのテストを実行できます。上記テストを走らせて**パスすれば、ブロックの改ざん検知ロジックが正しく機能している**ことになります。
 
 ### その他のデバッグヒント
 
-- **ログ出力**: Zigの標準ライブラリにはログ機能（`std.log`）もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です（事前に`std.log.global_level`の設定が必要ですが、簡単な用途では`std.debug.print`で十分でしょう）。
-- **メモリ管理のチェック**: Zigは低レベル言語なのでメモリ管理に注意が必要です。今回`std.ArrayList`を使いましたが、使用後に`deinit()`で確保したメモリを解放することを忘れないようにしましょう ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。Zigのテストでは`std.testing.allocator`を使うことで、テスト終了時にメモリリークがないか自動チェックすることもできます。
+- **ログ出力**: Zigの標準ライブラリにはログ機能（`std.log`）もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です。
+- **メモリ管理のチェック**: Zigは低レベル言語なのでメモリ管理に注意が必要です。今回`std.ArrayList`を使いましたが、使用後に`deinit()`で確保したメモリを解放することを忘れないようにしましょう ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。Zigのテストでは`std.testing.allocator`を使うことで、テスト終了時にメモリリークがないか自動チェックできます。
 - **スタックトレース**: 実行時エラーが発生すると、Zigはデフォルトでスタックトレースを表示します。どの関数のどの行でエラーが起きたか追跡できるので、バグ修正に役立ちます。
 
 ## おわりに
 
 本チュートリアルでは、Zigを用いてブロックチェインの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェインの改ざん耐性やワークロード証明の仕組みを備えています。
 
-実際のブロックチェインシステムでは、この他にも**ピアツーピアネットワーク**による分散ノード間の通信、**トランザクションのデジタル署名と検証**、**コンセンサスアルゴリズムの調整**、**ブロックサイズや報酬の管理**など、様々な要素があります。まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
+実際のブロックチェインシステムでは、この他にも様々な要素があります。
 
-Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェインを実装・改良していくことで、低レベルからブロックチェインの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェインの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data)) ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))
+- **ピアツーピアネットワーク**による分散ノード間の通信
+- **トランザクションのデジタル署名と検証**
+- **コンセンサスアルゴリズムの調整**
+- **ブロックサイズや報酬の管理**
+
+などです。
+
+まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
+
+Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェインを実装・改良していくことで、低レベルからブロックチェインの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェインの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
