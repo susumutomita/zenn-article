@@ -44,7 +44,7 @@ info: see `zig build --help` for a menu of options
 
 ### 簡単なHello Worldプログラムの実行
 
-環境確認のため、簡単なZigプログラムを作成してみます。適当なディレクトリに`hello.zig`というファイルを作り、以下のコードを書いてください。
+環境確認のため、簡単なZigプログラムを作成してみます。src/main.zigを更新して、以下のコードを書いてください。
 
 ```zig
 const std = @import("std");
@@ -55,10 +55,10 @@ pub fn main() !void {
 }
 ```
 
-このプログラムは`std.debug.print`を使って文字列を出力しています。準備したターミナルで次のコマンドを実行してみましょう。
+次に、準備したターミナルで次のコマンドを実行してみましょう。
 
 ```bash
-zig run hello.zig
+zig run src/main.zig
 ```
 
 `zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, world** と表示されるはずです。これでZigの開発環境は準備完了です。
