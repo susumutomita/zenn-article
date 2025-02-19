@@ -67,6 +67,10 @@ zig run hello.zig
 
 それでは、ブロックチェインのコアである「ブロック」の構造を実装していきます。まずはブロックチェインの基本を簡単におさらいしましょう。
 
+### なぜブロックという単位か
+
+ブロックチェインでは、膨大な取引情報をそのまま連続的に記録すると、改ざん検出や管理が非常に困難になる。そこで「ブロック」という単位に複数の取引や関連情報（タイムスタンプ、前ブロックのハッシュ値など）をまとめることで、各ブロックごとに一意の「指紋」を生成する仕組みになっています。
+
 **ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です。
  ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。
  各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェイン）を持ち、これによってブロック同士が鎖状にリンクしています。
@@ -362,3 +366,122 @@ test "ブロック改ざんの検出" {
 まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
 
 Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェインを実装・改良していくことで、低レベルからブロックチェインの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェインの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
+
+### まとめプログラムの実装例
+
+ファイル名を **main.zig** として作成する。
+
+```zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+/// 取引（トランザクション）の構造体
+const Transaction = struct {
+    sender: []const u8,    // 送信者アドレス（文字列）
+    receiver: []const u8,  // 受信者アドレス
+    amount: u64,           // 送金額
+};
+
+/// ブロックを表す構造体
+const Block = struct {
+    index: u32,                        // ブロック番号
+    timestamp: u64,                    // 作成時刻（Unixエポック秒）
+    prev_hash: [32]u8,                 // 直前のブロックのハッシュ（32バイト）
+    transactions: std.ArrayList(Transaction), // 取引リスト
+    nonce: u64,                        // マイニング用ナンス
+    hash: [32]u8,                      // このブロックのハッシュ
+};
+
+/// ブロック内の各フィールドを順次ハッシュへ投入し、SHA-256ハッシュを返す
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(std.mem.bytesOf(block.index));
+    hasher.update(std.mem.bytesOf(block.timestamp));
+    hasher.update(&block.prev_hash);
+    hasher.update(std.mem.bytesOf(block.nonce));
+    // 各取引について、フィールドを順にハッシュへ投入
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(std.mem.bytesOf(tx.amount));
+    }
+    return hasher.finalResult();
+}
+
+/// ハッシュ値の先頭 'difficulty' バイトが全て0かどうかチェックする関数
+fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
+    for (hash[0..difficulty]) |byte| {
+        if (byte != 0) return false;
+    }
+    return true;
+}
+
+/// PoWによるマイニング処理：条件を満たすハッシュとnonceを見つける
+fn mineBlock(block: *Block, difficulty: u8) void {
+    while (true) {
+        const new_hash = calculateHash(block);
+        if (meetsDifficulty(new_hash, difficulty)) {
+            block.hash = new_hash;
+            break;
+        }
+        block.nonce += 1;
+    }
+}
+
+/// ハッシュ値を16進数で出力する補助関数
+fn printHash(writer: anytype, hash: [32]u8) !void {
+    for (hash) |byte| {
+        try writer.print("{02x}", .{byte});
+    }
+    try writer.print("\n", .{});
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    var stdout = std.io.getStdOut().writer();
+
+    // 取引リストを初期化
+    var tx_list = std.ArrayList(Transaction).init(allocator);
+    defer tx_list.deinit();
+
+    // 例として2件の取引を追加
+    try tx_list.append(Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 100,
+    });
+    try tx_list.append(Transaction{
+        .sender = "Charlie",
+        .receiver = "Dave",
+        .amount = 50,
+    });
+
+    // ジェネシスブロックの作成（最初のブロックなので、prev_hashは全0）
+    var genesis_block = Block{
+        .index = 0,
+        .timestamp = std.time.timestamp(),
+        .prev_hash = [_]u8{0} ** 32, // 32バイトのゼロハッシュ
+        .transactions = tx_list,
+        .nonce = 0,
+        .hash = undefined,
+    };
+
+    // 難易度を2（先頭2バイトが0）とし、ブロックをマイニング
+    mineBlock(&genesis_block, 2);
+
+    // ブロック情報を出力
+    try stdout.print("Block index: {d}\n", .{genesis_block.index});
+    try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
+    try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
+    try stdout.print("Hash       : ");
+    try printHash(stdout, genesis_block.hash);
+    try stdout.print("Prev Hash  : ");
+    try printHash(stdout, genesis_block.prev_hash);
+    try stdout.print("Transactions:\n", .{});
+    for (genesis_block.transactions.items) |tx| {
+        try stdout.print("  Sender: {s}, Receiver: {s}, Amount: {d}\n",
+            .{tx.sender, tx.receiver, tx.amount});
+    }
+}
+```
