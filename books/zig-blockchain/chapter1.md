@@ -25,7 +25,7 @@ ZigはC言語に近い構文と性能を持ちながらも、メモリセーフ�
 ### Zigのインストール方法
 
 Zig公式サイトから各プラットフォーム向けのバイナリをダウンロードし、パスを通すのが最も手軽な方法です ([Getting Started⚡Zig Programming Language](https://ziglang.org/learn/getting-started/))。Zigはインストールがシンプルで、単一の実行ファイルを好きな場所に置いてパスを設定すれば利用できます。
-インストール後、ターミナル/コマンドプロンプトで `zig version` を実行し、バージョンが表示されれば成功です。
+インストール後、ターミナル/コマンドプロンプトで `zig version` を実行し、バージョンが表示されれば成功です。Mac + Homebrewの場合は`brew install zig`でインストールできます。
 
 ```bash
 ❯ zig version
