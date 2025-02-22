@@ -182,7 +182,7 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 コード全体は次のようになります。
 
-``````arc/main.zig
+```arc/main.zig
 const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
@@ -232,7 +232,6 @@ pub fn main() !void {
     try stdout.print("\n", .{});
 }
 ```
-
 
 ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
 
