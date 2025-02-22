@@ -83,7 +83,7 @@ zig run src/main.zig
 
 **改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェイン全体の整合性が崩れてしまいます。この仕組みにより、1つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
 
-### Zigでブロック構造体を定義する
+### ブロック構造体だけを定義し、単一ブロックを作成する
 
 上記の概念を踏まえて、Zigでブロックを表現する構造体を作ってみましょう。ブロックに含める主な情報は以下の通りです。
 
@@ -151,13 +151,13 @@ Timestamp  : 1672531200
 Data       : Hello, Zig Blockchain!
 ```
 
-### ブロックのハッシュを計算する
+### ハッシュ計算を追加し、hashフィールドを埋める
 
 ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, タイムスタンプ, prev_hash, dataなど）から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算をします。
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
-```zig
+```arc/main.zig
 const std = @import("std");
 const crypto = std.crypto.hash;  // ハッシュ用の名前空間
 const Sha256 = crypto.sha2.Sha256;
@@ -180,9 +180,63 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 **ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます。
 
+コード全体は次のようになります。
+
+``````arc/main.zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+// --- ステップ2: ハッシュ計算を導入 ---
+
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    data: []const u8,
+    hash: [32]u8,
+};
+
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(std.mem.bytesOf(block.index));
+    hasher.update(std.mem.bytesOf(block.timestamp));
+    hasher.update(&block.prev_hash);
+    hasher.update(block.data);
+    return hasher.finalResult();
+}
+
+pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+
+    // ブロック作成
+    var genesis_block = Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .data = "Hello, Zig Blockchain!",
+        .hash = [_]u8{0} ** 32,
+    };
+
+    // ハッシュを計算してセット
+    genesis_block.hash = calculateHash(&genesis_block);
+
+    // 出力確認
+    try stdout.print("Block index: {d}\n", .{genesis_block.index});
+    try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
+    try stdout.print("Hash       : ", .{});
+    for (genesis_block.hash) |byte| {
+        // ハッシュを16進数で表示
+        try stdout.print("{02x}", .{byte});
+    }
+    try stdout.print("\n", .{});
+}
+```
+
+
 ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
 
-## トランザクションの記録
+## トランザクションを導入し、ブロックに複数の取引情報を持たせる
 
 ブロックチェインは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。
 
@@ -252,6 +306,92 @@ fn createBlock(index: u32, prev_hash: [32]u8) !Block {
 上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化します。
 その後、2件のTransactionを`append`しています。
 `append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
+
+コード全体は次のようになります。
+```src/main.zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+// --- ステップ3: トランザクションを導入 ---
+
+/// 取引の構造体
+const Transaction = struct {
+    sender: []const u8,
+    receiver: []const u8,
+    amount: u64,
+};
+
+/// ブロック構造体
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    transactions: std.ArrayList(Transaction), // トランザクションのリスト
+    data: []const u8, // （以前のdataも残しておくならOK, 省略してもよい）
+    hash: [32]u8,
+};
+
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(std.mem.bytesOf(block.index));
+    hasher.update(std.mem.bytesOf(block.timestamp));
+    hasher.update(&block.prev_hash);
+
+    // トランザクションをまとめてハッシュ
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(std.mem.bytesOf(tx.amount));
+    }
+
+    // 旧dataも含めるなら:
+    hasher.update(block.data);
+
+    return hasher.finalResult();
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    var stdout = std.io.getStdOut().writer();
+
+    // ブロックを用意
+    var block = Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(Transaction).init(allocator),
+        .data = "Sample Data",
+        .hash = [_]u8{0} ** 32,
+    };
+    defer block.transactions.deinit();
+
+    // トランザクションを追加
+    try block.transactions.append(Transaction{
+        .sender = "Alice", .receiver = "Bob", .amount = 100,
+    });
+    try block.transactions.append(Transaction{
+        .sender = "Charlie", .receiver = "Dave", .amount = 50,
+    });
+
+    // ハッシュ計算
+    block.hash = calculateHash(&block);
+
+    // 出力
+    try stdout.print("Block index: {d}\n", .{block.index});
+    try stdout.print("Timestamp  : {d}\n", .{block.timestamp});
+    try stdout.print("Transactions:\n", .{});
+    for (block.transactions.items) |tx| {
+        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
+    }
+    try stdout.print("Block Hash : ", .{});
+    for (block.hash) |b| {
+        try stdout.print("{02x}", .{b});
+    }
+    try stdout.print("\n", .{});
+}
+```
+
 
 ### ハッシュ計算へのトランザクションの組み込み
 
@@ -356,6 +496,103 @@ Zigコンパイラにはデフォルトで**デバッグモード**（安全チ�
 何も指定しなければデフォルトでデバッグ用ビルドになります。
 
 コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能です。ただし、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
+
+コード全体は次のようになります。
+```src/main.zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+// --- ステップ4: PoWによるマイニングを追加 ---
+
+const Transaction = struct {
+    sender: []const u8,
+    receiver: []const u8,
+    amount: u64,
+};
+
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    transactions: std.ArrayList(Transaction),
+    nonce: u64, // PoW用
+    hash: [32]u8,
+};
+
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(std.mem.bytesOf(block.index));
+    hasher.update(std.mem.bytesOf(block.timestamp));
+    hasher.update(&block.prev_hash);
+    hasher.update(std.mem.bytesOf(block.nonce));
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(std.mem.bytesOf(tx.amount));
+    }
+    return hasher.finalResult();
+}
+
+fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
+    for (hash[0..difficulty]) |byte| {
+        if (byte != 0) return false;
+    }
+    return true;
+}
+
+fn mineBlock(block: *Block, difficulty: u8) void {
+    while (true) {
+        const new_hash = calculateHash(block);
+        if (meetsDifficulty(new_hash, difficulty)) {
+            block.hash = new_hash;
+            break;
+        }
+        block.nonce += 1;
+    }
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    var stdout = std.io.getStdOut().writer();
+
+    // ブロックを作成
+    var block = Block{
+        .index = 0,
+        .timestamp = std.time.timestamp(),
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(Transaction).init(allocator),
+        .nonce = 0,
+        .hash = [_]u8{0} ** 32,
+    };
+    defer block.transactions.deinit();
+
+    // トランザクションを2件追加
+    try block.transactions.append(Transaction{
+        .sender = "Alice", .receiver = "Bob", .amount = 100,
+    });
+    try block.transactions.append(Transaction{
+        .sender = "Charlie", .receiver = "Dave", .amount = 50,
+    });
+
+    // 難易度を2(先頭2バイトが0)に設定してマイニング
+    mineBlock(&block, 2);
+
+    // 結果表示
+    try stdout.print("Block index: {d}\n", .{block.index});
+    try stdout.print("Timestamp  : {d}\n", .{block.timestamp});
+    try stdout.print("Nonce      : {d}\n", .{block.nonce});
+    try stdout.print("Hash       : ", .{});
+    for (block.hash) |b| {
+        try stdout.print("{02x}", .{b});
+    }
+    try stdout.print("\n", .{});
+    try stdout.print("Transactions:\n", .{});
+    for (block.transactions.items) |tx| {
+        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
+    }
+}
+```
 
 ### 簡単なテストコードを書く
 
