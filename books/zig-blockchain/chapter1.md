@@ -52,7 +52,7 @@ info: see `zig build --help` for a menu of options
 
 環境確認のため、簡単なZigプログラムを作成してみます。src/main.zigを更新して、以下のコードを書いてください。
 
-```bash
+```zig
 const std = @import("std");
 
 pub fn main() !void {
@@ -95,7 +95,7 @@ zig run src/main.zig
 
 Zigでは以下のように`struct`を使ってブロックの型を定義できます。
 
-```bash
+```zig
 const std = @import("std");
 
 // ブロックを表す構造体
@@ -110,7 +110,7 @@ const Block = struct {
 
 上記ではハッシュ値を256ビット（32バイト）長の配列 `[32]u8` で表しています。これはSHA-256などの暗号学的ハッシュ関数で得られるハッシュのサイズに合わせたものです。`data`フィールドは`[]const u8`（バイト列）としており、簡単のためブロックに格納するデータを文字列やバイナリ列で扱えるようにしています。
 
-```bash
+```zig
 const std = @import("std");
 
 /// ブロックチェーンの1ブロックを表す構造体
@@ -162,7 +162,7 @@ Data       : Hello, Zig Blockchain!
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
-```bash
+```zig
 const std = @import("std");
 const crypto = std.crypto.hash;  // ハッシュ用の名前空間
 const Sha256 = crypto.sha2.Sha256;
