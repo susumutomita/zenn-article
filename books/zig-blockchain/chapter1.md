@@ -327,76 +327,119 @@ Hash       : 502713c91775223a2e2b3876c8d273766e90df0c0d8114c5ea786e353c532
 
 ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
 
-## トランザクションを導入し、ブロックに複数の取引情報を持たせる
+## ステップ3: トランザクションを導入し、ブロックに複数の取引情報を持たせる
 
-ブロックチェインは通常、通貨の送受信などの**トランザクション（取引記録）**をブロックにまとめています。
+ブロックチェインは本来、多くの取引（トランザクション）をひとつのブロックに束ねて扱います。これによって改ざんを検出しやすくしたり、ネットワーク全体の負荷を抑えたりしています。ここでは、前章までに作った「**単一ブロックとそのハッシュ計算**」を拡張し、**複数のトランザクションを持てるブロック**を作る流れを **段階的** に進めていきましょう。
 
-トランザクションとは「**送信者**」「**受信者**」「**金額**」などの送受信の詳細を含むデータ構造です。
-しばしば**デジタル署名**によって改ざんされていないことを保証します。 ([link](https://medium.com/@mehmet.tosun/building-a-simple-blockchain-in-c-with-net-cf91f1026b2f))。
+### トランザクション用の構造体を定義する
 
-本チュートリアルではシンプルに、送信者・受信者を文字列、金額を数値で扱う構造体としてトランザクションを定義します（署名については概念のみ紹介し、実装は省略します）。
-ZigでTransaction構造体を定義し、Block構造体にトランザクションのリストを持たせましょう。
+まずは、取引を表すデータ構造 `Transaction` を作ります。実際の暗号通貨では「送信者の署名」「入力と出力のリスト」など複雑な形を取ります。ここでは最低限として「送信者（sender）」「受信者（receiver）」「金額（amount）」だけを持つシンプルな構造にします。
 
 ```zig
+/// トランザクション構造体
 const Transaction = struct {
-    sender: []const u8,    // 送信者アドレス（文字列で表現）
-    receiver: []const u8,  // 受信者アドレス
-    amount: u64,           // 取引金額（今回は整数で表現）
-    // 本来は署名フィールドなども必要
+    sender: []const u8,    // 送信者(文字列)
+    receiver: []const u8,  // 受信者(文字列)
+    amount: u64,           // 金額(整数)
+    // (実際は署名など必要)
 };
+```
 
+これをファイルに追加し、**ブロック**との関連付けはまだ行いません。とりあえず「トランザクションとはこういうもの」という定義を作る段階です。
+
+### ブロックに可変長トランザクションのリストを追加
+
+次に、`Block` 構造体へ**複数のトランザクションを持つフィールド**を追加します。Zigには `std.ArrayList(T)` があり、C++の `std::vector` に相当する可変長配列です。以下のように `transactions: std.ArrayList(Transaction)` を導入しましょう。
+
+```zig
+/// ブロック構造体
 const Block = struct {
     index: u32,
     timestamp: u64,
     prev_hash: [32]u8,
-    /// トランザクションのリスト（動的配列）
-    transactions: std.ArrayList(Transaction),
-    nonce: u64,           // (後述のPoWで使うnonce、ここで定義だけ追加)
+    transactions: std.ArrayList(Transaction), // 複数のトランザクションを保持
+    // ここは前章で定義したもの
+    data: []const u8,
     hash: [32]u8,
 };
 ```
 
-上記のように、Block構造体に`transactions`フィールドを追加しました。ここではZig標準ライブラリの `std.ArrayList` を利用してトランザクションのリストを表現しています。`std.ArrayList(T)`はC++の`std::vector<T>`やRustの`Vec<T>`に相当し、動的にサイズが変えられる配列です ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=The%20std,%60.items))。Zigでは動的配列を扱う際に明示的なメモリ割り当てが必要ですが、`ArrayList`型は内部でメモリ管理をするので、使い方は比較的簡単です。
+これで、**ブロックが1つのリストを持ち、そこに任意数のトランザクションを追加**できるようになります。
 
-**トランザクションをブロックへ追加する**: 新しいブロックを作る際には、まず空の`ArrayList(Transaction)`を初期化し、取引を`append`メソッドで追加していきます。例えば1件のトランザクションを追加するコードは以下のようになります。
+### 初期化時に動的配列を使う
+
+Zigの `std.ArrayList(T)` は使用前に必ず `init(allocator)` で初期化する必要があります。また、使い終わったら `deinit()` を呼び出してメモリを解放しなければなりません。
 
 ```zig
-const std = @import("std");
-const allocator = std.heap.page_allocator; // 簡易的にページアロケータを使用
+const allocator = std.heap.page_allocator;
 
-// 新しいブロックを作成する例（prev_hashは引数でもらう想定）
-fn createBlock(index: u32, prev_hash: [32]u8) !Block {
-    var block = Block{
-        .index = index,
-        .timestamp = @intCast(u64, std.time.timestamp()), // 現在時刻を取得
-        .prev_hash = prev_hash,
-        .transactions = undefined, // 後で初期化
-        .nonce = 0,
-        .hash = undefined,
-    };
-    // トランザクションリストを初期化（メモリ割り当て）
-    block.transactions = std.ArrayList(Transaction).init(allocator);
-    // トランザクションを追加
-    try block.transactions.append(Transaction{
-        .sender = "Alice",
-        .receiver = "Bob",
-        .amount = 100,
-    });
-    try block.transactions.append(Transaction{
-        .sender = "Charlie",
-        .receiver = "Dave",
-        .amount = 50,
-    });
-    // （必要に応じてさらにトランザクション追加）
-    // ブロックのハッシュを計算（トランザクションも含める）
-    block.hash = calculateHash(&block);
-    return block;
+// ブロック作成時
+var block = Block{
+    .index = 0,
+    .timestamp = 1672531200,
+    .prev_hash = [_]u8{0} ** 32,
+    .transactions = undefined, // 後で初期化
+    .data = "Sample Data",
+    .hash = [_]u8{0} ** 32,
+};
+
+// 動的配列を初期化
+block.transactions = std.ArrayList(Transaction).init(allocator);
+// 終了時または使い終わりに解放
+defer block.transactions.deinit();
+```
+
+**`defer block.transactions.deinit();`** という書き方にすると、スコープを抜けたとき自動で解放されるため便利です。
+
+### トランザクションを追加する
+
+初期化が済んだら、**`append` メソッド**を使ってトランザクションを追加できます。
+以下の例では2件追加し、```Alice→Bob 100, Charlie→Dave 50``` の取引を作っています。
+
+```zig
+try block.transactions.append(Transaction{
+    .sender = "Alice",
+    .receiver = "Bob",
+    .amount = 100,
+});
+try block.transactions.append(Transaction{
+    .sender = "Charlie",
+    .receiver = "Dave",
+    .amount = 50,
+});
+```
+
+appendに失敗するとエラーが返るため、`try` を付けてエラー処理を行っています。
+
+### ハッシュ計算にトランザクションを組み込む
+
+すでに作った `calculateHash(block: *const Block) [32]u8` 関数を**少し修正**し、ブロックのハッシュ計算時に**各トランザクション**も含めるようにします。
+**ブロックの ```index, timestamp, prev_hash, そして全トランザクション(sender, receiver, amount)``` を順にハッシュ**に投入します。
+
+```zig
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(std.mem.bytesOf(block.index));
+    hasher.update(std.mem.bytesOf(block.timestamp));
+    hasher.update(&block.prev_hash);
+
+    // トランザクションの各要素を順にハッシュ
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(std.mem.bytesOf(tx.amount));
+    }
+
+    hasher.update(block.data); // 前章のdataも残したいなら
+
+    return hasher.finalResult();
 }
 ```
 
-上記のコードでは、新規ブロックを生成する際に`std.heap.page_allocator`という簡易的なアロケータを使って`transactions`リストを初期化します。
-その後、2件のTransactionを`append`しています。
-`append`はリスト末尾に要素を追加するメソッドで、内部で必要に応じてメモリを確保しサイズを拡張してくれます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。最後に、以前定義した`calculateHash`関数を使ってブロックのハッシュ値を計算し、`block.hash`にセットしています。
+これで、**ブロックの全トランザクションがハッシュ値に反映**されます。
+ブロックを改ざんしようとしても、このハッシュが再計算されると合わなくなるため、改ざんが検出できるというわけです。
+
+最後に、すべてを**`main`関数内**にまとめた例を示します。これで「ブロックに複数の取引をまとめ、ブロックのハッシュを求める」ひととおりの流れが完結します。
 
 コード全体は次のようになります。
 
@@ -405,84 +448,136 @@ const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
-// --- ステップ3: トランザクションを導入 ---
-
-/// 取引の構造体
+/// トランザクションの構造体
+/// 送信者(sender), 受信者(receiver), 金額(amount) の3つだけを持つ。
 const Transaction = struct {
     sender: []const u8,
     receiver: []const u8,
     amount: u64,
+    // 本来は署名やトランザクションIDなどの要素が必要
 };
 
-/// ブロック構造体
+/// ブロックの構造体
+/// - index: ブロック番号
+/// - timestamp: 作成時刻
+/// - prev_hash: 前ブロックのハッシュ（32バイト）
+/// - transactions: 動的配列を使って複数のトランザクションを保持
+/// - data: 既存コードとの互換を保つために残す(省略可)
+/// - hash: このブロックのSHA-256ハッシュ(32バイト)
 const Block = struct {
     index: u32,
     timestamp: u64,
     prev_hash: [32]u8,
-    transactions: std.ArrayList(Transaction), // トランザクションのリスト
-    data: []const u8, // （以前のdataも残しておくならOK, 省略してもよい）
+    transactions: std.ArrayList(Transaction),
+    data: []const u8, // (必要に応じて省略可能)
     hash: [32]u8,
 };
 
+/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
+/// その全要素を含むスライス([]const u8)として返します。
+fn toBytes(comptime T: type, value: T) []const u8 {
+    // 左辺で返り値の型を [@sizeOf(T)]u8 として指定する
+    const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+    // 固定長配列を全体スライスとして返す
+    return bytes[0..@sizeOf(T)];
+}
+
+/// calculateHash関数
+/// ブロックの各フィールドを順番にハッシュ計算へ渡し、最終的なSHA-256ハッシュを得る。
 fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
-    hasher.update(std.mem.bytesOf(block.index));
-    hasher.update(std.mem.bytesOf(block.timestamp));
-    hasher.update(&block.prev_hash);
 
-    // トランザクションをまとめてハッシュ
+    // indexとtimestampをバイト列へ変換
+    hasher.update(toBytes(u32, block.index));
+    hasher.update(toBytes(u64, block.timestamp));
+
+    // 前のブロックのハッシュは配列→スライスで渡す
+    hasher.update(block.prev_hash[0..]);
+
+    // ブロックに保持されているトランザクション一覧をまとめてハッシュ
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
-        hasher.update(std.mem.bytesOf(tx.amount));
+        hasher.update(toBytes(u64, tx.amount));
     }
 
-    // 旧dataも含めるなら:
+    // 既存コードとの互換を保つため、dataもハッシュに含める
     hasher.update(block.data);
 
     return hasher.finalResult();
 }
 
+/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
 pub fn main() !void {
+    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
     const allocator = std.heap.page_allocator;
-    var stdout = std.io.getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
 
-    // ブロックを用意
-    var block = Block{
+    // ジェネシスブロック(最初のブロック)を作成
+    var genesis_block = Block{
         .index = 0,
         .timestamp = 1672531200,
-        .prev_hash = [_]u8{0} ** 32,
-        .transactions = std.ArrayList(Transaction).init(allocator),
-        .data = "Sample Data",
+        .prev_hash = [_]u8{0} ** 32, // 前ブロックが無いので全0にする
+        // アロケータの初期化は後で行うため、いったんundefinedに
+        .transactions = undefined,
+        .data = "Hello, Zig Blockchain!",
         .hash = [_]u8{0} ** 32,
     };
-    defer block.transactions.deinit();
 
-    // トランザクションを追加
-    try block.transactions.append(Transaction{
-        .sender = "Alice", .receiver = "Bob", .amount = 100,
+    // transactionsフィールドを動的配列として初期化
+    genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
+    defer genesis_block.transactions.deinit();
+
+    // トランザクションを2件追加
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 100,
     });
-    try block.transactions.append(Transaction{
-        .sender = "Charlie", .receiver = "Dave", .amount = 50,
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Charlie",
+        .receiver = "Dave",
+        .amount = 50,
     });
 
-    // ハッシュ計算
-    block.hash = calculateHash(&block);
+    // calculateHash()でブロックの全フィールドからハッシュを計算し、hashフィールドに保存する
+    genesis_block.hash = calculateHash(&genesis_block);
 
-    // 出力
-    try stdout.print("Block index: {d}\n", .{block.index});
-    try stdout.print("Timestamp  : {d}\n", .{block.timestamp});
+    // 結果を出力
+    try stdout.print("Block index: {d}\n", .{genesis_block.index});
+    try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
+    try stdout.print("Data       : {s}\n", .{genesis_block.data});
     try stdout.print("Transactions:\n", .{});
-    for (block.transactions.items) |tx| {
-        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
+    for (genesis_block.transactions.items) |tx| {
+        try stdout.print("  {s} -> {s} : {d}\n", .{ tx.sender, tx.receiver, tx.amount });
     }
-    try stdout.print("Block Hash : ", .{});
-    for (block.hash) |b| {
-        try stdout.print("{02x}", .{b});
+    try stdout.print("Hash       : ", .{}); // ← ここはプレースホルダなし、引数なし
+    // 32バイトのハッシュを1バイトずつ16進数で出力
+    for (genesis_block.hash) |byte| {
+        try stdout.print("{x}", .{byte});
     }
     try stdout.print("\n", .{});
 }
 ```
+
+こうして**「複数のトランザクションをブロックにまとめる」**実装ができました。実際にコードを動かすと、**ブロックのハッシュがトランザクションに依存**しており、新たに取引を追加してからハッシュを再計算すると、ハッシュ値も変わっています。
+
+```bash
+❯ zig run src/main.zig
+Block index: 0
+Timestamp  : 1672531200
+Data       : Hello, Zig Blockchain!
+Transactions:
+  Alice -> Bob : 100
+  Charlie -> Dave : 50
+Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
+```
+
+次のステップでは、**PoW（Proof of Work）** を導入し、`nonce`を使ってブロックハッシュが特定条件を満たすまで試行錯誤する「マイニング」処理を追加してみましょう。そこまで実装すると、「トランザクションをいじればブロックのハッシュが合わなくなり、PoWもやり直しになる」という改ざん耐性が、より強固に体験できます。
+
+> **発展：マークルツリー**
+> トランザクション数が大幅に増えると、各トランザクションをすべて直接ハッシュ計算するのではなく、**マークルツリー**を使って1つのルートハッシュにまとめる手法が一般的です。ビットコインなどでは、このマークルルートだけをブロックヘッダーに入れ、ブロック全体を効率的に検証できる仕組みにしています。
+> 本チュートリアルではまず“すべてのトランザクションを順にハッシュ”して仕組みを理解し、後の章でマークルツリーを導入する流れをとると良いでしょう。
 
 ### ハッシュ計算へのトランザクションの組み込み
 
