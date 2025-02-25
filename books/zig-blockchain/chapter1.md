@@ -52,7 +52,7 @@ info: see `zig build --help` for a menu of options
 
 環境確認のため、簡単なZigプログラムを作成してみます。src/main.zigを更新して、以下のコードを書いてください。
 
-```zig
+```bash
 const std = @import("std");
 
 pub fn main() !void {
@@ -95,7 +95,7 @@ zig run src/main.zig
 
 Zigでは以下のように`struct`を使ってブロックの型を定義できます。
 
-```src/main.zig
+```bash
 const std = @import("std");
 
 // ブロックを表す構造体
@@ -110,7 +110,7 @@ const Block = struct {
 
 上記ではハッシュ値を256ビット（32バイト）長の配列 `[32]u8` で表しています。これはSHA-256などの暗号学的ハッシュ関数で得られるハッシュのサイズに合わせたものです。`data`フィールドは`[]const u8`（バイト列）としており、簡単のためブロックに格納するデータを文字列やバイナリ列で扱えるようにしています。
 
-```src/main.zig
+```bash
 const std = @import("std");
 
 /// ブロックチェーンの1ブロックを表す構造体
@@ -162,7 +162,7 @@ Data       : Hello, Zig Blockchain!
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
-```arc/main.zig
+```bash
 const std = @import("std");
 const crypto = std.crypto.hash;  // ハッシュ用の名前空間
 const Sha256 = crypto.sha2.Sha256;
@@ -236,7 +236,7 @@ Zigでは、**整数型をそのまま「バイト列 (slice of bytes)」とし�
 
 コード全体は次のようになります。
 
-```arc/main.zig
+```bash
 const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
@@ -335,7 +335,7 @@ Hash       : 502713c91775223a2e2b3876c8d273766e90df0c0d8114c5ea786e353c532
 
 まずは、取引を表すデータ構造 `Transaction` を作ります。実際の暗号通貨では「送信者の署名」「入力と出力のリスト」など複雑な形を取ります。ここでは最低限として「送信者（sender）」「受信者（receiver）」「金額（amount）」だけを持つシンプルな構造にします。
 
-```zig
+```bash
 /// トランザクション構造体
 const Transaction = struct {
     sender: []const u8,    // 送信者(文字列)
@@ -351,7 +351,7 @@ const Transaction = struct {
 
 次に、`Block` 構造体へ**複数のトランザクションを持つフィールド**を追加します。Zigには `std.ArrayList(T)` があり、C++の `std::vector` に相当する可変長配列です。以下のように `transactions: std.ArrayList(Transaction)` を導入しましょう。
 
-```zig
+```bash
 /// ブロック構造体
 const Block = struct {
     index: u32,
@@ -370,7 +370,7 @@ const Block = struct {
 
 Zigの `std.ArrayList(T)` は使用前に必ず `init(allocator)` で初期化する必要があります。また、使い終わったら `deinit()` を呼び出してメモリを解放しなければなりません。
 
-```zig
+```bash
 const allocator = std.heap.page_allocator;
 
 // ブロック作成時
@@ -396,7 +396,7 @@ defer block.transactions.deinit();
 初期化が済んだら、**`append` メソッド**を使ってトランザクションを追加できます。
 以下の例では2件追加し、```Alice→Bob 100, Charlie→Dave 50``` の取引を作っています。
 
-```zig
+```bash
 try block.transactions.append(Transaction{
     .sender = "Alice",
     .receiver = "Bob",
@@ -416,7 +416,7 @@ appendに失敗するとエラーが返るため、`try` を付けてエラー�
 すでに作った `calculateHash(block: *const Block) [32]u8` 関数を**少し修正**し、ブロックのハッシュ計算時に**各トランザクション**も含めるようにします。
 **ブロックの ```index, timestamp, prev_hash, そして全トランザクション(sender, receiver, amount)``` を順にハッシュ**に投入します。
 
-```zig
+```bash
 fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
     hasher.update(std.mem.bytesOf(block.index));
@@ -441,9 +441,9 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 最後に、すべてを**`main`関数内**にまとめた例を示します。これで「ブロックに複数の取引をまとめ、ブロックのハッシュを求める」ひととおりの流れが完結します。
 
-コード全体は次のようになります。
+コード全体は次のようになります。(src/main.zig)
 
-```src/main.zig
+```bash
 const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
@@ -583,7 +583,7 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 
 トランザクションをブロックに含めたことで、ハッシュ計算時に考慮すべきデータも増えます。`calculateHash`関数では、ブロック内の全トランザクションの内容もハッシュ入力に追加する必要があります。例えば以下のように、トランザクションの各フィールドを順番にハッシュへ投入します。
 
-```zig
+```bash
     // ...（他のフィールドのハッシュ計算）...
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
