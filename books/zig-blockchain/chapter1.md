@@ -7,9 +7,9 @@ free: true
 
 このチュートリアルの進め方は次の通りです。
 
-> 1. **ブロックの構造**や**ハッシュ計算**、**PoW** など、ブロックチェインの「核」となる部分をシンプルに実装し、まずは**改ざん検出**や**チェーン構造**を理解します。
+> 1. **ブロックの構造**や**ハッシュ計算**、**PoW** など、ブロックチェインの「核」となる部分をシンプルに実装し、まずは**改ざん検出**や**チェイン構造**を理解します。
 > 2. 次章以降で**複数ブロックの追加**や**デジタル署名**、**P2Pネットワーク**などを順次取り上げ、実際のビットコインなどの実装に近づけていきます。
-> 3. 参考文献として、ビットコインのホワイトペーパーや「Mastering Bitcoin」などを参照しながら、実際の大規模ブロックチェーンの仕組みや、より高度な設計を学んでいきましょう。
+> 3. 参考文献として、ビットコインのホワイトペーパーや「Mastering Bitcoin」などを参照しながら、実際の大規模ブロックチェインの仕組みや、より高度な設計を学んでいきましょう。
 
 ## はじめに
 
@@ -113,7 +113,7 @@ const Block = struct {
 ```zig
 const std = @import("std");
 
-/// ブロックチェーンの1ブロックを表す構造体
+/// ブロックチェインの1ブロックを表す構造体
 /// - index: ブロック番号（u32）
 /// - timestamp: ブロック生成時のタイムスタンプ（u64）
 /// - prev_hash: 前ブロックのハッシュ（32バイトの固定長配列）
@@ -241,7 +241,7 @@ const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
-/// ブロックチェーンの1ブロックを表す構造体
+/// ブロックチェインの1ブロックを表す構造体
 /// - index: ブロック番号（u32）
 /// - timestamp: ブロック生成時のタイムスタンプ（u64）
 /// - prev_hash: 前ブロックのハッシュ（32バイトの固定長配列）
@@ -799,9 +799,19 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0×00であること」とします。
 （これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です）。
 
-### PoWマイニングのコード実装
+#### マイニング関数の追加
 
-以下に、与えられたブロックに対してマイニングを行い、条件を満たすハッシュとnonceを見つける関数`mineBlock`の例を示します。
+ブロックの**PoWマイニング**を実装するには、以下の2つの関数を用意します。
+
+1. **`meetsDifficulty(hash: [32]u8, difficulty: u8) bool`**
+   - ハッシュ配列の先頭 `difficulty` バイトがすべて `0x00` かを確認する関数。
+   - 先頭Nバイトが0なら「条件を満たした」と判断し、`true`を返します。
+   - 例えば `difficulty = 2`なら、`hash[0] == 0`かつ`hash[1] == 0`であればOK（=先頭16ビットが0）。
+
+2. **`mineBlock(block: *Block, difficulty: u8) void`**
+   - 無限ループの中で`calculateHash`を呼び出し、`meetsDifficulty`で合格か判定。
+   - 見つからなければ`block.nonce += 1;`で`nonce`を増やし、再びハッシュ計算を繰り返す。
+   - 条件を満たせば`block.hash`に最終ハッシュを設定し、ループを抜ける。
 
 ```zig
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
@@ -826,11 +836,168 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 }
 ```
 
+- `difficulty` は先頭に何バイト `0x00` が並んでいれば良いかを指定します。
+- `difficulty = 2` でも場合によっては何万回とハッシュ計算が繰り返されるため、テスト時は**値を小さめ**にするのがおすすめです。
+
 `meetsDifficulty`はハッシュ配列の先頭から指定バイト数をチェックし、すべて`0x00`ならtrueを返す関数です。`mineBlock`では無限ループの中で`calculateHash`を呼び出し、難易度条件を満たしたらループを抜けます。見つからなければ`nonce`を増やして再度ハッシュ計算、という流れです。
 
 難易度`difficulty`は調整可能ですが、大きな値にすると探索に非常に時間がかかるため、ローカルで試す場合は小さな値に留めましょう（例えば1や2程度）。`difficulty = 2`でも場合によっては数万回以上のループが必要になることがあります。PoWは計算量をわざと大きくすることで、ブロック生成にコストを課す仕組みだということを念頭に置いてください。
 
 以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェインに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
+
+---
+
+## 全体コード例
+
+これまでのコードに加え、`mineBlock`を呼び出して実際にマイニングを行う例を下記に示します。
+
+```zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+/// トランザクションの構造体
+const Transaction = struct {
+    sender: []const u8,
+    receiver: []const u8,
+    amount: u64,
+};
+
+/// ブロック構造体
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    transactions: std.ArrayList(Transaction),
+    nonce: u64,       // PoWで使うnonce
+    data: []const u8, // 既存コード互換用
+    hash: [32]u8,
+};
+
+/// 任意の型 T の値をバイト列として扱うためのヘルパー
+fn toBytes(comptime T: type, value: T) []const u8 {
+    const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+    return bytes[0..@sizeOf(T)];
+}
+
+/// ブロックのハッシュ計算（nonceも含む）
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+    hasher.update(toBytes(u32, block.index));
+    hasher.update(toBytes(u64, block.timestamp));
+    hasher.update(block.prev_hash[0..]);
+    hasher.update(toBytes(u64, block.nonce)); // ← nonceをハッシュ
+
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(toBytes(u64, tx.amount));
+    }
+
+    hasher.update(block.data);
+    return hasher.finalResult();
+}
+
+/// 先頭 `difficulty` バイトが 0 であるかチェック
+fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
+    for (hash[0..difficulty]) |byte| {
+        if (byte != 0) return false;
+    }
+    return true;
+}
+
+/// PoWマイニング：特定の難易度を満たすまで nonce を増やしてハッシュを試行
+fn mineBlock(block: *Block, difficulty: u8) void {
+    while (true) {
+        const new_hash = calculateHash(block);
+        if (meetsDifficulty(new_hash, difficulty)) {
+            block.hash = new_hash;
+            break;
+        }
+        block.nonce += 1;
+    }
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    var stdout = std.io.getStdOut().writer();
+
+    // ジェネシスブロックを作る
+    var genesis_block = Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = undefined,
+        .nonce = 0, // 初期値0から試行
+        .data = "Hello, Zig Blockchain!",
+        .hash = [_]u8{0} ** 32,
+    };
+
+    // トランザクションのリストを初期化
+    genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
+    defer genesis_block.transactions.deinit();
+
+    // トランザクションを2件追加
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 100,
+    });
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Charlie",
+        .receiver = "Dave",
+        .amount = 50,
+    });
+
+    // マイニングを行う(難易度=2)
+    mineBlock(&genesis_block, 2);
+
+    // 結果を表示
+    try stdout.print("Block index: {d}\n", .{genesis_block.index});
+    try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
+    try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
+    try stdout.print("Hash       : ", .{});
+    // ハッシュを16進数で表示
+    for (genesis_block.hash) |b| {
+        try stdout.print("{02x}", .{b});
+    }
+    try stdout.print("\nTransactions:\n", .{});
+    for (genesis_block.transactions.items) |tx| {
+        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
+    }
+}
+```
+
+---
+
+## 実行結果
+
+実行すると、`nonce`が0から始まり、**ハッシュが先頭2バイト「00 00」になるまで**試行します。見つかればそこで終了し、`nonce`が大きな値になることもあります。
+
+```bash
+❯ zig run src/main.zig
+Block index: 0
+Timestamp  : 1672531200
+Nonce      : 98765   # 例として、実際はこの値以上になる可能性も
+Hash       : 0000bd393a1c25fb5c62...  # 先頭が "0000" となっている
+Transactions:
+  Alice -> Bob : 100
+  Charlie -> Dave : 50
+```
+
+- ビットコインでは**先頭の0ビット**を難易度として扱い、だいたい毎回10分で見つかるぐらいに調整しています。
+- この例のようにバイト単位で先頭2バイトを0にするだけでも、運が悪いと何十万～何百万回と試行することがあり得ます。
+- 難易度を1や2程度にしておけば比較的すぐにハッシュが見つかるはずです。
+
+---
+
+## まとめ
+
+- **`nonce`を0から増やす**ことで、ブロックのハッシュ値が大きく変化します。
+- 先頭数バイトが0になる（または先頭Nビットが0）などの**難易度設定**に合致したら**ループ終了**。これが簡単なPoWの仕組みです。
+- 一度見つかったブロックを改ざんしようとすると、`nonce`を再度見つけ直さなければならないため、改ざんコストが跳ね上がります。
+
+これで**マイニング**の基本（nonce探索ループ）が完成しました。難易度を変化させれば、探索にかかる試行回数も変動します。これを**複数のブロック**に適用し、前のブロックのハッシュを`prev_hash`に設定しながら連結すれば、いよいよ「チェイン」としての改ざん耐性を試せるようになります。
 
 ## 動作確認とデバッグ
 
