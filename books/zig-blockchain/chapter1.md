@@ -596,6 +596,7 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
 
 **PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。
+ナンスはNumber Used Onceの略で、一度しか使わない数値という意味です。
 
 特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
 
