@@ -591,7 +591,7 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 
 次のステップでは、**PoW（Proof of Work）** を導入し、`nonce`を使ってブロックハッシュが特定条件を満たすまで試行錯誤する「マイニング」処理を追加してみましょう。そこまで実装すると、「トランザクションをいじればブロックのハッシュが合わなくなり、PoWもやり直しになる」という改ざん耐性が、より強固に体験できます。
 
-## 簡単なPoW（Proof of Work）の実装
+## ステップ4: 簡単なPoW（Proof of Work）の実装
 
 次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
 
@@ -608,13 +608,193 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 
 それでは、このPoWのアイデアを使って、ブロックに**マイニング（nonce探し）**の処理を追加しましょう。
 
-### nonceフィールドの活用
+### nonceフィールドの追加
 
-先ほどBlock構造体に追加した`nonce`（ナンス）を利用します。ブロックのハッシュ計算時に、この`nonce`も入力データに含めるよう`calculateHash`関数を修正しておきます。
-（`hasher.update(std.mem.bytesOf(block.nonce))`を追加）。
+Block構造体に`nonce`（ナンス）を追加します。
 
+```zig
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    transactions: std.ArrayList(Transaction),
+    data: []const u8, // (必要に応じて省略可能)
+    nonce: u64, // PoW用のnonce
+    hash: [32]u8,
+};
+```
+
+ブロックのハッシュ計算時に、この`nonce`も入力データに含めるよう`calculateHash`関数を修正しておきます。
+
+```zig
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+
+    // index と timestamp
+    hasher.update(toBytes(u32, block.index));
+    hasher.update(toBytes(u64, block.timestamp));
+
+    // 前のブロックのハッシュ
+    hasher.update(block.prev_hash[0..]);
+
+    // ここで nonce を加える
+    hasher.update(toBytes(u64, block.nonce));
+
+    // トランザクションの各要素をまとめてハッシュ
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(toBytes(u64, tx.amount));
+    }
+
+    // 既存コードとの互換を保つため、data もハッシュに含める
+    hasher.update(block.data);
+
+    return hasher.finalResult();
+}
+```
+
+コード全体は以下のようになります。
+
+```zig
+const std = @import("std");
+const crypto = std.crypto.hash;
+const Sha256 = crypto.sha2.Sha256;
+
+/// トランザクションの構造体
+/// 送信者(sender), 受信者(receiver), 金額(amount) の3つだけを持つ。
+const Transaction = struct {
+    sender: []const u8,
+    receiver: []const u8,
+    amount: u64,
+    // 本来は署名やトランザクションIDなどの要素が必要
+};
+
+/// ブロックの構造体
+/// - index: ブロック番号
+/// - timestamp: 作成時刻
+/// - prev_hash: 前ブロックのハッシュ（32バイト）
+/// - transactions: 動的配列を使って複数のトランザクションを保持
+/// - nonce: PoW用のnonce
+/// - data: 既存コードとの互換を保つために残す(省略可)
+/// - hash: このブロックのSHA-256ハッシュ(32バイト)
+const Block = struct {
+    index: u32,
+    timestamp: u64,
+    prev_hash: [32]u8,
+    transactions: std.ArrayList(Transaction),
+    data: []const u8, // (必要に応じて省略可能)
+    nonce: u64, // PoW用のnonce
+    hash: [32]u8,
+};
+
+/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
+/// その全要素を含むスライス([]const u8)として返します。
+fn toBytes(comptime T: type, value: T) []const u8 {
+    // 左辺で返り値の型を [@sizeOf(T)]u8 として指定する
+    const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+    // 固定長配列を全体スライスとして返す
+    return bytes[0..@sizeOf(T)];
+}
+
+/// calculateHash関数
+/// ブロックの各フィールドを順番にハッシュ計算へ渡し、最終的なSHA-256ハッシュを得る。
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+
+    // indexとtimestampをバイト列へ変換
+    hasher.update(toBytes(u32, block.index));
+    hasher.update(toBytes(u64, block.timestamp));
+
+    // 前のブロックのハッシュは配列→スライスで渡す
+    hasher.update(block.prev_hash[0..]);
+
+    // ブロックに保持されているトランザクション一覧をまとめてハッシュ
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(toBytes(u64, tx.amount));
+    }
+
+    // 既存コードとの互換を保つため、dataもハッシュに含める
+    hasher.update(block.data);
+
+    return hasher.finalResult();
+}
+
+/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
+pub fn main() !void {
+    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
+    const allocator = std.heap.page_allocator;
+    const stdout = std.io.getStdOut().writer();
+
+    // ジェネシスブロック(最初のブロック)を作成
+    var genesis_block = Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32, // 前ブロックが無いので全0にする
+        // アロケータの初期化は後で行うため、いったんundefinedに
+        .transactions = undefined,
+        .data = "Hello, Zig Blockchain!",
+        .nonce = 0, //nonceフィールドを初期化(0から始める)
+        .hash = [_]u8{0} ** 32,
+    };
+
+    // transactionsフィールドを動的配列として初期化
+    genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
+    defer genesis_block.transactions.deinit();
+
+    // トランザクションを2件追加
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 100,
+    });
+    try genesis_block.transactions.append(Transaction{
+        .sender = "Charlie",
+        .receiver = "Dave",
+        .amount = 50,
+    });
+    // calculateHash()でブロックの全フィールドからハッシュを計算し、hashフィールドに保存する
+    genesis_block.hash = calculateHash(&genesis_block);
+
+    // 結果を出力
+    try stdout.print("Block index: {d}\n", .{genesis_block.index});
+    try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
+    try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
+    try stdout.print("Data       : {s}\n", .{genesis_block.data});
+    try stdout.print("Transactions:\n", .{});
+    for (genesis_block.transactions.items) |tx| {
+        try stdout.print("  {s} -> {s} : {d}\n", .{ tx.sender, tx.receiver, tx.amount });
+    }
+    try stdout.print("Hash       : ", .{}); // ← ここはプレースホルダなし、引数なし
+    // 32バイトのハッシュを1バイトずつ16進数で出力
+    for (genesis_block.hash) |byte| {
+        try stdout.print("{x}", .{byte});
+    }
+    try stdout.print("\n", .{});
+}
+```
+
+実行してみると以下のようにnounceが0から始まっていることが確認できます。現状のコードでは、nonceを追加してハッシュ計算に含めるだけです。マイニング（nonceを変えながら特定条件を満たすまで試行錯誤する処理）をまだ実装していないので、nonce = 0がずっと使われているだけになります。ただし、ハッシュ計算時にnonceも投入しているので、後ほどマイニングを実装したときにnonceを変化させるとハッシュ値も変化するようになっています。
+
+```bash
+❯ zig run src/main.zig
+Block index: 0
+Timestamp  : 1672531200
+Nonce      : 0
+Data       : Hello, Zig Blockchain!
+Transactions:
+  Alice -> Bob : 100
+  Charlie -> Dave : 50
+Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
+```
+
+### マイニング(nonceの探索）
+
+今のコード状態では、nonceを増やす処理は無いので、いつ見てもnonce=0です。
+次に、実際のPoWマイニングを簡単に再現するには以下のような関数を導入します。
 マイニングでは、`nonce`の値を0から始めて1ずつ増やしながら繰り返しハッシュを計算し、条件に合致するハッシュが出るまでループします。
-
 条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0×00であること」とします。
 （これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です）。
 
