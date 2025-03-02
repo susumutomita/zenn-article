@@ -5,6 +5,7 @@ published: false
 price: 500
 chapters:
   - intro
+  - setup
   - chapter1
   - chapter2
   - chapter3
