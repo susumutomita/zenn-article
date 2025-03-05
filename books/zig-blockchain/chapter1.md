@@ -757,8 +757,9 @@ Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
 
 ```zig
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    // 先頭difficultyバイトがすべて0か確認
-    for (hash[0..difficulty]) |byte| {
+    // 難易度チェック：先頭 difficulty バイトがすべて 0 であれば成功
+    const limit = if (difficulty <= 32) difficulty else 32;
+    for (hash[0..limit]) |byte| {
         if (byte != 0) return false;
     }
     return true;
@@ -787,6 +788,65 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 
 以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェインに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
 
+### マイニング処理の追加
+
+toBytes関数も見直します。以下のように変換関数を追加して、u32やu64の値をリトルエンディアンのバイト列に変換するヘルパー関数を用意します。
+
+```zig
+/// u32 から u8 への安全な変換ヘルパー関数
+fn truncateU32ToU8(x: u32) u8 {
+    if (x > 0xff) {
+        @panic("u32 value out of u8 range");
+    }
+    return @truncate(x);
+}
+
+/// u64 から u8 への安全な変換ヘルパー関数
+fn truncateU64ToU8(x: u64) u8 {
+    if (x > 0xff) {
+        @panic("u64 value out of u8 range");
+    }
+    return @truncate(x);
+}
+
+/// u32 値をリトルエンディアンのバイト列に変換
+fn toBytesU32(value: u32) []const u8 {
+    var bytes: [4]u8 = undefined;
+    bytes[0] = truncateU32ToU8(value & @as(u32, 0xff));
+    bytes[1] = truncateU32ToU8((value >> 8) & @as(u32, 0xff));
+    bytes[2] = truncateU32ToU8((value >> 16) & @as(u32, 0xff));
+    bytes[3] = truncateU32ToU8((value >> 24) & @as(u32, 0xff));
+    return &bytes;
+}
+
+/// u64 値をリトルエンディアンのバイト列に変換
+fn toBytesU64(value: u64) []const u8 {
+    var bytes: [8]u8 = undefined;
+    bytes[0] = truncateU64ToU8(value & @as(u64, 0xff));
+    bytes[1] = truncateU64ToU8((value >> 8) & @as(u64, 0xff));
+    bytes[2] = truncateU64ToU8((value >> 16) & @as(u64, 0xff));
+    bytes[3] = truncateU64ToU8((value >> 24) & @as(u64, 0xff));
+    bytes[4] = truncateU64ToU8((value >> 32) & @as(u64, 0xff));
+    bytes[5] = truncateU64ToU8((value >> 40) & @as(u64, 0xff));
+    bytes[6] = truncateU64ToU8((value >> 48) & @as(u64, 0xff));
+    bytes[7] = truncateU64ToU8((value >> 56) & @as(u64, 0xff));
+    return &bytes;
+}
+
+/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
+/// その全要素を含むスライス([]const u8)として返します。
+fn toBytes(comptime T: type, value: T) []const u8 {
+    if (T == u32) {
+        return toBytesU32(@as(u32, value));
+    } else if (T == u64) {
+        return toBytesU64(@as(u64, value));
+    } else {
+        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+        return bytes[0..];
+    }
+}
+```
+
 ---
 
 ## 全体コード例
@@ -799,56 +859,117 @@ const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
 /// トランザクションの構造体
+/// 送信者(sender), 受信者(receiver), 金額(amount) の3つだけを持つ。
 const Transaction = struct {
     sender: []const u8,
     receiver: []const u8,
     amount: u64,
 };
 
-/// ブロック構造体
+/// ブロックの構造体
+/// - index: ブロック番号
+/// - timestamp: 作成時刻
+/// - prev_hash: 前ブロックのハッシュ（32バイト）
+/// - transactions: 動的配列を使って複数のトランザクションを保持
+/// - nonce: PoW用のnonce
+/// - data: 既存コードとの互換を保つために残す(省略可)
+/// - hash: このブロックのSHA-256ハッシュ(32バイト)
 const Block = struct {
     index: u32,
     timestamp: u64,
     prev_hash: [32]u8,
     transactions: std.ArrayList(Transaction),
-    nonce: u64,       // PoWで使うnonce
-    data: []const u8, // 既存コード互換用
+    nonce: u64,
+    data: []const u8,
     hash: [32]u8,
 };
 
-/// 任意の型 T の値をバイト列として扱うためのヘルパー
-fn toBytes(comptime T: type, value: T) []const u8 {
-    const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-    return bytes[0..@sizeOf(T)];
+/// u32 から u8 への安全な変換ヘルパー関数
+fn truncateU32ToU8(x: u32) u8 {
+    if (x > 0xff) {
+        @panic("u32 value out of u8 range");
+    }
+    return @truncate(x);
 }
 
-/// ブロックのハッシュ計算（nonceも含む）
+/// u64 から u8 への安全な変換ヘルパー関数
+fn truncateU64ToU8(x: u64) u8 {
+    if (x > 0xff) {
+        @panic("u64 value out of u8 range");
+    }
+    return @truncate(x);
+}
+
+/// u32 値をリトルエンディアンのバイト列に変換
+fn toBytesU32(value: u32) []const u8 {
+    var bytes: [4]u8 = undefined;
+    bytes[0] = truncateU32ToU8(value & @as(u32, 0xff));
+    bytes[1] = truncateU32ToU8((value >> 8) & @as(u32, 0xff));
+    bytes[2] = truncateU32ToU8((value >> 16) & @as(u32, 0xff));
+    bytes[3] = truncateU32ToU8((value >> 24) & @as(u32, 0xff));
+    return &bytes;
+}
+
+/// u64 値をリトルエンディアンのバイト列に変換
+fn toBytesU64(value: u64) []const u8 {
+    var bytes: [8]u8 = undefined;
+    bytes[0] = truncateU64ToU8(value & @as(u64, 0xff));
+    bytes[1] = truncateU64ToU8((value >> 8) & @as(u64, 0xff));
+    bytes[2] = truncateU64ToU8((value >> 16) & @as(u64, 0xff));
+    bytes[3] = truncateU64ToU8((value >> 24) & @as(u64, 0xff));
+    bytes[4] = truncateU64ToU8((value >> 32) & @as(u64, 0xff));
+    bytes[5] = truncateU64ToU8((value >> 40) & @as(u64, 0xff));
+    bytes[6] = truncateU64ToU8((value >> 48) & @as(u64, 0xff));
+    bytes[7] = truncateU64ToU8((value >> 56) & @as(u64, 0xff));
+    return &bytes;
+}
+
+/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
+/// その全要素を含むスライス([]const u8)として返します。
+fn toBytes(comptime T: type, value: T) []const u8 {
+    if (T == u32) {
+        return toBytesU32(@as(u32, value));
+    } else if (T == u64) {
+        return toBytesU64(@as(u64, value));
+    } else {
+        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+        return bytes[0..];
+    }
+}
+
+/// calculateHash関数
+/// ブロックの各フィールドを順番にハッシュ計算へ渡し、最終的なSHA-256ハッシュを得る。
 fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
+
+    // indexとtimestampをバイト列へ変換
     hasher.update(toBytes(u32, block.index));
     hasher.update(toBytes(u64, block.timestamp));
-    hasher.update(block.prev_hash[0..]);
-    hasher.update(toBytes(u64, block.nonce)); // ← nonceをハッシュ
 
+    // 前のブロックのハッシュは配列→スライスで渡す
+    hasher.update(block.prev_hash[0..]);
+    hasher.update(toBytes(u64, block.nonce));
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
         hasher.update(toBytes(u64, tx.amount));
     }
 
+    // 既存コードとの互換を保つため、dataもハッシュに含める
     hasher.update(block.data);
+
     return hasher.finalResult();
 }
 
-/// 先頭 `difficulty` バイトが 0 であるかチェック
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    for (hash[0..difficulty]) |byte| {
+    // 難易度チェック：先頭 difficulty バイトがすべて 0 であれば成功
+    const limit = if (difficulty <= 32) difficulty else 32;
+    for (hash[0..limit]) |byte| {
         if (byte != 0) return false;
     }
     return true;
 }
 
-/// PoWマイニング：特定の難易度を満たすまで nonce を増やしてハッシュを試行
 fn mineBlock(block: *Block, difficulty: u8) void {
     while (true) {
         const new_hash = calculateHash(block);
@@ -860,22 +981,24 @@ fn mineBlock(block: *Block, difficulty: u8) void {
     }
 }
 
+/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
 pub fn main() !void {
+    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
     const allocator = std.heap.page_allocator;
-    var stdout = std.io.getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
 
-    // ジェネシスブロックを作る
+    // ジェネシスブロック(最初のブロック)を作成
     var genesis_block = Block{
         .index = 0,
         .timestamp = 1672531200,
-        .prev_hash = [_]u8{0} ** 32,
-        .transactions = undefined,
-        .nonce = 0, // 初期値0から試行
+        .prev_hash = [_]u8{0} ** 32, // 前ブロックが無いので全0にする
+        .transactions = undefined, // アロケータの初期化は後で行うため、いったんundefinedに
         .data = "Hello, Zig Blockchain!",
+        .nonce = 0, //nonceフィールドを初期化(0から始める)
         .hash = [_]u8{0} ** 32,
     };
 
-    // トランザクションのリストを初期化
+    // transactionsフィールドを動的配列として初期化
     genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
     defer genesis_block.transactions.deinit();
 
@@ -891,22 +1014,24 @@ pub fn main() !void {
         .amount = 50,
     });
 
-    // マイニングを行う(難易度=2)
+    // calculateHash()でブロックの全フィールドからハッシュを計算し、hashフィールドに保存する
+    genesis_block.hash = calculateHash(&genesis_block);
+    // 難易度 2：先頭2バイトが 0 であるかをチェック
     mineBlock(&genesis_block, 2);
 
-    // 結果を表示
     try stdout.print("Block index: {d}\n", .{genesis_block.index});
     try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
     try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
-    try stdout.print("Hash       : ", .{});
-    // ハッシュを16進数で表示
-    for (genesis_block.hash) |b| {
-        try stdout.print("{02x}", .{b});
-    }
-    try stdout.print("\nTransactions:\n", .{});
+    try stdout.print("Data       : {s}\n", .{genesis_block.data});
+    try stdout.print("Transactions:\n", .{});
     for (genesis_block.transactions.items) |tx| {
-        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
+        try stdout.print("  {s} -> {s} : {d}\n", .{ tx.sender, tx.receiver, tx.amount });
     }
+    try stdout.print("Hash       : ", .{});
+    for (genesis_block.hash) |byte| {
+        try stdout.print("{x}", .{byte});
+    }
+    try stdout.print("\n", .{});
 }
 ```
 
@@ -920,11 +1045,12 @@ pub fn main() !void {
 ❯ zig run src/main.zig
 Block index: 0
 Timestamp  : 1672531200
-Nonce      : 98765   # 例として、実際はこの値以上になる可能性も
-Hash       : 0000bd393a1c25fb5c62...  # 先頭が "0000" となっている
+Nonce      : 238145
+Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
+Hash       : 0084749b85d8ba63c2e4124fc7f748735768ce57eb9750e3cdbacbd1937b
 ```
 
 - ビットコインでは**先頭の0ビット**を難易度として扱い、だいたい毎回10分で見つかるぐらいに調整しています。
@@ -966,104 +1092,6 @@ Zigコンパイラにはデフォルトで**デバッグモード**（安全チ�
 何も指定しなければデフォルトでデバッグ用ビルドになります。
 
 コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能です。ただし、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
-
-コード全体は次のようになります。
-
-```src/main.zig
-const std = @import("std");
-const crypto = std.crypto.hash;
-const Sha256 = crypto.sha2.Sha256;
-
-// --- ステップ4: PoWによるマイニングを追加 ---
-
-const Transaction = struct {
-    sender: []const u8,
-    receiver: []const u8,
-    amount: u64,
-};
-
-const Block = struct {
-    index: u32,
-    timestamp: u64,
-    prev_hash: [32]u8,
-    transactions: std.ArrayList(Transaction),
-    nonce: u64, // PoW用
-    hash: [32]u8,
-};
-
-fn calculateHash(block: *const Block) [32]u8 {
-    var hasher = Sha256.init(.{});
-    hasher.update(std.mem.bytesOf(block.index));
-    hasher.update(std.mem.bytesOf(block.timestamp));
-    hasher.update(&block.prev_hash);
-    hasher.update(std.mem.bytesOf(block.nonce));
-    for (block.transactions.items) |tx| {
-        hasher.update(tx.sender);
-        hasher.update(tx.receiver);
-        hasher.update(std.mem.bytesOf(tx.amount));
-    }
-    return hasher.finalResult();
-}
-
-fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    for (hash[0..difficulty]) |byte| {
-        if (byte != 0) return false;
-    }
-    return true;
-}
-
-fn mineBlock(block: *Block, difficulty: u8) void {
-    while (true) {
-        const new_hash = calculateHash(block);
-        if (meetsDifficulty(new_hash, difficulty)) {
-            block.hash = new_hash;
-            break;
-        }
-        block.nonce += 1;
-    }
-}
-
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    var stdout = std.io.getStdOut().writer();
-
-    // ブロックを作成
-    var block = Block{
-        .index = 0,
-        .timestamp = std.time.timestamp(),
-        .prev_hash = [_]u8{0} ** 32,
-        .transactions = std.ArrayList(Transaction).init(allocator),
-        .nonce = 0,
-        .hash = [_]u8{0} ** 32,
-    };
-    defer block.transactions.deinit();
-
-    // トランザクションを2件追加
-    try block.transactions.append(Transaction{
-        .sender = "Alice", .receiver = "Bob", .amount = 100,
-    });
-    try block.transactions.append(Transaction{
-        .sender = "Charlie", .receiver = "Dave", .amount = 50,
-    });
-
-    // 難易度を2(先頭2バイトが0)に設定してマイニング
-    mineBlock(&block, 2);
-
-    // 結果表示
-    try stdout.print("Block index: {d}\n", .{block.index});
-    try stdout.print("Timestamp  : {d}\n", .{block.timestamp});
-    try stdout.print("Nonce      : {d}\n", .{block.nonce});
-    try stdout.print("Hash       : ", .{});
-    for (block.hash) |b| {
-        try stdout.print("{02x}", .{b});
-    }
-    try stdout.print("\n", .{});
-    try stdout.print("Transactions:\n", .{});
-    for (block.transactions.items) |tx| {
-        try stdout.print("  {s} -> {s} : {d}\n", .{tx.sender, tx.receiver, tx.amount});
-    }
-}
-```
 
 ### 簡単なテストコードを書く
 
