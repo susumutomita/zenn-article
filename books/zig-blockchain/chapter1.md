@@ -92,10 +92,33 @@ pub fn main() !void {
 実行してみると、ブロックの情報が表示されるはずです。
 
 ```bash
-❯ zig run src/main.zig
+❯ zig build run
 Block index: 1
 Timestamp  : 1672531200
 Data       : Hello, Zig Blockchain!
+```
+
+もしくはdocker composeで実行できます。
+
+```bash
+❯ docker compose up
+[+] Running 3/3
+ ✔ Container node1  Recreate...                   0.1s
+ ✔ Container node2  Recreate...                   0.1s
+ ✔ Container node3  Recreate...                   0.1s
+Attaching to node1, node2, node3
+node3  | Block index: 1
+node3  | Timestamp  : 1672531200
+node3  | Data       : Hello, Zig Blockchain!
+node1  | Block index: 1
+node1  | Timestamp  : 1672531200
+node1  | Data       : Hello, Zig Blockchain!
+node2  | Block index: 1
+node2  | Timestamp  : 1672531200
+node2  | Data       : Hello, Zig Blockchain!
+node3 exited with code 0
+node1 exited with code 0
+node2 exited with code 0
 ```
 
 ### ステップ2: ハッシュ計算を追加し、`hash`フィールドを埋める

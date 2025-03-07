@@ -74,32 +74,44 @@ Zigは静的コンパイル言語であり、生成されたバイナリは他�
 **Dockerイメージの作成**: まず、Zigコンパイラを含むDockerイメージを用意します。公式には軽量なAlpine LinuxでZigをインストールする方法があります。Alpineの最新リリース（edge）では`apk`パッケージマネージャからZigを導入できます。以下にシンプルなDockerfileの例を示します。
 
 ```Dockerfile
-# ベースイメージにAlpine Linuxを使用
+# ベースイメージに Alpine Linux を使用
 FROM alpine:latest
 
-# Zigコンパイラをインストール
-RUN apk add --no-cache zig
+# zig の公式バイナリをダウンロードするために必要なツールをインストール
+# xz パッケージを追加して tar が .tar.xz を解凍できるようにする
+RUN apk add --no-cache curl tar xz
 
-# 一般ユーザー 'appuser' を作成し、作業用ディレクトリを設定
+# Zig のバージョンを指定可能にするビルド引数（デフォルトは 0.14.0）
+ARG ZIG_VERSION=0.14.0
+# ここでは x86_64 用のバイナリを使用する例です
+ENV ZIG_DIST=zig-linux-x86_64-${ZIG_VERSION}
+ENV ZIG_VERSION=${ZIG_VERSION}
+
+# 指定された Zig のバージョンを公式サイトからダウンロードして解凍し、PATH に追加
+RUN curl -LO https://ziglang.org/download/${ZIG_VERSION}/${ZIG_DIST}.tar.xz && \
+  tar -xf ${ZIG_DIST}.tar.xz && \
+  rm ${ZIG_DIST}.tar.xz
+ENV PATH="/${ZIG_DIST}:${PATH}"
+
+# 一般ユーザー appuser を作成し、作業用ディレクトリを設定
 RUN addgroup -S appgroup && \
-  adduser -S appuser -G appgroup
+  adduser -S appuser -G appgroup && \
+  mkdir -p /app && chown -R appuser:appgroup /app
 
-# 作業ディレクトリを作成し、所有者をappuserに設定
-RUN mkdir -p /app && chown -R appuser:appgroup /app
-
-# 作業ディレクトリを指定
+# 作業ディレクトリを /app に設定
 WORKDIR /app
 
-# ホスト側のファイルをコンテナ内にコピーし、appuserに所有権を設定
+# ホスト側のファイルをコンテナ内にコピーし、所有者を appuser に設定
 COPY --chown=appuser:appgroup . .
 
 # 一般ユーザーに切り替え
 USER appuser
 
+# コンテナ起動時に Zig ビルドシステムを使って run を実行
 CMD ["zig", "build", "run"]
 ```
 
-上記のDockerfileでは、Alpineイメージを基に`apk add zig`コマンドでZigをインストールしています（Alpineのedgeリポジトリから取得）。`WORKDIR /app`は作業ディレクトリを設定しており、後でソースコードをここに配置してビルドできるようにしています。
+上記のDockerfileでは、Alpineイメージを基に[ダウンロードサイト](https://ziglang.org/download/)からZigをインストールしています。`WORKDIR /app`は作業ディレクトリを設定しており、後でソースコードをここに配置してビルドできるようにしています。
 
 ## Docker ComposeでDockerを動作させる
 
@@ -114,6 +126,7 @@ CMD ["zig", "build", "run"]
 services:
   node1:
     build: .
+    platform: linux/amd64
     container_name: node1
     ports:
       - "3001:3000"
@@ -121,6 +134,7 @@ services:
       - NODE_ID=1
   node2:
     build: .
+    platform: linux/amd64
     container_name: node2
     ports:
       - "3002:3000"
@@ -128,6 +142,7 @@ services:
       - NODE_ID=2
   node3:
     build: .
+    platform: linux/amd64
     container_name: node3
     ports:
       - "3003:3000"
@@ -136,7 +151,7 @@ services:
 ```
 
 上記Composeファイルでは、`node1`〜`node3`という3つのサービスが定義されています。
-それぞれ同じ`myzigapp`イメージからコンテナを立ち上げますが、環境変数`NODE_ID`に異なる値を与えることでノードごとの設定を変えています。例えばZigのプログラムが`NODE_ID`を読んでポートやピア接続先を変える実装にしておけば、コンテナごとに振る舞いを変えることができます。`ports`で各ノードのホスト側ポートをずらして割り当てているのは、同一ホスト上でポート競合を避けつつ、必要なら個別ノードにホストマシンからアクセスできるようにするためです。
+それぞれ同じイメージからコンテナを立ち上げますが、環境変数`NODE_ID`に異なる値を与えることでノードごとの設定を変えています。例えばZigのプログラムが`NODE_ID`を読んでポートやピア接続先を変える実装にしておけば、コンテナごとに振る舞いを変えることができます。`ports`で各ノードのホスト側ポートをずらして割り当てているのは、同一ホスト上でポート競合を避けつつ、必要なら個別ノードにホストマシンからアクセスできるようにするためです。
 
 Composeを使ってこの構成を起動すれば、`node1`, `node2`, `node3`のコンテナが立ち上がり、前述のように相互にホスト名で発見しあえるネットワークに接続されます。例えば`node1`コンテナ内から`node2:3000`（コンテナ名`node2`のポート3000）にリクエストを送ることで、ノード2との通信が可能です。
 
