@@ -25,7 +25,7 @@ Zig公式サイトから各プラットフォーム向けのバイナリをダ�
 
 ```bash
 ❯ zig version
-0.13.0
+0.14.0
 ```
 
 ### ビルドツールとエディタの準備
@@ -60,7 +60,7 @@ pub fn main() !void {
 次に、準備したターミナルで次のコマンドを実行してみましょう。
 
 ```bash
-zig run src/main.zig
+zig build run
 ```
 
 `zig run`コマンドはソースをビルドして即座に実行してくれます。正しく環境構築できていれば、コンソールに **Hello, world** と表示されるはずです。これでZigの開発環境は準備完了です。
@@ -96,7 +96,7 @@ COPY --chown=appuser:appgroup . .
 # 一般ユーザーに切り替え
 USER appuser
 
-CMD ["zig", "run", "src/main.zig"]
+CMD ["zig", "build", "run"]
 ```
 
 上記のDockerfileでは、Alpineイメージを基に`apk add zig`コマンドでZigをインストールしています（Alpineのedgeリポジトリから取得）。`WORKDIR /app`は作業ディレクトリを設定しており、後でソースコードをここに配置してビルドできるようにしています。
@@ -190,7 +190,7 @@ jobs:
     - name: Setup Zig
       uses: goto-bus-stop/setup-zig@v2
       with:
-        version: 0.13.0
+        version: 0.14.0
 
     - name: Run tests
       run: zig build test
