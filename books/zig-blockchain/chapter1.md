@@ -283,11 +283,37 @@ pub fn main() !void {
 実行してみるとハッシュが追加されているのがわかります。
 
 ```bash
-❯ zig run src/main.zig
+❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
 Data       : Hello, Zig Blockchain!
 Hash       : 502713c91775223a2e2b3876c8d273766e90df0c0d8114c5ea786e353c532
+```
+
+もしくはdocker composeで実行できます。
+
+```bash
+❯ docker compose up
+[+] Running 3/3
+ ✔ Container node2  Recreate...                   0.1s
+ ✔ Container node3  Recreate...                   0.1s
+ ✔ Container node1  Recreate...                   0.1s
+Attaching to node1, node2, node3
+node2  | Block index: 0
+node2  | Timestamp  : 1672531200
+node2  | Data       : Hello, Zig Blockchain!
+node2  | Hash       : fd6af27859ff9e2e0e6ecc366dabe55589d56e48356f813c5323a2d654ed9
+node3  | Block index: 0
+node3  | Timestamp  : 1672531200
+node3  | Data       : Hello, Zig Blockchain!
+node3  | Hash       : fd6af27859ff9e2e0e6ecc366dabe55589d56e48356f813c5323a2d654ed9
+node1  | Block index: 0
+node1  | Timestamp  : 1672531200
+node1  | Data       : Hello, Zig Blockchain!
+node1  | Hash       : fd6af27859ff9e2e0e6ecc366dabe55589d56e48356f813c5323a2d654ed9
+node2 exited with code 0
+node3 exited with code 0
+node1 exited with code 0
 ```
 
 ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
