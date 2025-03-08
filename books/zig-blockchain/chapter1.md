@@ -17,11 +17,11 @@ free: true
 
 ### なぜブロックという単位か
 
-ブロックチェインでは、膨大な取引情報をそのまま連続的に記録すると、改ざん検出や管理が非常に困難になる。そこで「ブロック」という単位に複数の取引や関連情報（タイムスタンプ、前ブロックのハッシュ値など）をまとめることで、各ブロックごとに一意の「指紋」を生成する仕組みになっています。
+ブロックチェインでは、膨大な取引情報をそのまま連続的に記録すると、改ざん検出や管理が非常に困難になる。そこで「ブロック」という単位に複数の取引や関連情報(タイムスタンプ、前ブロックのハッシュ値など)をまとめることで、各ブロックごとに一意の「指紋」を生成する仕組みになっています。
 
-**ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ（日時）**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です。
+**ブロックとは**: ブロックチェインにおけるブロックは、**いくつかのトランザクションの集合**と**タイムスタンプ(日時)**、そして**ひとつ前のブロックのハッシュ値**などを含むデータ構造です。
  ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。
- 各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性（チェイン）を持ち、これによってブロック同士が鎖状にリンクしています。
+ 各ブロックは前のブロックのハッシュを自分の中に取り込むことで過去との連続性(チェイン)を持ち、これによってブロック同士が鎖状にリンクしています。
 
 **改ざん耐性**: ブロックに含まれるハッシュ値のおかげで、もし過去のブロックのデータが少しでも書き換えられるとそのブロックのハッシュ値が変わります。すると後続のブロックに保存された「前のブロックのハッシュ」と一致しなくなるため、チェイン全体の整合性が崩れてしまいます。この仕組みにより、1つのブロックを改ざんするにはそのブロック以降のすべてのブロックを書き換えなければならず、改ざんは非常に困難になります。
 
@@ -29,11 +29,11 @@ free: true
 
 上記の概念を踏まえて、Zigでブロックを表現する構造体を作ってみましょう。ブロックに含める主な情報は以下の通りです。
 
-- `index`: ブロック番号（第何番目のブロックかを示す整数）
-- `timestamp`: ブロックが作られた時刻（UNIXエポック秒などで保存）
+- `index`: ブロック番号(第何番目のブロックかを示す整数)
+- `timestamp`: ブロックが作られた時刻(UNIXエポック秒などで保存)
 - `prev_hash`: 直前のブロックのハッシュ値
-- `data`: ブロックに格納する任意のデータ（まずはシンプルに文字列など）
-- `hash`: ブロック自身のハッシュ値（このブロックの`index`や`data`等から計算された値）
+- `data`: ブロックに格納する任意のデータ(まずはシンプルに文字列など)
+- `hash`: ブロック自身のハッシュ値(このブロックの`index`や`data`等から計算された値)
 
 Zigでは以下のように`struct`を使ってブロックの型を定義できます。
 
@@ -43,24 +43,24 @@ const std = @import("std");
 // ブロックを表す構造体
 const Block = struct {
     index: u32,             // ブロック番号
-    timestamp: u64,         // 作成時刻（Unix時間など）
-    prev_hash: [32]u8,      // 前のブロックのハッシュ値（32バイト＝256ビット）
-    data: []const u8,       // ブロックに含めるデータ（今回はバイト列）
-    hash: [32]u8,           // このブロックのハッシュ値（32バイト）
+    timestamp: u64,         // 作成時刻(Unix時間など)
+    prev_hash: [32]u8,      // 前のブロックのハッシュ値(32バイト＝256ビット)
+    data: []const u8,       // ブロックに含めるデータ(今回はバイト列)
+    hash: [32]u8,           // このブロックのハッシュ値(32バイト)
 };
 ```
 
-上記ではハッシュ値を256ビット（32バイト）長の配列 `[32]u8` で表しています。これはSHA-256などの暗号学的ハッシュ関数で得られるハッシュのサイズに合わせたものです。`data`フィールドは`[]const u8`（バイト列）としており、簡単のためブロックに格納するデータを文字列やバイナリ列で扱えるようにしています。
+上記ではハッシュ値を256ビット(32バイト)長の配列 `[32]u8` で表しています。これはSHA-256などの暗号学的ハッシュ関数で得られるハッシュのサイズに合わせたものです。`data`フィールドは`[]const u8`(バイト列)としており、簡単のためブロックに格納するデータを文字列やバイナリ列で扱えるようにしています。
 
 ```zig
 const std = @import("std");
 
 /// ブロックチェインの1ブロックを表す構造体
-/// - index: ブロック番号（u32）
-/// - timestamp: ブロック生成時のタイムスタンプ（u64）
-/// - prev_hash: 前ブロックのハッシュ（32バイトの固定長配列）
-/// - data: ブロックに含まれるデータ（可変長スライス）
-/// - hash: このブロックのハッシュ（SHA-256の結果、32バイト固定長配列）
+/// - index: ブロック番号(u32)
+/// - timestamp: ブロック生成時のタイムスタンプ(u64)
+/// - prev_hash: 前ブロックのハッシュ(32バイトの固定長配列)
+/// - data: ブロックに含まれるデータ(可変長スライス)
+/// - hash: このブロックのハッシュ(SHA-256の結果、32バイト固定長配列)
 const Block = struct {
     index: u32,
     timestamp: u64,
@@ -123,7 +123,7 @@ node2 exited with code 0
 
 ### ステップ2: ハッシュ計算を追加し、`hash`フィールドを埋める
 
-ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体（index, タイムスタンプ, prev_hash, dataなど）から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算をします。
+ブロックチェインの肝は**ハッシュの計算**です。ブロックの`hash`フィールドは、ブロック内容全体(index, タイムスタンプ, prev_hash, dataなど)から計算されるハッシュ値です。Zigの標準ライブラリにはSHA-256などのハッシュ関数実装が含まれているので、それを利用してハッシュ計算をします。
 
 ZigでSHA-256を使うには、`std.crypto.hash.sha2`名前空間の`Sha256`型を利用します。以下にブロックのハッシュ値を計算する関数の例を示します。
 
@@ -153,13 +153,13 @@ fn calculateHash(block: *const Block) [32]u8 {
     // ブロックのtimestamp (u64) をバイト列に変換してハッシュに追加
     hasher.update(toBytes(u64, block.timestamp));
 
-    // 前ブロックのハッシュ（固定長配列）は既にスライスになっているのでそのまま追加
+    // 前ブロックのハッシュ(固定長配列)は既にスライスになっているのでそのまま追加
     hasher.update(block.prev_hash[0..]);
 
-    // ブロック内のデータ（可変長スライス）もそのまま追加
+    // ブロック内のデータ(可変長スライス)もそのまま追加
     hasher.update(block.data);
 
-    // これまでの入力からSHA-256ハッシュを計算して返す（32バイト配列）
+    // これまでの入力からSHA-256ハッシュを計算して返す(32バイト配列)
     return hasher.finalResult();
 }
 ```
@@ -172,10 +172,10 @@ fn calculateHash(block: *const Block) [32]u8 {
 
 Zigでは、**整数型をそのまま「バイト列 (slice of bytes)」としてハッシュ関数へ渡す**場合、以下のような方法が考えられます。
 
-1. **`std.mem.bytesOf(T)`** を使う（Zigのバージョンによっては存在しない場合がある／非推奨となる可能性がある）。
+1. **`std.mem.bytesOf(T)`** を使う(Zigのバージョンによっては存在しない場合がある／非推奨となる可能性がある)。
 2. **`@bitCast()`** を使って独自に「生のバイト列」へ変換する処理を書く。
 
-今回のコードでは **`@bitCast()`** を活用し、**`toBytes`** という小さな関数を定義しています。これは「**任意の型 `T` の値を、メモリ上の生のビット列として `[@sizeOf(T)]u8` の固定長配列に再解釈し、それをスライス（`[]const u8`）として返す**」処理です。具体的には以下のフローになります。
+今回のコードでは **`@bitCast()`** を活用し、**`toBytes`** という小さな関数を定義しています。これは「**任意の型 `T` の値を、メモリ上の生のビット列として `[@sizeOf(T)]u8` の固定長配列に再解釈し、それをスライス(`[]const u8`)として返す**」処理です。具体的には以下のフローになります。
 
 1. **`comptime T: type`**
 
@@ -188,7 +188,7 @@ Zigでは、**整数型をそのまま「バイト列 (slice of bytes)」とし�
 3. **ローカルな固定長配列 `const bytes: [@sizeOf(T)]u8 = @bitCast(value);`**
 
    Zigの組み込み関数 `@bitCast(FromType, ToType)` は、**「メモリ内容を一切変換せずに型だけを再解釈する」**処理です。
-   ここでは `value`（整数など）を「同じサイズのバイト配列」に再解釈しています。
+   ここでは `value`(整数など)を「同じサイズのバイト配列」に再解釈しています。
 
 4. **`return bytes[0..@sizeOf(T)];`**
 
@@ -197,7 +197,7 @@ Zigでは、**整数型をそのまま「バイト列 (slice of bytes)」とし�
 つまり、**`toBytes`** は「任意の型 `T` を**生のバイト表現**に落として、ハッシュ関数へそのまま投入できる形」に変換するための補助関数です。
 バージョンの異なるZigや将来的な変更を考えると、こうした**独自のbitCastラッパ**を作っておくのは柔軟な対応策となります。
 
-**ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身（例えば`data`）が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます。
+**ハッシュ計算のポイント**: ブロックの`hash`値は **ブロック内のすべての重要データから計算** されます。この例では `index, timestamp, prev_hash, data` を含めていますが、後で追加するトランザクションやnonceといった要素も含める必要があります。一度ハッシュを計算して`block.hash`に保存した後で、ブロックの中身(例えば`data`)が変われば当然ハッシュ値も変わります。つまり、`hash`はブロック内容の一種の指紋となっており、内容が変われば指紋も一致しなくなるため改ざんを検出できます。
 
 コード全体は次のようになります。
 
@@ -207,11 +207,11 @@ const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
 /// ブロックチェインの1ブロックを表す構造体
-/// - index: ブロック番号（u32）
-/// - timestamp: ブロック生成時のタイムスタンプ（u64）
-/// - prev_hash: 前ブロックのハッシュ（32バイトの固定長配列）
-/// - data: ブロックに含まれるデータ（可変長スライス）
-/// - hash: このブロックのハッシュ（SHA-256の結果、32バイト固定長配列）
+/// - index: ブロック番号(u32)
+/// - timestamp: ブロック生成時のタイムスタンプ(u64)
+/// - prev_hash: 前ブロックのハッシュ(32バイトの固定長配列)
+/// - data: ブロックに含まれるデータ(可変長スライス)
+/// - hash: このブロックのハッシュ(SHA-256の結果、32バイト固定長配列)
 const Block = struct {
     index: u32,
     timestamp: u64,
@@ -241,21 +241,21 @@ fn calculateHash(block: *const Block) [32]u8 {
     // ブロックのtimestamp (u64) をバイト列に変換してハッシュに追加
     hasher.update(toBytes(u64, block.timestamp));
 
-    // 前ブロックのハッシュ（固定長配列）は既にスライスになっているのでそのまま追加
+    // 前ブロックのハッシュ(固定長配列)は既にスライスになっているのでそのまま追加
     hasher.update(block.prev_hash[0..]);
 
-    // ブロック内のデータ（可変長スライス）もそのまま追加
+    // ブロック内のデータ(可変長スライス)もそのまま追加
     hasher.update(block.data);
 
-    // これまでの入力からSHA-256ハッシュを計算して返す（32バイト配列）
+    // これまでの入力からSHA-256ハッシュを計算して返す(32バイト配列)
     return hasher.finalResult();
 }
 
-/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
+/// main関数:ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
 
-    // genesis_block（最初のブロック）を作成
+    // genesis_block(最初のブロック)を作成
     var genesis_block = Block{
         .index = 0,
         .timestamp = 1672531200, // 例としてUnixタイムスタンプを指定
@@ -272,7 +272,7 @@ pub fn main() !void {
     try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
     try stdout.print("Data       : {s}\n", .{genesis_block.data});
     try stdout.print("Hash       : ", .{});
-    // 32バイトのハッシュを1バイトずつ16進数（小文字）で出力する
+    // 32バイトのハッシュを1バイトずつ16進数(小文字)で出力する
     for (genesis_block.hash) |byte| {
         try stdout.print("{x}", .{byte});
     }
@@ -316,15 +316,15 @@ node3 exited with code 0
 node1 exited with code 0
 ```
 
-ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引（トランザクション）の情報を組み込んでいきましょう。
+ここまでで、ブロックの基本構造とハッシュ計算方法が定義できました。次に、このブロックに取引(トランザクション)の情報を組み込んでいきましょう。
 
 ## ステップ3: トランザクションを導入し、ブロックに複数の取引情報を持たせる
 
-ブロックチェインは本来、多くの取引（トランザクション）をひとつのブロックに束ねて扱います。これによって改ざんを検出しやすくしたり、ネットワーク全体の負荷を抑えたりしています。ここでは、前章までに作った「**単一ブロックとそのハッシュ計算**」を拡張し、**複数のトランザクションを持てるブロック**を作る流れを **段階的** に進めていきましょう。
+ブロックチェインは本来、多くの取引(トランザクション)をひとつのブロックに束ねて扱います。これによって改ざんを検出しやすくしたり、ネットワーク全体の負荷を抑えたりしています。ここでは、前章までに作った「**単一ブロックとそのハッシュ計算**」を拡張し、**複数のトランザクションを持てるブロック**を作る流れを **段階的** に進めていきましょう。
 
 ### トランザクション用の構造体を定義する
 
-まずは、取引を表すデータ構造 `Transaction` を作ります。実際の暗号通貨では「送信者の署名」「入力と出力のリスト」など複雑な形を取ります。ここでは最低限として「送信者（sender）」「受信者（receiver）」「金額（amount）」だけを持つシンプルな構造にします。
+まずは、取引を表すデータ構造 `Transaction` を作ります。実際の暗号通貨では「送信者の署名」「入力と出力のリスト」など複雑な形を取ります。ここでは最低限として「送信者(sender)」「受信者(receiver)」「金額(amount)」だけを持つシンプルな構造にします。
 
 ```bash
 /// トランザクション構造体
@@ -435,14 +435,14 @@ fn calculateHash(block: *const Block) [32]u8 {
 }
 ```
 
-`block.transactions.items`はArrayList内の生のスライス（配列）データです。ループで各`tx`にアクセスし、その中の`sender`文字列、`receiver`文字列、`amount`数値を順次ハッシュに投入しています。こうすることで**ブロック内の全トランザクションデータがハッシュ値計算に反映**されます。トランザクションの追加や変更があればハッシュ値も変化するため、ブロックの改ざん検知において重要な役割を果たします。
+`block.transactions.items`はArrayList内の生のスライス(配列)データです。ループで各`tx`にアクセスし、その中の`sender`文字列、`receiver`文字列、`amount`数値を順次ハッシュに投入しています。こうすることで**ブロック内の全トランザクションデータがハッシュ値計算に反映**されます。トランザクションの追加や変更があればハッシュ値も変化するため、ブロックの改ざん検知において重要な役割を果たします。
 
-> **メモ:** 実際のブロックチェインでは、各トランザクションは送信者の秘密鍵による**デジタル署名**が含まれます。署名によって取引の正当性（送信者本人が承認した取引であること）が保証されますが、署名の作成と検証には公開鍵暗号が必要で実装が複雑になるため、本チュートリアルでは扱いません。概念として、ブロックに署名付きのトランザクションを入れることで不正な取引が混入しないようにしている点だけ押さえておきましょう。
+> **メモ:** 実際のブロックチェインでは、各トランザクションは送信者の秘密鍵による**デジタル署名**が含まれます。署名によって取引の正当性(送信者本人が承認した取引であること)が保証されますが、署名の作成と検証には公開鍵暗号が必要で実装が複雑になるため、本チュートリアルでは扱いません。概念として、ブロックに署名付きのトランザクションを入れることで不正な取引が混入しないようにしている点だけ押さえておきましょう。
 
 これで、**ブロックの全トランザクションがハッシュ値に反映**されます。
 ブロックを改ざんしようとしても、このハッシュが再計算されると合わなくなるため、改ざんが検出できるというわけです。
 
-> **発展：マークルツリー**
+> **発展:マークルツリー**
 > トランザクション数が大幅に増えると、各トランザクションをすべて直接ハッシュ計算するのではなく、**マークルツリー**を使って1つのルートハッシュにまとめる手法が一般的です。ビットコインなどでは、このマークルルートだけをブロックヘッダーに入れ、ブロック全体を効率的に検証できる仕組みにしています。
 > 本チュートリアルではまず“すべてのトランザクションを順にハッシュ”して仕組みを理解し、後の章でマークルツリーを導入する流れをとると良いでしょう。
 
@@ -467,7 +467,7 @@ const Transaction = struct {
 /// ブロックの構造体
 /// - index: ブロック番号
 /// - timestamp: 作成時刻
-/// - prev_hash: 前ブロックのハッシュ（32バイト）
+/// - prev_hash: 前ブロックのハッシュ(32バイト)
 /// - transactions: 動的配列を使って複数のトランザクションを保持
 /// - data: 既存コードとの互換を保つために残す(省略可)
 /// - hash: このブロックのSHA-256ハッシュ(32バイト)
@@ -514,9 +514,9 @@ fn calculateHash(block: *const Block) [32]u8 {
     return hasher.finalResult();
 }
 
-/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
+/// main関数:ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
 pub fn main() !void {
-    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
+    // メモリ割り当て用アロケータを用意(ページアロケータを簡易使用)
     const allocator = std.heap.page_allocator;
     const stdout = std.io.getStdOut().writer();
 
@@ -616,29 +616,29 @@ node3 exited with code 0
 node1 exited with code 0
 ```
 
-次のステップでは、**PoW（Proof of Work）** を導入し、`nonce`を使ってブロックハッシュが特定条件を満たすまで試行錯誤する「マイニング」処理を追加してみましょう。そこまで実装すると、「トランザクションをいじればブロックのハッシュが合わなくなり、PoWもやり直しになる」という改ざん耐性が、より強固に体験できます。
+次のステップでは、**PoW(Proof of Work)** を導入し、`nonce`を使ってブロックハッシュが特定条件を満たすまで試行錯誤する「マイニング」処理を追加してみましょう。そこまで実装すると、「トランザクションをいじればブロックのハッシュが合わなくなり、PoWもやり直しになる」という改ざん耐性が、より強固に体験できます。
 
-## ステップ4: 簡単なPoW（Proof of Work）の実装
+## ステップ4: 簡単なPoW(Proof of Work)の実装
 
-次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン（特にビットコイン）で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業（=仕事, Work）を課す仕組みです。
+次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン(特にビットコイン)で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業(=仕事, Work)を課す仕組みです。
 
-**PoWの仕組み**: ブロックにナンス値（`nonce`）と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。
+**PoWの仕組み**: ブロックにナンス値(`nonce`)と呼ばれる余分な数値を付加し、その`nonce`を色々変えながらブロック全体のハッシュ値を計算します。
 ナンスはNumber Used Onceの略で、一度しか使わない数値という意味です。
 
-特定の条件（例えば「ハッシュ値の先頭nビットが0になる」など）を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
+特定の条件(例えば「ハッシュ値の先頭nビットが0になる」など)を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
 
-この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証（ハッシュを再計算して条件を満たすか確認）は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
+この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証(ハッシュを再計算して条件を満たすか確認)は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
 
-**難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量（難易度）が指数関数的に増大します。
+**難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量(難易度)が指数関数的に増大します。
  ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=Difficulty%20is%20quantified%20by%20the,increases%20the%20computational%20effort%20needed))。
 
  ネットワーク全体のマイニング速度に応じて、この難易度は適宜調整されるようになっています。ビットコインでは約2週間ごとにブロック生成速度が10分/blockになるよう難易度調整。
 
-それでは、このPoWのアイデアを使って、ブロックに**マイニング（nonce探し）**の処理を追加しましょう。
+それでは、このPoWのアイデアを使って、ブロックに**マイニング(nonce探し)**の処理を追加しましょう。
 
 ### nonceフィールドの追加
 
-Block構造体に`nonce`（ナンス）を追加します。
+Block構造体に`nonce`(ナンス)を追加します。
 
 ```zig
 const Block = struct {
@@ -701,7 +701,7 @@ const Transaction = struct {
 /// ブロックの構造体
 /// - index: ブロック番号
 /// - timestamp: 作成時刻
-/// - prev_hash: 前ブロックのハッシュ（32バイト）
+/// - prev_hash: 前ブロックのハッシュ(32バイト)
 /// - transactions: 動的配列を使って複数のトランザクションを保持
 /// - nonce: PoW用のnonce
 /// - data: 既存コードとの互換を保つために残す(省略可)
@@ -750,9 +750,9 @@ fn calculateHash(block: *const Block) [32]u8 {
     return hasher.finalResult();
 }
 
-/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
+/// main関数:ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
 pub fn main() !void {
-    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
+    // メモリ割り当て用アロケータを用意(ページアロケータを簡易使用)
     const allocator = std.heap.page_allocator;
     const stdout = std.io.getStdOut().writer();
 
@@ -804,7 +804,7 @@ pub fn main() !void {
 }
 ```
 
-実行してみると以下のようにnounceが0から始まっていることが確認できます。現状のコードでは、nonceを追加してハッシュ計算に含めるだけです。マイニング（nonceを変えながら特定条件を満たすまで試行錯誤する処理）をまだ実装していないので、nonce = 0がずっと使われているだけになります。ただし、ハッシュ計算時にnonceも投入しているので、後ほどマイニングを実装したときにnonceを変化させるとハッシュ値も変化するようになっています。
+実行してみると以下のようにnonceが0から始まっていることが確認できます。現状のコードでは、nonceを追加してハッシュ計算に含めるだけです。マイニング(nonceを変えながら特定条件を満たすまで試行錯誤する処理)をまだ実装していないので、nonce=0がずっと使われているだけになります。ただし、ハッシュ計算時にnonceも投入しているので、後ほどマイニングを実装したときにnonceを変化させるとハッシュ値も変化するようになっています。
 
 ```bash
 ❯ zig build run
@@ -872,7 +872,7 @@ node3 exited with code 0
 1. **`meetsDifficulty(hash: [32]u8, difficulty: u8) bool`**
    - ハッシュ配列の先頭 `difficulty` バイトがすべて `0x00` かを確認する関数。
    - 先頭Nバイトが0なら「条件を満たした」と判断し、`true`を返します。
-   - 例えば `difficulty = 2`なら、`hash[0] == 0`かつ`hash[1] == 0`であればOK（=先頭16ビットが0）。
+   - 例えば `difficulty = 2`なら、`hash[0] == 0`かつ`hash[1] == 0`であればOK(=先頭16ビットが0)。
 
 2. **`mineBlock(block: *Block, difficulty: u8) void`**
    - 無限ループの中で`calculateHash`を呼び出し、`meetsDifficulty`で合格か判定。
@@ -880,8 +880,10 @@ node3 exited with code 0
    - 条件を満たせば`block.hash`に最終ハッシュを設定し、ループを抜ける。
 
 ```zig
+/// meetsDifficulty:
+/// ハッシュ値の先頭 'difficulty' バイトがすべて 0 であれば true を返す。
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    // 難易度チェック：先頭 difficulty バイトがすべて 0 であれば成功
+    // difficulty が 32 を超える場合は 32 に丸める
     const limit = if (difficulty <= 32) difficulty else 32;
     for (hash[0..limit]) |byte| {
         if (byte != 0) return false;
@@ -889,15 +891,16 @@ fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
     return true;
 }
 
+/// mineBlock:
+/// 指定された難易度を満たすハッシュが得られるまで、
+/// nonce の値を増やしながらハッシュ計算を繰り返す関数。
 fn mineBlock(block: *Block, difficulty: u8) void {
     while (true) {
         const new_hash = calculateHash(block);
         if (meetsDifficulty(new_hash, difficulty)) {
-            // 条件を満たすハッシュが見つかったらブロックに設定して終了
             block.hash = new_hash;
             break;
         }
-        // 条件未達ならnonceをインクリメントして再度ループ
         block.nonce += 1;
     }
 }
@@ -908,7 +911,7 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 
 `meetsDifficulty`はハッシュ配列の先頭から指定バイト数をチェックし、すべて`0x00`ならtrueを返す関数です。`mineBlock`では無限ループの中で`calculateHash`を呼び出し、難易度条件を満たしたらループを抜けます。見つからなければ`nonce`を増やして再度ハッシュ計算、という流れです。
 
-難易度`difficulty`は調整可能ですが、大きな値にすると探索に非常に時間がかかるため、ローカルで試す場合は小さな値に留めましょう（例えば1や2程度）。`difficulty = 2`でも場合によっては数万回以上のループが必要になることがあります。PoWは計算量をわざと大きくすることで、ブロック生成にコストを課す仕組みだということを念頭に置いてください。
+難易度`difficulty`は調整可能ですが、大きな値にすると探索に非常に時間がかかるため、ローカルで試す場合は小さな値に留めましょう(例えば1や2程度)。`difficulty = 2`でも場合によっては数万回以上のループが必要になることがあります。PoWは計算量をわざと大きくすることで、ブロック生成にコストを課す仕組みだということを念頭に置いてください。
 
 以上で、ブロックに対してPoWを行いハッシュ値の条件を満たすようにする「マイニング」処理が完成しました。これにより、新しいブロックを正式にチェインに繋げることができます。改ざんしようとする者は、このPoWを再度解かなければならないため、改ざんのコストも非常に高くなります。
 
@@ -917,7 +920,8 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 toBytes関数も見直します。以下のように変換関数を追加して、u32やu64の値をリトルエンディアンのバイト列に変換するヘルパー関数を用意します。
 
 ```zig
-/// u32 から u8 への安全な変換ヘルパー関数
+/// truncateU32ToU8:
+/// u32 の値を u8 に変換(値が 0xff を超えるとエラー)
 fn truncateU32ToU8(x: u32) u8 {
     if (x > 0xff) {
         @panic("u32 value out of u8 range");
@@ -925,7 +929,8 @@ fn truncateU32ToU8(x: u32) u8 {
     return @truncate(x);
 }
 
-/// u64 から u8 への安全な変換ヘルパー関数
+/// truncateU64ToU8:
+/// u64 の値を u8 に変換(値が 0xff を超えるとエラー)
 fn truncateU64ToU8(x: u64) u8 {
     if (x > 0xff) {
         @panic("u64 value out of u8 range");
@@ -933,41 +938,115 @@ fn truncateU64ToU8(x: u64) u8 {
     return @truncate(x);
 }
 
-/// u32 値をリトルエンディアンのバイト列に変換
-fn toBytesU32(value: u32) []const u8 {
+/// toBytesU32:
+/// u32 の値をリトルエンディアンの 4 バイト配列に変換して返す。
+fn toBytesU32(value: u32) [4]u8 {
     var bytes: [4]u8 = undefined;
-    bytes[0] = truncateU32ToU8(value & @as(u32, 0xff));
-    bytes[1] = truncateU32ToU8((value >> 8) & @as(u32, 0xff));
-    bytes[2] = truncateU32ToU8((value >> 16) & @as(u32, 0xff));
-    bytes[3] = truncateU32ToU8((value >> 24) & @as(u32, 0xff));
-    return &bytes;
+    bytes[0] = truncateU32ToU8(value & 0xff);
+    bytes[1] = truncateU32ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU32ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU32ToU8((value >> 24) & 0xff);
+    return bytes;
 }
 
-/// u64 値をリトルエンディアンのバイト列に変換
-fn toBytesU64(value: u64) []const u8 {
+/// toBytesU64:
+/// u64 の値をリトルエンディアンの 8 バイト配列に変換して返す。
+fn toBytesU64(value: u64) [8]u8 {
     var bytes: [8]u8 = undefined;
-    bytes[0] = truncateU64ToU8(value & @as(u64, 0xff));
-    bytes[1] = truncateU64ToU8((value >> 8) & @as(u64, 0xff));
-    bytes[2] = truncateU64ToU8((value >> 16) & @as(u64, 0xff));
-    bytes[3] = truncateU64ToU8((value >> 24) & @as(u64, 0xff));
-    bytes[4] = truncateU64ToU8((value >> 32) & @as(u64, 0xff));
-    bytes[5] = truncateU64ToU8((value >> 40) & @as(u64, 0xff));
-    bytes[6] = truncateU64ToU8((value >> 48) & @as(u64, 0xff));
-    bytes[7] = truncateU64ToU8((value >> 56) & @as(u64, 0xff));
-    return &bytes;
+    bytes[0] = truncateU64ToU8(value & 0xff);
+    bytes[1] = truncateU64ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU64ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU64ToU8((value >> 24) & 0xff);
+    bytes[4] = truncateU64ToU8((value >> 32) & 0xff);
+    bytes[5] = truncateU64ToU8((value >> 40) & 0xff);
+    bytes[6] = truncateU64ToU8((value >> 48) & 0xff);
+    bytes[7] = truncateU64ToU8((value >> 56) & 0xff);
+    return bytes;
 }
 
-/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
-/// その全要素を含むスライス([]const u8)として返します。
+/// toBytes:
+/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
+/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
 fn toBytes(comptime T: type, value: T) []const u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value));
+        return toBytesU32(@as(u32, value))[0..];
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value));
+        return toBytesU64(@as(u64, value))[0..];
     } else {
         const bytes: [@sizeOf(T)]u8 = @bitCast(value);
         return bytes[0..];
     }
+}
+```
+
+ハッシュ値の計算に、nonceの値をバイト列に変換して追加する処理を追加します。また、デバッグログを出力するための`debugLog`関数も追加します。
+
+```zig
+//------------------------------------------------------------------------------
+// デバッグ出力関連
+//------------------------------------------------------------------------------
+//
+// このフラグが true であれば、デバッグ用のログ出力を行います。
+// コンパイル時に最適化されるため、false に設定されている場合、
+// debugLog 関数は実行コードから除去されます。
+const debug_logging = false;
+
+/// debugLog:
+/// デバッグログを出力するためのヘルパー関数です。
+/// ※ debug_logging が true の場合のみ std.debug.print を呼び出します。
+fn debugLog(comptime format: []const u8, args: anytype) void {
+    if (comptime debug_logging) {
+        std.debug.print(format, args);
+    }
+}
+
+//------------------------------------------------------------------------------
+// ハッシュ計算とマイニング処理
+//------------------------------------------------------------------------------
+//
+// calculateHash 関数では、ブロック内の各フィールドを連結して
+// SHA-256 のハッシュを計算します。
+// mineBlock 関数は、nonce をインクリメントしながら
+// meetsDifficulty による難易度チェックをパスするハッシュを探します。
+
+/// calculateHash:
+/// 指定されたブロックの各フィールドをバイト列に変換し、
+/// その連結結果から SHA-256 ハッシュを計算して返す関数。
+fn calculateHash(block: *const Block) [32]u8 {
+    var hasher = Sha256.init(.{});
+
+    // nonce の値をバイト列に変換(8バイト)し、デバッグ用に出力
+    const nonce_bytes = toBytesU64(block.nonce);
+    debugLog("nonce bytes: ", .{});
+    if (comptime debug_logging) {
+        for (nonce_bytes) |byte| {
+            std.debug.print("{x:0>2},", .{byte});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    // ブロック番号 (u32) をバイト列に変換して追加
+    hasher.update(toBytes(u32, block.index));
+    // タイムスタンプ (u64) をバイト列に変換して追加
+    hasher.update(toBytes(u64, block.timestamp));
+    // nonce のバイト列を追加
+    hasher.update(nonce_bytes[0..]);
+    // 前ブロックのハッシュ(32バイト)を追加
+    hasher.update(block.prev_hash[0..]);
+
+    // すべてのトランザクションについて、各フィールドを追加
+    for (block.transactions.items) |tx| {
+        hasher.update(tx.sender);
+        hasher.update(tx.receiver);
+        hasher.update(toBytes(u64, tx.amount));
+    }
+    // 追加データをハッシュに追加
+    hasher.update(block.data);
+
+    // 最終的なハッシュ値を計算
+    const hash = hasher.finalResult();
+    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    return hash;
 }
 ```
 
@@ -982,33 +1061,42 @@ const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
-/// トランザクションの構造体
-/// 送信者(sender), 受信者(receiver), 金額(amount) の3つだけを持つ。
+//------------------------------------------------------------------------------
+// データ構造定義
+//------------------------------------------------------------------------------
+
+// Transaction 構造体
+// ブロックチェーン上の「取引」を表現します。
+// 送信者、受信者、取引金額の３要素のみ保持します。
 const Transaction = struct {
-    sender: []const u8,
-    receiver: []const u8,
-    amount: u64,
+    sender: []const u8, // 送信者のアドレスまたは識別子(文字列)
+    receiver: []const u8, // 受信者のアドレスまたは識別子(文字列)
+    amount: u64, // 取引金額(符号なし64ビット整数)
 };
 
-/// ブロックの構造体
-/// - index: ブロック番号
-/// - timestamp: 作成時刻
-/// - prev_hash: 前ブロックのハッシュ（32バイト）
-/// - transactions: 動的配列を使って複数のトランザクションを保持
-/// - nonce: PoW用のnonce
-/// - data: 既存コードとの互換を保つために残す(省略可)
-/// - hash: このブロックのSHA-256ハッシュ(32バイト)
+// Block 構造体
+// ブロックチェーン上の「ブロック」を表現します。
+// ブロック番号、生成時刻、前ブロックのハッシュ、取引リスト、PoW用の nonce、
+// 追加データ、そして最終的なブロックハッシュを保持します。
 const Block = struct {
-    index: u32,
-    timestamp: u64,
-    prev_hash: [32]u8,
-    transactions: std.ArrayList(Transaction),
-    nonce: u64,
-    data: []const u8,
-    hash: [32]u8,
+    index: u32, // ブロック番号(0から始まる連番)
+    timestamp: u64, // ブロック生成時のUNIXタイムスタンプ
+    prev_hash: [32]u8, // 前のブロックのハッシュ(32バイト固定)
+    transactions: std.ArrayList(Transaction), // ブロック内の複数の取引を保持する動的配列
+    nonce: u64, // Proof of Work (PoW) 採掘用のnonce値
+    data: []const u8, // 任意の追加データ(文字列など)
+    hash: [32]u8, // このブロックのSHA-256ハッシュ(32バイト固定)
 };
 
-/// u32 から u8 への安全な変換ヘルパー関数
+//------------------------------------------------------------------------------
+// バイト変換ヘルパー関数
+//------------------------------------------------------------------------------
+//
+// ここでは数値型 (u32, u64) をリトルエンディアンのバイト配列に変換します。
+// また、値がu8の範囲を超えた場合はパニックします。
+
+/// truncateU32ToU8:
+/// u32 の値を u8 に変換(値が 0xff を超えるとエラー)
 fn truncateU32ToU8(x: u32) u8 {
     if (x > 0xff) {
         @panic("u32 value out of u8 range");
@@ -1016,7 +1104,8 @@ fn truncateU32ToU8(x: u32) u8 {
     return @truncate(x);
 }
 
-/// u64 から u8 への安全な変換ヘルパー関数
+/// truncateU64ToU8:
+/// u64 の値を u8 に変換(値が 0xff を超えるとエラー)
 fn truncateU64ToU8(x: u64) u8 {
     if (x > 0xff) {
         @panic("u64 value out of u8 range");
@@ -1024,69 +1113,117 @@ fn truncateU64ToU8(x: u64) u8 {
     return @truncate(x);
 }
 
-/// u32 値をリトルエンディアンのバイト列に変換
-fn toBytesU32(value: u32) []const u8 {
+/// toBytesU32:
+/// u32 の値をリトルエンディアンの 4 バイト配列に変換して返す。
+fn toBytesU32(value: u32) [4]u8 {
     var bytes: [4]u8 = undefined;
-    bytes[0] = truncateU32ToU8(value & @as(u32, 0xff));
-    bytes[1] = truncateU32ToU8((value >> 8) & @as(u32, 0xff));
-    bytes[2] = truncateU32ToU8((value >> 16) & @as(u32, 0xff));
-    bytes[3] = truncateU32ToU8((value >> 24) & @as(u32, 0xff));
-    return &bytes;
+    bytes[0] = truncateU32ToU8(value & 0xff);
+    bytes[1] = truncateU32ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU32ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU32ToU8((value >> 24) & 0xff);
+    return bytes;
 }
 
-/// u64 値をリトルエンディアンのバイト列に変換
-fn toBytesU64(value: u64) []const u8 {
+/// toBytesU64:
+/// u64 の値をリトルエンディアンの 8 バイト配列に変換して返す。
+fn toBytesU64(value: u64) [8]u8 {
     var bytes: [8]u8 = undefined;
-    bytes[0] = truncateU64ToU8(value & @as(u64, 0xff));
-    bytes[1] = truncateU64ToU8((value >> 8) & @as(u64, 0xff));
-    bytes[2] = truncateU64ToU8((value >> 16) & @as(u64, 0xff));
-    bytes[3] = truncateU64ToU8((value >> 24) & @as(u64, 0xff));
-    bytes[4] = truncateU64ToU8((value >> 32) & @as(u64, 0xff));
-    bytes[5] = truncateU64ToU8((value >> 40) & @as(u64, 0xff));
-    bytes[6] = truncateU64ToU8((value >> 48) & @as(u64, 0xff));
-    bytes[7] = truncateU64ToU8((value >> 56) & @as(u64, 0xff));
-    return &bytes;
+    bytes[0] = truncateU64ToU8(value & 0xff);
+    bytes[1] = truncateU64ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU64ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU64ToU8((value >> 24) & 0xff);
+    bytes[4] = truncateU64ToU8((value >> 32) & 0xff);
+    bytes[5] = truncateU64ToU8((value >> 40) & 0xff);
+    bytes[6] = truncateU64ToU8((value >> 48) & 0xff);
+    bytes[7] = truncateU64ToU8((value >> 56) & 0xff);
+    return bytes;
 }
 
-/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
-/// その全要素を含むスライス([]const u8)として返します。
+/// toBytes:
+/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
+/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
 fn toBytes(comptime T: type, value: T) []const u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value));
+        return toBytesU32(@as(u32, value))[0..];
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value));
+        return toBytesU64(@as(u64, value))[0..];
     } else {
         const bytes: [@sizeOf(T)]u8 = @bitCast(value);
         return bytes[0..];
     }
 }
 
-/// calculateHash関数
-/// ブロックの各フィールドを順番にハッシュ計算へ渡し、最終的なSHA-256ハッシュを得る。
+//------------------------------------------------------------------------------
+// デバッグ出力関連
+//------------------------------------------------------------------------------
+//
+// このフラグが true であれば、デバッグ用のログ出力を行います。
+// コンパイル時に最適化されるため、false に設定されている場合、
+// debugLog 関数は実行コードから除去されます。
+const debug_logging = false;
+
+/// debugLog:
+/// デバッグログを出力するためのヘルパー関数です。
+/// ※ debug_logging が true の場合のみ std.debug.print を呼び出します。
+fn debugLog(comptime format: []const u8, args: anytype) void {
+    if (comptime debug_logging) {
+        std.debug.print(format, args);
+    }
+}
+
+//------------------------------------------------------------------------------
+// ハッシュ計算とマイニング処理
+//------------------------------------------------------------------------------
+//
+// calculateHash 関数では、ブロック内の各フィールドを連結して
+// SHA-256 のハッシュを計算します。
+// mineBlock 関数は、nonce をインクリメントしながら
+// meetsDifficulty による難易度チェックをパスするハッシュを探します。
+
+/// calculateHash:
+/// 指定されたブロックの各フィールドをバイト列に変換し、
+/// その連結結果から SHA-256 ハッシュを計算して返す関数。
 fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
 
-    // indexとtimestampをバイト列へ変換
-    hasher.update(toBytes(u32, block.index));
-    hasher.update(toBytes(u64, block.timestamp));
+    // nonce の値をバイト列に変換(8バイト)し、デバッグ用に出力
+    const nonce_bytes = toBytesU64(block.nonce);
+    debugLog("nonce bytes: ", .{});
+    if (comptime debug_logging) {
+        for (nonce_bytes) |byte| {
+            std.debug.print("{x:0>2},", .{byte});
+        }
+        std.debug.print("\n", .{});
+    }
 
-    // 前のブロックのハッシュは配列→スライスで渡す
+    // ブロック番号 (u32) をバイト列に変換して追加
+    hasher.update(toBytes(u32, block.index));
+    // タイムスタンプ (u64) をバイト列に変換して追加
+    hasher.update(toBytes(u64, block.timestamp));
+    // nonce のバイト列を追加
+    hasher.update(nonce_bytes[0..]);
+    // 前ブロックのハッシュ(32バイト)を追加
     hasher.update(block.prev_hash[0..]);
-    hasher.update(toBytes(u64, block.nonce));
+
+    // すべてのトランザクションについて、各フィールドを追加
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
         hasher.update(toBytes(u64, tx.amount));
     }
-
-    // 既存コードとの互換を保つため、dataもハッシュに含める
+    // 追加データをハッシュに追加
     hasher.update(block.data);
 
-    return hasher.finalResult();
+    // 最終的なハッシュ値を計算
+    const hash = hasher.finalResult();
+    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    return hash;
 }
 
+/// meetsDifficulty:
+/// ハッシュ値の先頭 'difficulty' バイトがすべて 0 であれば true を返す。
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    // 難易度チェック：先頭 difficulty バイトがすべて 0 であれば成功
+    // difficulty が 32 を超える場合は 32 に丸める
     const limit = if (difficulty <= 32) difficulty else 32;
     for (hash[0..limit]) |byte| {
         if (byte != 0) return false;
@@ -1094,6 +1231,9 @@ fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
     return true;
 }
 
+/// mineBlock:
+/// 指定された難易度を満たすハッシュが得られるまで、
+/// nonce の値を増やしながらハッシュ計算を繰り返す関数。
 fn mineBlock(block: *Block, difficulty: u8) void {
     while (true) {
         const new_hash = calculateHash(block);
@@ -1105,28 +1245,35 @@ fn mineBlock(block: *Block, difficulty: u8) void {
     }
 }
 
-/// main関数：ブロックの初期化、ハッシュ計算、及び結果の出力を行います。
+//------------------------------------------------------------------------------
+// メイン処理およびテスト実行
+//------------------------------------------------------------------------------
+//
+// main 関数では、以下の手順を実行しています：
+// 1. ジェネシスブロック(最初のブロック)を初期化。
+// 2. 取引リスト(トランザクション)の初期化と追加。
+// 3. ブロックのハッシュを計算し、指定難易度に到達するまで nonce を探索(採掘)。
+// 4. 最終的なブロック情報を標準出力に表示。
 pub fn main() !void {
-    // メモリ割り当て用アロケータを用意（ページアロケータを簡易使用）
     const allocator = std.heap.page_allocator;
     const stdout = std.io.getStdOut().writer();
 
-    // ジェネシスブロック(最初のブロック)を作成
+    // ジェネシスブロックの初期化
     var genesis_block = Block{
         .index = 0,
-        .timestamp = 1672531200,
-        .prev_hash = [_]u8{0} ** 32, // 前ブロックが無いので全0にする
-        .transactions = undefined, // アロケータの初期化は後で行うため、いったんundefinedに
-        .data = "Hello, Zig Blockchain!",
-        .nonce = 0, //nonceフィールドを初期化(0から始める)
-        .hash = [_]u8{0} ** 32,
+        .timestamp = 1672531200, // 例: 2023-01-01 00:00:00 UTC
+        .prev_hash = [_]u8{0} ** 32, // 前ブロックがないので全て 0
+        .transactions = undefined, // 後で初期化するため一旦 undefined
+        .data = "Hello, Zig Blockchain!", // ブロックに付随する任意データ
+        .nonce = 0, // nonce は 0 から開始
+        .hash = [_]u8{0} ** 32, // 初期状態ではハッシュは全0
     };
 
-    // transactionsフィールドを動的配列として初期化
+    // トランザクションリストの初期化
     genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
     defer genesis_block.transactions.deinit();
 
-    // トランザクションを2件追加
+    // 例として 2 件のトランザクションを追加
     try genesis_block.transactions.append(Transaction{
         .sender = "Alice",
         .receiver = "Bob",
@@ -1138,11 +1285,12 @@ pub fn main() !void {
         .amount = 50,
     });
 
-    // calculateHash()でブロックの全フィールドからハッシュを計算し、hashフィールドに保存する
+    // ブロックの初期ハッシュを計算
     genesis_block.hash = calculateHash(&genesis_block);
-    // 難易度 2：先頭2バイトが 0 であるかをチェック
+    // 難易度 2(先頭2バイトが 0)になるまで nonce を探索する
     mineBlock(&genesis_block, 2);
 
+    // 結果を標準出力に表示
     try stdout.print("Block index: {d}\n", .{genesis_block.index});
     try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
     try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
@@ -1166,19 +1314,58 @@ pub fn main() !void {
 実行すると、`nonce`が0から始まり、**ハッシュが先頭2バイト「00 00」になるまで**試行します。見つかればそこで終了し、`nonce`が大きな値になることもあります。
 
 ```bash
-❯ zig run src/main.zig
+❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
-Nonce      : 238145
+Nonce      : 49954
 Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
-Hash       : 0084749b85d8ba63c2e4124fc7f748735768ce57eb9750e3cdbacbd1937b
+Hash       : 001da5a39756df66c7bd9f6db2d2cbbaff48b779ccf25569bac9a997c13d
+```
+
+もしくはdocker composeで実行できます。
+
+```bash
+❯ docker compose up
+[+] Running 4/4
+ ✔ Network step4-2_default  Created                                                              0.1s
+ ✔ Container node3          Created                                                              0.0s
+ ✔ Container node2          Created                                                              0.1s
+ ✔ Container node1          Created                                                              0.0s
+Attaching to node1, node2, node3
+node2  | Block index: 0
+node2  | Timestamp  : 1672531200
+node2  | Nonce      : 51858
+node2  | Data       : Hello, Zig Blockchain!
+node2  | Transactions:
+node2  |   Alice -> Bob : 100
+node2  |   Charlie -> Dave : 50
+node2  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node1  | Block index: 0
+node1  | Timestamp  : 1672531200
+node1  | Nonce      : 51858
+node1  | Data       : Hello, Zig Blockchain!
+node1  | Transactions:
+node1  |   Alice -> Bob : 100
+node1  |   Charlie -> Dave : 50
+node1  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node3  | Block index: 0
+node3  | Timestamp  : 1672531200
+node3  | Nonce      : 51858
+node3  | Data       : Hello, Zig Blockchain!
+node3  | Transactions:
+node3  |   Alice -> Bob : 100
+node3  |   Charlie -> Dave : 50
+node3  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node2 exited with code 0
+node1 exited with code 0
+node3 exited with code 0
 ```
 
 - ビットコインでは**先頭の0ビット**を難易度として扱い、だいたい毎回10分で見つかるぐらいに調整しています。
-- この例のようにバイト単位で先頭2バイトを0にするだけでも、運が悪いと何十万～何百万回と試行することがあり得ます。
+- この例のようにバイト単位で先頭2バイトを0にするだけでも、運が悪いと何十万,何百万回と試行することがあり得ます。
 - 難易度を1や2程度にしておけば比較的すぐにハッシュが見つかるはずです。
 
 ---
@@ -1186,32 +1373,32 @@ Hash       : 0084749b85d8ba63c2e4124fc7f748735768ce57eb9750e3cdbacbd1937b
 ## まとめ
 
 - **`nonce`を0から増やす**ことで、ブロックのハッシュ値が大きく変化します。
-- 先頭数バイトが0になる（または先頭Nビットが0）などの**難易度設定**に合致したら**ループ終了**。これが簡単なPoWの仕組みです。
+- 先頭数バイトが0になる(または先頭Nビットが0)などの**難易度設定**に合致したら**ループ終了**。これが簡単なPoWの仕組みです。
 - 一度見つかったブロックを改ざんしようとすると、`nonce`を再度見つけ直さなければならないため、改ざんコストが跳ね上がります。
 
-これで**マイニング**の基本（nonce探索ループ）が完成しました。難易度を変化させれば、探索にかかる試行回数も変動します。これを**複数のブロック**に適用し、前のブロックのハッシュを`prev_hash`に設定しながら連結すれば、いよいよ「チェイン」としての改ざん耐性を試せるようになります。
+これで**マイニング**の基本(nonce探索ループ)が完成しました。難易度を変化させれば、探索にかかる試行回数も変動します。これを**複数のブロック**に適用し、前のブロックのハッシュを`prev_hash`に設定しながら連結すれば、いよいよ「チェイン」としての改ざん耐性を試せるようになります。
 
 ## 動作確認とデバッグ
 
-ここまでで、**ブロックチェインの基本要素**（ブロック構造、トランザクション、ハッシュ計算、PoW）が揃いました。最後に、これらを組み合わせて実際にブロックチェインを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
+ここまでで、**ブロックチェインの基本要素**(ブロック構造、トランザクション、ハッシュ計算、PoW)が揃いました。最後に、これらを組み合わせて実際にブロックチェインを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
 
 ### ブロックチェインの連結と検証
 
-まず、簡単にブロックチェインを連結する処理をおさらいします。新しいブロックをチェインに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング（`mineBlock`）によってハッシュを確定させてからチェインに繋ぎます。最初のブロック（ジェネシスブロック）は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値（ゼロハッシュ）を入れておくとよいでしょう。
+まず、簡単にブロックチェインを連結する処理をおさらいします。新しいブロックをチェインに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング(`mineBlock`)によってハッシュを確定させてからチェインに繋ぎます。最初のブロック(ジェネシスブロック)は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値(ゼロハッシュ)を入れておくとよいでしょう。
 
 チェイン全体の検証は各ブロックについて以下をチェックします。
 
 - `prev_hash`が直前のブロックの`hash`と一致しているか
-- ブロックの`hash`がブロック内容（含`nonce`）から正しく計算されているか
+- ブロックの`hash`がブロック内容(含`nonce`)から正しく計算されているか
 - PoWの難易度条件を満たしているか
 
-上記を各ブロックについて確認し、ひとつでも不整合があればチェインは無効（改ざんされている）と判断できます。
+上記を各ブロックについて確認し、ひとつでも不整合があればチェインは無効(改ざんされている)と判断できます。
 
-### Zigでのデバッグ方法（printデバッグやコンパイラオプション）
+### Zigでのデバッグ方法(printデバッグやコンパイラオプション)
 
-Zigでデバッグを行う方法としては、**printデバッグ**（プログラム中に変数値を出力して追跡する）や、組み込みのテストフレームワークを使う方法があります。`std.debug.print`や`std.log.info`を使って適宜値を表示すれば、ブロック生成の過程やハッシュ計算結果を確認できます。例えばマイニング中に`nonce`の値を一定間隔で表示したり、ブロック完成時に`hash`を16進数で表示したりすると、処理の様子が掴みやすいでしょう。
+Zigでデバッグを行う方法としては、**printデバッグ**(プログラム中に変数値を出力して追跡する)や、組み込みのテストフレームワークを使う方法があります。`std.debug.print`や`std.log.info`を使って適宜値を表示すれば、ブロック生成の過程やハッシュ計算結果を確認できます。例えばマイニング中に`nonce`の値を一定間隔で表示したり、ブロック完成時に`hash`を16進数で表示したりすると、処理の様子が掴みやすいでしょう。
 
-Zigコンパイラにはデフォルトで**デバッグモード**（安全チェック有効）と**最適化モード**（安全チェック無効で高速化）のビルドオプションがあります。
+Zigコンパイラにはデフォルトで**デバッグモード**(安全チェック有効)と**最適化モード**(安全チェック無効で高速化)のビルドオプションがあります。
 
 何も指定しなければデフォルトでデバッグ用ビルドになります。
 
@@ -1225,7 +1412,7 @@ Zigには組み込みのテスト機能があり、`test "名前"`ブロック�
 const std = @import("std");
 const allocator = std.testing.allocator; // テスト用アロケータ
 test "ブロック改ざんの検出" {
-    // 1件のトランザクションを持つブロックを作成（ジェネシスブロック想定）
+    // 1件のトランザクションを持つブロックを作成(ジェネシスブロック想定)
     var tx_list = std.ArrayList(Transaction).init(allocator);
     defer tx_list.deinit();  // テスト終了時にメモリ解放 ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))
     try tx_list.append(Transaction{ .sender = "Alice", .receiver = "Bob", .amount = 100 });
@@ -1239,7 +1426,7 @@ test "ブロック改ざんの検出" {
     };
     block.hash = calculateHash(&block); // ハッシュ計算
 
-    // ブロックを書き換えてみる（トランザクションの金額を改ざん）
+    // ブロックを書き換えてみる(トランザクションの金額を改ざん)
     block.transactions.items[0].amount = 200;
     const new_hash = calculateHash(&block);
     // 改ざん前後でハッシュ値が異なることを確認
@@ -1247,13 +1434,13 @@ test "ブロック改ざんの検出" {
 }
 ```
 
-このテストでは、最初にAliceからBobへ100の送金トランザクションを含むブロックを作り、そのブロックのハッシュを求めています。次にブロック内の取引金額を100から200に改ざんし、再度ハッシュを計算します。`std.testing.expect(... == false)`によって、改ざん前後でハッシュが一致しない（つまり改ざんを検出できる）ことを検証しています。実行時にこの期待が満たされない場合（もし改ざんしてもハッシュが変わらなかった場合など）はテストが失敗し、エラーが報告されます。
+このテストでは、最初にAliceからBobへ100の送金トランザクションを含むブロックを作り、そのブロックのハッシュを求めています。次にブロック内の取引金額を100から200に改ざんし、再度ハッシュを計算します。`std.testing.expect(... == false)`によって、改ざん前後でハッシュが一致しない(つまり改ざんを検出できる)ことを検証しています。実行時にこの期待が満たされない場合(もし改ざんしてもハッシュが変わらなかった場合など)はテストが失敗し、エラーが報告されます。
 
 テストコードは、ファイル内に記述して`zig test ファイル名.zig`で実行できます。`zig build test`を使えばビルドシステム経由でプロジェクト内のすべてのテストを実行できます。上記テストを走らせて**パスすれば、ブロックの改ざん検知ロジックが正しく機能している**ことになります。
 
 ### その他のデバッグヒント
 
-- **ログ出力**: Zigの標準ライブラリにはログ機能（`std.log`）もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です。
+- **ログ出力**: Zigの標準ライブラリにはログ機能(`std.log`)もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です。
 - **メモリ管理のチェック**: Zigは低レベル言語なのでメモリ管理に注意が必要です。今回`std.ArrayList`を使いましたが、使用後に`deinit()`で確保したメモリを解放することを忘れないようにしましょう ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。Zigのテストでは`std.testing.allocator`を使うことで、テスト終了時にメモリリークがないか自動チェックできます。
 - **スタックトレース**: 実行時エラーが発生すると、Zigはデフォルトでスタックトレースを表示します。どの関数のどの行でエラーが起きたか追跡できるので、バグ修正に役立ちます。
 
@@ -1283,9 +1470,9 @@ const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
-/// 取引（トランザクション）の構造体
+/// 取引(トランザクション)の構造体
 const Transaction = struct {
-    sender: []const u8,    // 送信者アドレス（文字列）
+    sender: []const u8,    // 送信者アドレス(文字列)
     receiver: []const u8,  // 受信者アドレス
     amount: u64,           // 送金額
 };
@@ -1293,8 +1480,8 @@ const Transaction = struct {
 /// ブロックを表す構造体
 const Block = struct {
     index: u32,                        // ブロック番号
-    timestamp: u64,                    // 作成時刻（Unixエポック秒）
-    prev_hash: [32]u8,                 // 直前のブロックのハッシュ（32バイト）
+    timestamp: u64,                    // 作成時刻(Unixエポック秒)
+    prev_hash: [32]u8,                 // 直前のブロックのハッシュ(32バイト)
     transactions: std.ArrayList(Transaction), // 取引リスト
     nonce: u64,                        // マイニング用ナンス
     hash: [32]u8,                      // このブロックのハッシュ
@@ -1324,7 +1511,7 @@ fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
     return true;
 }
 
-/// PoWによるマイニング処理：条件を満たすハッシュとnonceを見つける
+/// PoWによるマイニング処理:条件を満たすハッシュとnonceを見つける
 fn mineBlock(block: *Block, difficulty: u8) void {
     while (true) {
         const new_hash = calculateHash(block);
@@ -1364,7 +1551,7 @@ pub fn main() !void {
         .amount = 50,
     });
 
-    // ジェネシスブロックの作成（最初のブロックなので、prev_hashは全0）
+    // ジェネシスブロックの作成(最初のブロックなので、prev_hashは全0)
     var genesis_block = Block{
         .index = 0,
         .timestamp = std.time.timestamp(),
@@ -1374,7 +1561,7 @@ pub fn main() !void {
         .hash = undefined,
     };
 
-    // 難易度を2（先頭2バイトが0）とし、ブロックをマイニング
+    // 難易度を2(先頭2バイトが0)とし、ブロックをマイニング
     mineBlock(&genesis_block, 2);
 
     // ブロック情報を出力
