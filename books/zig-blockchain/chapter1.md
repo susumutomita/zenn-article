@@ -570,7 +570,7 @@ pub fn main() !void {
 こうして**「複数のトランザクションをブロックにまとめる」**実装ができました。実際にコードを動かすと、**ブロックのハッシュがトランザクションに依存**しており、新たに取引を追加してからハッシュを再計算すると、ハッシュ値も変わっています。
 
 ```bash
-❯ zig run src/main.zig
+❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
 Data       : Hello, Zig Blockchain!
@@ -578,6 +578,42 @@ Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
 Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
+```
+
+もしくはdocker composeで実行できます。
+
+```bash
+❯ docker compose up
+[+] Running 4/4
+ ✔ Network step3_default  Created                 0.1s
+ ✔ Container node1        Cr...                   0.2s
+ ✔ Container node3        Cr...                   0.2s
+ ✔ Container node2        Cr...                   0.2s
+Attaching to node1, node2, node3
+node2  | Block index: 0
+node2  | Timestamp  : 1672531200
+node2  | Data       : Hello, Zig Blockchain!
+node2  | Transactions:
+node2  |   Alice -> Bob : 100
+node2  |   Charlie -> Dave : 50
+node2  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node3  | Block index: 0
+node3  | Timestamp  : 1672531200
+node3  | Data       : Hello, Zig Blockchain!
+node3  | Transactions:
+node3  |   Alice -> Bob : 100
+node3  |   Charlie -> Dave : 50
+node3  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node1  | Block index: 0
+node1  | Timestamp  : 1672531200
+node1  | Data       : Hello, Zig Blockchain!
+node1  | Transactions:
+node1  |   Alice -> Bob : 100
+node1  |   Charlie -> Dave : 50
+node1  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node2 exited with code 0
+node3 exited with code 0
+node1 exited with code 0
 ```
 
 次のステップでは、**PoW（Proof of Work）** を導入し、`nonce`を使ってブロックハッシュが特定条件を満たすまで試行錯誤する「マイニング」処理を追加してみましょう。そこまで実装すると、「トランザクションをいじればブロックのハッシュが合わなくなり、PoWもやり直しになる」という改ざん耐性が、より強固に体験できます。
