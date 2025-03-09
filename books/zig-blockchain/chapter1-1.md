@@ -764,140 +764,320 @@ node3 exited with code 0
 
 これで**マイニング**の基本(nonce探索ループ)が完成しました。難易度を変化させれば、探索にかかる試行回数も変動します。これを**複数のブロック**に適用し、前のブロックのハッシュを`prev_hash`に設定しながら連結すれば、いよいよ「チェイン」としての改ざん耐性を試せるようになります。
 
-## 動作確認とデバッグ
-
-ここまでで、**ブロックチェインの基本要素**(ブロック構造、トランザクション、ハッシュ計算、PoW)が揃いました。最後に、これらを組み合わせて実際にブロックチェインを動かし、正しく機能するか確認しましょう。また、Zigでのデバッグ方法やテストコードの書き方についても触れておきます。
-
-### ブロックチェインの連結と検証
-
-まず、簡単にブロックチェインを連結する処理をおさらいします。新しいブロックをチェインに追加する際は、**前のブロックのハッシュ値**を新ブロックの`prev_hash`にセットし、PoWマイニング(`mineBlock`)によってハッシュを確定させてからチェインに繋ぎます。最初のブロック(ジェネシスブロック)は前のブロックが存在しないため、`prev_hash`には32バイト全て`0`の値(ゼロハッシュ)を入れておくとよいでしょう。
-
-チェイン全体の検証は各ブロックについて以下をチェックします。
-
-- `prev_hash`が直前のブロックの`hash`と一致しているか
-- ブロックの`hash`がブロック内容(含`nonce`)から正しく計算されているか
-- PoWの難易度条件を満たしているか
-
-上記を各ブロックについて確認し、ひとつでも不整合があればチェインは無効(改ざんされている)と判断できます。
-
-### Zigでのデバッグ方法(printデバッグやコンパイラオプション)
-
-Zigでデバッグを行う方法としては、**printデバッグ**(プログラム中に変数値を出力して追跡する)や、組み込みのテストフレームワークを使う方法があります。`std.debug.print`や`std.log.info`を使って適宜値を表示すれば、ブロック生成の過程やハッシュ計算結果を確認できます。例えばマイニング中に`nonce`の値を一定間隔で表示したり、ブロック完成時に`hash`を16進数で表示したりすると、処理の様子が掴みやすいでしょう。
-
-Zigコンパイラにはデフォルトで**デバッグモード**(安全チェック有効)と**最適化モード**(安全チェック無効で高速化)のビルドオプションがあります。
-
-何も指定しなければデフォルトでデバッグ用ビルドになります。
-
-コンパイル時に`-O ReleaseFast`や`-O ReleaseSafe`といったフラグを付けると最適化ビルドが可能です。ただし、デバッグ時には省略して実行し、エラー発生箇所のスタックトレースや、オーバーフロー・メモリアクセス違反検出などZigの安全機能を活用すると良いでしょう。
-
-### 簡単なテストコードを書く
+### ステップ5: テストコードを書く
 
 Zigには組み込みのテスト機能があり、`test "名前"`ブロックの中にテストコードを書くことができます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。テストブロック内では`std.testing.expect`マクロを使って式が期待通りの結果かチェックできます ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=test%20,World))。ブロックチェインの動作検証として、一例として「ブロックが改ざんを検出できること」をテストしてみます。
 
 ```zig
-const std = @import("std");
-const allocator = std.testing.allocator; // テスト用アロケータ
-test "ブロック改ざんの検出" {
-    // 1件のトランザクションを持つブロックを作成(ジェネシスブロック想定)
-    var tx_list = std.ArrayList(Transaction).init(allocator);
-    defer tx_list.deinit();  // テスト終了時にメモリ解放 ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))
-    try tx_list.append(Transaction{ .sender = "Alice", .receiver = "Bob", .amount = 100 });
+//------------------------------------------------------------------------------
+// テストコード
+//------------------------------------------------------------------------------
+//
+// 以下の test ブロックは、各関数の動作を検証するための単体テストです。
+// Zig の標準ライブラリ std.testing を使ってテストが実行されます。
+
+/// ブロックを初期化するヘルパー関数(テスト用)
+fn createTestBlock(allocator: std.mem.Allocator) !Block {
     var block = Block{
         .index = 0,
-        .timestamp = 0,
-        .prev_hash = [_]u8{0} ** 32,  // 前ブロックがないのでゼロで初期化
-        .transactions = tx_list,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(Transaction).init(allocator),
+        .data = "Test Block",
         .nonce = 0,
-        .hash = undefined,
+        .hash = [_]u8{0} ** 32,
     };
-    block.hash = calculateHash(&block); // ハッシュ計算
 
-    // ブロックを書き換えてみる(トランザクションの金額を改ざん)
-    block.transactions.items[0].amount = 200;
-    const new_hash = calculateHash(&block);
-    // 改ざん前後でハッシュ値が異なることを確認
-    std.testing.expect(std.mem.eql(u8, block.hash[0..], new_hash[0..]) == false);
+    try block.transactions.append(Transaction{
+        .sender = "TestSender",
+        .receiver = "TestReceiver",
+        .amount = 100,
+    });
+
+    return block;
 }
+
+test "トランザクション作成のテスト" {
+    const tx = Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 50,
+    };
+    try std.testing.expectEqualStrings("Alice", tx.sender);
+    try std.testing.expectEqualStrings("Bob", tx.receiver);
+    try std.testing.expectEqual(@as(u64, 50), tx.amount);
+}
+
+test "ブロック作成のテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    try std.testing.expectEqual(@as(u32, 0), block.index);
+    try std.testing.expectEqual(@as(u64, 1672531200), block.timestamp);
+    try std.testing.expectEqualStrings("Test Block", block.data);
+}
+
+test "バイト変換のテスト" {
+    // u32 の変換テスト
+    const u32_value: u32 = 0x12345678;
+    const u32_bytes = toBytesU32(u32_value);
+    try std.testing.expectEqual(u32_bytes[0], 0x78);
+    try std.testing.expectEqual(u32_bytes[1], 0x56);
+    try std.testing.expectEqual(u32_bytes[2], 0x34);
+    try std.testing.expectEqual(u32_bytes[3], 0x12);
+
+    // u64 の変換テスト
+    const u64_value: u64 = 0x1234567890ABCDEF;
+    const u64_bytes = toBytesU64(u64_value);
+    try std.testing.expectEqual(u64_bytes[0], 0xEF);
+    try std.testing.expectEqual(u64_bytes[7], 0x12);
+}
+
+test "ハッシュ計算のテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    const hash = calculateHash(&block);
+    // ハッシュの長さが 32 バイトであることを確認
+    try std.testing.expectEqual(@as(usize, 32), hash.len);
+    // ハッシュが全て 0 でないことを確認
+    var all_zeros = true;
+    for (hash) |byte| {
+        if (byte != 0) {
+            all_zeros = false;
+            break;
+        }
+    }
+    try std.testing.expect(!all_zeros);
+}
+
+test "マイニングのテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    // 難易度 1 で採掘し、先頭1バイトが 0 になることを期待
+    mineBlock(&block, 1);
+    try std.testing.expectEqual(@as(u8, 0), block.hash[0]);
+}
+
+test "難易度チェックのテスト" {
+    var hash = [_]u8{0} ** 32;
+    // 全て 0 の場合、どの難易度でも true を返す
+    try std.testing.expect(meetsDifficulty(hash, 0));
+    try std.testing.expect(meetsDifficulty(hash, 1));
+    try std.testing.expect(meetsDifficulty(hash, 32));
+
+    // 先頭バイトが 0 以外の場合、難易度 1 では false を返す
+    hash[0] = 1;
+    try std.testing.expect(!meetsDifficulty(hash, 1));
+}
+
+test "トランザクションリストのテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    // 追加のトランザクションを追加
+    try block.transactions.append(Transaction{
+        .sender = "Carol",
+        .receiver = "Dave",
+        .amount = 75,
+    });
+
+    try std.testing.expectEqual(@as(usize, 2), block.transactions.items.len);
+    try std.testing.expectEqualStrings("TestSender", block.transactions.items[0].sender);
+    try std.testing.expectEqualStrings("Carol", block.transactions.items[1].sender);
+}
+
 ```
 
 このテストでは、最初にAliceからBobへ100の送金トランザクションを含むブロックを作り、そのブロックのハッシュを求めています。次にブロック内の取引金額を100から200に改ざんし、再度ハッシュを計算します。`std.testing.expect(... == false)`によって、改ざん前後でハッシュが一致しない(つまり改ざんを検出できる)ことを検証しています。実行時にこの期待が満たされない場合(もし改ざんしてもハッシュが変わらなかった場合など)はテストが失敗し、エラーが報告されます。
 
 テストコードは、ファイル内に記述して`zig test ファイル名.zig`で実行できます。`zig build test`を使えばビルドシステム経由でプロジェクト内のすべてのテストを実行できます。上記テストを走らせて**パスすれば、ブロックの改ざん検知ロジックが正しく機能している**ことになります。
 
-### その他のデバッグヒント
-
-- **ログ出力**: Zigの標準ライブラリにはログ機能(`std.log`)もあります。必要に応じて`std.log.info`などを使えば、ログレベルごとの出力が可能です。
-- **メモリ管理のチェック**: Zigは低レベル言語なのでメモリ管理に注意が必要です。今回`std.ArrayList`を使いましたが、使用後に`deinit()`で確保したメモリを解放することを忘れないようにしましょう ([ArrayList | zig.guide](https://zig.guide/standard-library/arraylist/#:~:text=var%20list%20%3D%20ArrayList%28u8%29,World))。Zigのテストでは`std.testing.allocator`を使うことで、テスト終了時にメモリリークがないか自動チェックできます。
-- **スタックトレース**: 実行時エラーが発生すると、Zigはデフォルトでスタックトレースを表示します。どの関数のどの行でエラーが起きたか追跡できるので、バグ修正に役立ちます。
-
-## おわりに
-
-本チュートリアルでは、Zigを用いてブロックチェインの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェインの改ざん耐性やワークロード証明の仕組みを備えています。
-
-実際のブロックチェインシステムでは、この他にも様々な要素があります。
-
-- **ピアツーピアネットワーク**による分散ノード間の通信
-- **トランザクションのデジタル署名と検証**
-- **コンセンサスアルゴリズムの調整**
-- **ブロックサイズや報酬の管理**
-
-などです。
-
-まずは今回構築したプロトタイプを土台に、徐々にそういった機能を拡張してみるのも良いでしょう。
-
-Zigは高性能で安全性の高いシステムプログラミング言語です。その特徴を活かしてブロックチェインを実装・改良していくことで、低レベルからブロックチェインの動作原理を深く理解できるはずです。ぜひ引き続き手を動かしながら、Zigでの開発とブロックチェインの探求を楽しんでください。 ([Hash Functions and the Blockchain Ledger](https://osl.com/academy/article/hash-functions-and-the-blockchain-ledger/#:~:text=Each%20block%20in%20a%20blockchain,network%20can%20trust%20the%20data))。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
-
-### まとめプログラムの実装例
-
-ファイル名を **main.zig** として作成する。
+コード全体は以下のようになります。
 
 ```zig
 const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
 
-/// 取引(トランザクション)の構造体
+//------------------------------------------------------------------------------
+// デバッグ出力関連
+//------------------------------------------------------------------------------
+//
+// このフラグが true であれば、デバッグ用のログ出力を行います。
+// コンパイル時に最適化されるため、false に設定されている場合、
+// debugLog 関数は実行コードから除去されます。
+const debug_logging = false;
+
+/// debugLog:
+/// デバッグログを出力するためのヘルパー関数です。
+/// ※ debug_logging が true の場合のみ std.debug.print を呼び出します。
+fn debugLog(comptime format: []const u8, args: anytype) void {
+    if (comptime debug_logging) {
+        std.debug.print(format, args);
+    }
+}
+
+//------------------------------------------------------------------------------
+// データ構造定義
+//------------------------------------------------------------------------------
+
+// Transaction 構造体
+// ブロックチェーン上の「取引」を表現します。
+// 送信者、受信者、取引金額の３要素のみ保持します。
 const Transaction = struct {
-    sender: []const u8,    // 送信者アドレス(文字列)
-    receiver: []const u8,  // 受信者アドレス
-    amount: u64,           // 送金額
+    sender: []const u8, // 送信者のアドレスまたは識別子(文字列)
+    receiver: []const u8, // 受信者のアドレスまたは識別子(文字列)
+    amount: u64, // 取引金額(符号なし64ビット整数)
 };
 
-/// ブロックを表す構造体
+// Block 構造体
+// ブロックチェーン上の「ブロック」を表現します。
+// ブロック番号、生成時刻、前ブロックのハッシュ、取引リスト、PoW用の nonce、
+// 追加データ、そして最終的なブロックハッシュを保持します。
 const Block = struct {
-    index: u32,                        // ブロック番号
-    timestamp: u64,                    // 作成時刻(Unixエポック秒)
-    prev_hash: [32]u8,                 // 直前のブロックのハッシュ(32バイト)
-    transactions: std.ArrayList(Transaction), // 取引リスト
-    nonce: u64,                        // マイニング用ナンス
-    hash: [32]u8,                      // このブロックのハッシュ
+    index: u32, // ブロック番号(0から始まる連番)
+    timestamp: u64, // ブロック生成時のUNIXタイムスタンプ
+    prev_hash: [32]u8, // 前のブロックのハッシュ(32バイト固定)
+    transactions: std.ArrayList(Transaction), // ブロック内の複数の取引を保持する動的配列
+    nonce: u64, // Proof of Work (PoW) 採掘用のnonce値
+    data: []const u8, // 任意の追加データ(文字列など)
+    hash: [32]u8, // このブロックのSHA-256ハッシュ(32バイト固定)
 };
 
-/// ブロック内の各フィールドを順次ハッシュへ投入し、SHA-256ハッシュを返す
+//------------------------------------------------------------------------------
+// バイト変換ヘルパー関数
+//------------------------------------------------------------------------------
+//
+// ここでは数値型 (u32, u64) をリトルエンディアンのバイト配列に変換します。
+// また、値がu8の範囲を超えた場合はパニックします。
+
+/// truncateU32ToU8:
+/// u32 の値を u8 に変換(値が 0xff を超えるとエラー)
+fn truncateU32ToU8(x: u32) u8 {
+    if (x > 0xff) {
+        @panic("u32 value out of u8 range");
+    }
+    return @truncate(x);
+}
+
+/// truncateU64ToU8:
+/// u64 の値を u8 に変換(値が 0xff を超えるとエラー)
+fn truncateU64ToU8(x: u64) u8 {
+    if (x > 0xff) {
+        @panic("u64 value out of u8 range");
+    }
+    return @truncate(x);
+}
+
+/// toBytesU32:
+/// u32 の値をリトルエンディアンの 4 バイト配列に変換して返す。
+fn toBytesU32(value: u32) [4]u8 {
+    var bytes: [4]u8 = undefined;
+    bytes[0] = truncateU32ToU8(value & 0xff);
+    bytes[1] = truncateU32ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU32ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU32ToU8((value >> 24) & 0xff);
+    return bytes;
+}
+
+/// toBytesU64:
+/// u64 の値をリトルエンディアンの 8 バイト配列に変換して返す。
+fn toBytesU64(value: u64) [8]u8 {
+    var bytes: [8]u8 = undefined;
+    bytes[0] = truncateU64ToU8(value & 0xff);
+    bytes[1] = truncateU64ToU8((value >> 8) & 0xff);
+    bytes[2] = truncateU64ToU8((value >> 16) & 0xff);
+    bytes[3] = truncateU64ToU8((value >> 24) & 0xff);
+    bytes[4] = truncateU64ToU8((value >> 32) & 0xff);
+    bytes[5] = truncateU64ToU8((value >> 40) & 0xff);
+    bytes[6] = truncateU64ToU8((value >> 48) & 0xff);
+    bytes[7] = truncateU64ToU8((value >> 56) & 0xff);
+    return bytes;
+}
+
+/// toBytes:
+/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
+/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
+fn toBytes(comptime T: type, value: T) []const u8 {
+    if (T == u32) {
+        return toBytesU32(@as(u32, value))[0..];
+    } else if (T == u64) {
+        return toBytesU64(@as(u64, value))[0..];
+    } else {
+        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
+        return bytes[0..];
+    }
+}
+
+//------------------------------------------------------------------------------
+// ハッシュ計算とマイニング処理
+//------------------------------------------------------------------------------
+//
+// calculateHash 関数では、ブロック内の各フィールドを連結して
+// SHA-256 のハッシュを計算します。
+// mineBlock 関数は、nonce をインクリメントしながら
+// meetsDifficulty による難易度チェックをパスするハッシュを探します。
+
+/// calculateHash:
+/// 指定されたブロックの各フィールドをバイト列に変換し、
+/// その連結結果から SHA-256 ハッシュを計算して返す関数。
 fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
-    hasher.update(std.mem.bytesOf(block.index));
-    hasher.update(std.mem.bytesOf(block.timestamp));
-    hasher.update(&block.prev_hash);
-    hasher.update(std.mem.bytesOf(block.nonce));
-    // 各取引について、フィールドを順にハッシュへ投入
+
+    // nonce の値をバイト列に変換(8バイト)し、デバッグ用に出力
+    const nonce_bytes = toBytesU64(block.nonce);
+    debugLog("nonce bytes: ", .{});
+    if (comptime debug_logging) {
+        for (nonce_bytes) |byte| {
+            std.debug.print("{x:0>2},", .{byte});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    // ブロック番号 (u32) をバイト列に変換して追加
+    hasher.update(toBytes(u32, block.index));
+    // タイムスタンプ (u64) をバイト列に変換して追加
+    hasher.update(toBytes(u64, block.timestamp));
+    // nonce のバイト列を追加
+    hasher.update(nonce_bytes[0..]);
+    // 前ブロックのハッシュ(32バイト)を追加
+    hasher.update(block.prev_hash[0..]);
+
+    // すべてのトランザクションについて、各フィールドを追加
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
-        hasher.update(std.mem.bytesOf(tx.amount));
+        hasher.update(toBytes(u64, tx.amount));
     }
-    return hasher.finalResult();
+    // 追加データをハッシュに追加
+    hasher.update(block.data);
+
+    // 最終的なハッシュ値を計算
+    const hash = hasher.finalResult();
+    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    return hash;
 }
 
-/// ハッシュ値の先頭 'difficulty' バイトが全て0かどうかチェックする関数
+/// meetsDifficulty:
+/// ハッシュ値の先頭 'difficulty' バイトがすべて 0 であれば true を返す。
 fn meetsDifficulty(hash: [32]u8, difficulty: u8) bool {
-    for (hash[0..difficulty]) |byte| {
+    // difficulty が 32 を超える場合は 32 に丸める
+    const limit = if (difficulty <= 32) difficulty else 32;
+    for (hash[0..limit]) |byte| {
         if (byte != 0) return false;
     }
     return true;
 }
 
-/// PoWによるマイニング処理:条件を満たすハッシュとnonceを見つける
+/// mineBlock:
+/// 指定された難易度を満たすハッシュが得られるまで、
+/// nonce の値を増やしながらハッシュ計算を繰り返す関数。
 fn mineBlock(block: *Block, difficulty: u8) void {
     while (true) {
         const new_hash = calculateHash(block);
@@ -909,59 +1089,200 @@ fn mineBlock(block: *Block, difficulty: u8) void {
     }
 }
 
-/// ハッシュ値を16進数で出力する補助関数
-fn printHash(writer: anytype, hash: [32]u8) !void {
-    for (hash) |byte| {
-        try writer.print("{02x}", .{byte});
-    }
-    try writer.print("\n", .{});
-}
-
+//------------------------------------------------------------------------------
+// メイン処理およびテスト実行
+//------------------------------------------------------------------------------
+//
+// main 関数では、以下の手順を実行しています：
+// 1. ジェネシスブロック(最初のブロック)を初期化。
+// 2. 取引リスト(トランザクション)の初期化と追加。
+// 3. ブロックのハッシュを計算し、指定難易度に到達するまで nonce を探索(採掘)。
+// 4. 最終的なブロック情報を標準出力に表示。
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-    var stdout = std.io.getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
 
-    // 取引リストを初期化
-    var tx_list = std.ArrayList(Transaction).init(allocator);
-    defer tx_list.deinit();
+    // ジェネシスブロックの初期化
+    var genesis_block = Block{
+        .index = 0,
+        .timestamp = 1672531200, // 例: 2023-01-01 00:00:00 UTC
+        .prev_hash = [_]u8{0} ** 32, // 前ブロックがないので全て 0
+        .transactions = undefined, // 後で初期化するため一旦 undefined
+        .data = "Hello, Zig Blockchain!", // ブロックに付随する任意データ
+        .nonce = 0, // nonce は 0 から開始
+        .hash = [_]u8{0} ** 32, // 初期状態ではハッシュは全0
+    };
 
-    // 例として2件の取引を追加
-    try tx_list.append(Transaction{
+    // トランザクションリストの初期化
+    genesis_block.transactions = std.ArrayList(Transaction).init(allocator);
+    defer genesis_block.transactions.deinit();
+
+    // 例として 2 件のトランザクションを追加
+    try genesis_block.transactions.append(Transaction{
         .sender = "Alice",
         .receiver = "Bob",
         .amount = 100,
     });
-    try tx_list.append(Transaction{
+    try genesis_block.transactions.append(Transaction{
         .sender = "Charlie",
         .receiver = "Dave",
         .amount = 50,
     });
 
-    // ジェネシスブロックの作成(最初のブロックなので、prev_hashは全0)
-    var genesis_block = Block{
-        .index = 0,
-        .timestamp = std.time.timestamp(),
-        .prev_hash = [_]u8{0} ** 32, // 32バイトのゼロハッシュ
-        .transactions = tx_list,
-        .nonce = 0,
-        .hash = undefined,
-    };
+    // ブロックの初期ハッシュを計算
+    genesis_block.hash = calculateHash(&genesis_block);
+    // 難易度 1(先頭1バイトが 0)になるまで nonce を探索する
+    mineBlock(&genesis_block, 1);
 
-    // 難易度を2(先頭2バイトが0)とし、ブロックをマイニング
-    mineBlock(&genesis_block, 2);
-
-    // ブロック情報を出力
+    // 結果を標準出力に表示
     try stdout.print("Block index: {d}\n", .{genesis_block.index});
     try stdout.print("Timestamp  : {d}\n", .{genesis_block.timestamp});
     try stdout.print("Nonce      : {d}\n", .{genesis_block.nonce});
-    try stdout.print("Hash       : ");
-    try printHash(stdout, genesis_block.hash);
-    try stdout.print("Prev Hash  : ");
-    try printHash(stdout, genesis_block.prev_hash);
+    try stdout.print("Data       : {s}\n", .{genesis_block.data});
     try stdout.print("Transactions:\n", .{});
     for (genesis_block.transactions.items) |tx| {
-        try stdout.print("  Sender: {s}, Receiver: {s}, Amount: {d}\n",
-            .{tx.sender, tx.receiver, tx.amount});
+        try stdout.print("  {s} -> {s} : {d}\n", .{ tx.sender, tx.receiver, tx.amount });
     }
+    try stdout.print("Hash       : ", .{});
+    for (genesis_block.hash) |byte| {
+        try stdout.print("{x}", .{byte});
+    }
+    try stdout.print("\n", .{});
+}
+
+//------------------------------------------------------------------------------
+// テストコード
+//------------------------------------------------------------------------------
+//
+// 以下の test ブロックは、各関数の動作を検証するための単体テストです。
+// Zig の標準ライブラリ std.testing を使ってテストが実行されます。
+
+/// ブロックを初期化するヘルパー関数(テスト用)
+fn createTestBlock(allocator: std.mem.Allocator) !Block {
+    var block = Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(Transaction).init(allocator),
+        .data = "Test Block",
+        .nonce = 0,
+        .hash = [_]u8{0} ** 32,
+    };
+
+    try block.transactions.append(Transaction{
+        .sender = "TestSender",
+        .receiver = "TestReceiver",
+        .amount = 100,
+    });
+
+    return block;
+}
+
+test "トランザクション作成のテスト" {
+    const tx = Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 50,
+    };
+    try std.testing.expectEqualStrings("Alice", tx.sender);
+    try std.testing.expectEqualStrings("Bob", tx.receiver);
+    try std.testing.expectEqual(@as(u64, 50), tx.amount);
+}
+
+test "ブロック作成のテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    try std.testing.expectEqual(@as(u32, 0), block.index);
+    try std.testing.expectEqual(@as(u64, 1672531200), block.timestamp);
+    try std.testing.expectEqualStrings("Test Block", block.data);
+}
+
+test "バイト変換のテスト" {
+    // u32 の変換テスト
+    const u32_value: u32 = 0x12345678;
+    const u32_bytes = toBytesU32(u32_value);
+    try std.testing.expectEqual(u32_bytes[0], 0x78);
+    try std.testing.expectEqual(u32_bytes[1], 0x56);
+    try std.testing.expectEqual(u32_bytes[2], 0x34);
+    try std.testing.expectEqual(u32_bytes[3], 0x12);
+
+    // u64 の変換テスト
+    const u64_value: u64 = 0x1234567890ABCDEF;
+    const u64_bytes = toBytesU64(u64_value);
+    try std.testing.expectEqual(u64_bytes[0], 0xEF);
+    try std.testing.expectEqual(u64_bytes[7], 0x12);
+}
+
+test "ハッシュ計算のテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    const hash = calculateHash(&block);
+    // ハッシュの長さが 32 バイトであることを確認
+    try std.testing.expectEqual(@as(usize, 32), hash.len);
+    // ハッシュが全て 0 でないことを確認
+    var all_zeros = true;
+    for (hash) |byte| {
+        if (byte != 0) {
+            all_zeros = false;
+            break;
+        }
+    }
+    try std.testing.expect(!all_zeros);
+}
+
+test "マイニングのテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    // 難易度 1 で採掘し、先頭1バイトが 0 になることを期待
+    mineBlock(&block, 1);
+    try std.testing.expectEqual(@as(u8, 0), block.hash[0]);
+}
+
+test "難易度チェックのテスト" {
+    var hash = [_]u8{0} ** 32;
+    // 全て 0 の場合、どの難易度でも true を返す
+    try std.testing.expect(meetsDifficulty(hash, 0));
+    try std.testing.expect(meetsDifficulty(hash, 1));
+    try std.testing.expect(meetsDifficulty(hash, 32));
+
+    // 先頭バイトが 0 以外の場合、難易度 1 では false を返す
+    hash[0] = 1;
+    try std.testing.expect(!meetsDifficulty(hash, 1));
+}
+
+test "トランザクションリストのテスト" {
+    const allocator = std.testing.allocator;
+    var block = try createTestBlock(allocator);
+    defer block.transactions.deinit();
+
+    // 追加のトランザクションを追加
+    try block.transactions.append(Transaction{
+        .sender = "Carol",
+        .receiver = "Dave",
+        .amount = 75,
+    });
+
+    try std.testing.expectEqual(@as(usize, 2), block.transactions.items.len);
+    try std.testing.expectEqualStrings("TestSender", block.transactions.items[0].sender);
+    try std.testing.expectEqualStrings("Carol", block.transactions.items[1].sender);
 }
 ```
+
+## おわりに
+
+本チャプターでは、Zigを用いてブロックチェインの最も基本的な部分を実装しました。**ブロック構造の定義**から始まり、**トランザクションの取り扱い**、**ハッシュによるブロックの連結**、そして**Proof of Workによるマイニング**まで、一通りの流れを体験できたはずです。完成したプログラムはシンプルながら、ブロックチェインの改ざん耐性やワークロード証明の仕組みを備えています。
+
+実際のブロックチェインシステムでは、この他にも様々な要素があります。
+
+- **ピアツーピアネットワーク**による分散ノード間の通信
+- **トランザクションのデジタル署名と検証**
+- **コンセンサスアルゴリズムの調整**
+- **ブロックサイズや報酬の管理**
+
+などです。
