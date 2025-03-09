@@ -14,5 +14,9 @@ lint_fix:
 new_article:
 	npx zenn new:article --slug $(slug) --title "$(title)"
 
+.PHONY: preview
+preview:
+	npm run preview
+
 .PHONY: before_commit
 before_commit: lint
