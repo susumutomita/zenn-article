@@ -5,7 +5,12 @@ free: true
 
 ## Zigを用いたP2Pブロックチェインの実装
 
-ブロックチェインをピアツーピア(P2P)ネットワーク上で動作させる仕組みを、システムプログラミング言語であるZigを使って実装してみます。各ノード（ピア）が互いに直接ブロックやトランザクションを共有し合い、中央サーバ無しで分散システムとして機能するようにします。「ノード」とはブロックチェインネットワークに参加するコンピュータやプログラムを指し、各ノードがネットワーク上の**全てのデータのコピー**を保持し検証を行うため、単一障害点がありません ([Blockchain Workings and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=connected%20to%20the%20blockchain%20network,each%20serving%20a%20specific%20purpose))。ここでは基本的なネットワーク通信の実装から始め、ノード間でブロック/トランザクションを同期させ、フルノードと軽量ノード(SPV)の違いも学びながら、最終的に複数ノードでブロックチェインが動作する様子を確認します。
+ブロックチェインをピアツーピア(P2P)ネットワーク上で動作させる仕組みを実装します。各ノード（ピア）が互いに直接ブロックやトランザクションを共有し合い、中央サーバ無しで分散システムとして機能するようにします。
+
+### ノードについて
+
+「ノード」とはブロックチェインネットワークに参加するコンピュータやプログラムを指します。各ノードがネットワーク上の**全てのデータのコピー**を保持し検証をするため、単一障害点がありません。
+ここでは基本的なネットワーク通信の実装から始め、ノード間でブロック/トランザクションを同期させます。さらにフルノードと軽量ノード(SPV)の違いも学びながら、最終的に複数ノードでブロックチェインが動作する様子を確認します。
 
 **目標:**
 
@@ -15,15 +20,15 @@ free: true
 
 執筆スタイルとして、各セクションで実装のコード例と詳細な解説を交えます。読者の皆さんが実際に手を動かして試しやすいよう、段階的に説明していきます。
 
-## 1. 基本的なP2P通信の実装
+## ステップ1: 基本的なP2P通信の実装
 
-まずはブロックチェインネットワークの土台となる、ノード同士の直接通信を実装します。P2Pネットワークでは**各ノードがサーバでもありクライアントでもある**ため、お互いに接続してメッセージをやりとりできる仕組みが必要です ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=))。ここではZig標準ライブラリのソケット機能を使い、TCP通信によるノード間の接続とメッセージ交換を行います。また、どのノードと接続済みかを把握するためのノードリスト管理も実装します。
+まずはブロックチェインネットワークの土台となる、ノード同士の直接通信を実装します。P2Pネットワークでは各ノードがサーバ、クライアントになりえます。そのため、お互いに接続してメッセージをやりとりできる仕組みが必要です。ここではZig標準ライブラリのソケット機能を使い、TCP通信によるノード間の接続とメッセージ交換をします。また、どのノードと接続済みかを把握するためのノードリスト管理も実装します。
 
 ### ZigでのTCPソケット通信のセットアップ
 
 Zigには低レベルのソケットAPIが用意されており、`std.net`モジュールを使って比較的簡潔にTCPサーバ/クライアントを作成できます。以下に、ローカルホスト上で動作する簡単なサーバとクライアントの例を示します。
 
-- **サーバ側 (ノード)**: 指定したポートでソケットを開き、接続を待ち受けます。`std.net.Address`でアドレスを決め、`listen()`関数でサーバソケットを生成し、`accept()`でクライアントからの接続を受け付けます ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))。
+- **サーバ側 (ノード)**: 指定したポートでソケットを開き、接続を待ち受けます。`std.net.Address`でアドレスを決め、`listen()`関数でサーバソケットを生成し、`accept()`でクライアントからの接続を受け付けます。
 
 - **クライアント側 (別のノード)**: 接続したい相手のIPアドレスとポートを指定し、`std.net.tcpConnectToAddress()`でサーバに接続します ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))。接続が確立したら、ソケットに対してデータの読み書きができます。
 
@@ -53,9 +58,9 @@ pub fn main() !void {
 }
 ```
 
-上記は一例ですが、このコードをノードAとして起動すると、自分の8080ポートで接続を待ち受けます。`listener.accept()`により外部からの接続要求を1件受け付け、`connection.stream.reader()`で入力ストリームを取得しています。 ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))のように、Zigでは`stream`経由で読み書きを行うラッパーが提供されており、`reader()`や`writer()`メソッドでバッファを扱うことができます。
+上記は一例ですが、このコードをノードAとして起動すると、自分の8080ポートで接続を待ち受けます。`listener.accept()`により外部からの接続要求を1件受け付け、`connection.stream.reader()`で入力ストリームを取得しています。 このように、Zigでは`stream`経由で読み書きをができるラッパーが提供されており、`reader()`や`writer()`メソッドでバッファを扱うことができます。
 
-クライアント（ノードB側）からは例えば以下のように接続と送信を行います。
+クライアント（ノードB側）からは例えば以下のように接続と送信をします。
 
 ```zig
 const std = @import("std");
@@ -67,44 +72,48 @@ pub fn main() !void {
     defer socket.close();
 
     const writer = socket.writer();
-    try writer.writeAll("Hello from NodeB!\n");  // メッセージ送信 ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))
+    try writer.writeAll("Hello from NodeB\n");  // メッセージ送信 ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))
     std.log.info("ノードB: メッセージを送信しました", .{});
 }
 ```
 
-ノードBを実行すると、ノードAで待ち受けている8080番ポートに接続し、「Hello from NodeB!」という文字列を送ります。ノードA側ではそのメッセージを受け取り、ログに表示する、という流れです。
+ノードBを実行すると、ノードAで待ち受けている8080番ポートに接続し、「Hello from NodeB」という文字列を送ります。ノードA側ではそのメッセージを受け取り、ログに表示する、という流れです。
 
 **ポイント解説:**
 
-- **ソケットの生成とバインド**: `Address.resolveIp("0.0.0.0", port)`で待ち受け用のアドレス構造体を作成し、`listen()`を呼ぶことでサーバソケット（リスナー）を生成します。`0.0.0.0`は「全てのインタフェースで待つ」ことを意味し、ローカルPC上どのIPでも接続可能になります ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))。`listen()`にはオプションとしてバックログサイズなどを指定できますが、ここではデフォルト設定`.{}`を使用しています。
+- **ソケットの生成とバインド**:
+`Address.resolveIp("0.0.0.0", port)`で待ち受け用のアドレス構造体を作成し、`listen()`を呼ぶことでサーバソケット（リスナー）を生成します。
+`0.0.0.0`は「全てのインタフェースで待つ」ことを意味し、ローカルPC上どのIPでも接続可能になります。
+`listen()`にはオプションとしてバックログサイズなどを指定できますが、ここではデフォルト設定`.{}`を使用しています。
 
 - **接続の受け入れ**: `accept()`はブロッキング呼び出しで、クライアントから接続要求が来るまで待機します（別スレッドや非同期処理で受け入れることも可能です）。戻り値は新たに確立した接続を表すオブジェクトで、`connection.stream`プロパティに読み書き用のストリームが含まれています。
 
-- **データ送受信**: Zigでは`stream.reader()`と`stream.writer()`からリーダー/ライタを取得できます。文字列などの送信には`writeAll()`, 受信には`readAll()`や`readUntilDelimiterOrEofAlloc()`といった便利関数が利用できます ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20client_reader%20%3D%20client,free%28msg))。上記の例では簡単のため、一度に全て読み取る`readAll()`を使っています。
+- **データ送受信**: Zigでは`stream.reader()`と`stream.writer()`からリーダー/ライタを取得できます。文字列などの送信:`writeAll()`, 受信:`readAll()`や`readUntilDelimiterOrEofAlloc()`と便利関数が利用できます。上記の例では簡単のため、一度に全て読み取る`readAll()`を使っています。
 
-- **クリーンアップ**: 通信が終わったら`connection.stream.close()`でソケットを閉じます。また、サーバソケット自体も`listener.deinit()`で閉じる必要があります（上記では`defer`で自動クローズ指定）。適切にクローズしないと、プログラム終了後もしばらくポートが「使用中」の状態になり再起動時にエラーになることがあります ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=pub%20fn%20main%28%29%20%21void%20,allocator))。
+- **クリーンアップ**: 通信が終わったら`connection.stream.close()`でソケットを閉じます。また、サーバソケット自体も`listener.deinit()`で閉じる必要があります（上記では`defer`で自動クローズ指定）。適切にクローズしないと、プログラム終了後もしばらくポートが「使用中」となり再起動時に接続エラーが発生します。
 
 ### ノード同士の接続と基本メッセージ交換
 
-上記のサーバ(A)・クライアント(B)の関係は、P2Pネットワークでは柔軟に**相互接続**する形に発展させます。実際のブロックチェインP2Pネットワークでは、各ノードが**複数の隣接ノード（ピア）と接続**し、データを中継・共有します ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=))。したがって、ノード実装としては次の両方が必要になります。
+上記のサーバ(A)・クライアント(B)の関係は、P2Pネットワークでは柔軟に**相互接続**する形に発展させます。実際のブロックチェインP2Pネットワークでは、各ノードが**複数の隣接ノード（ピア）と接続**し、データを中継・共有します。したがって、ノード実装としては次の両方が必要になります。
 
 - **受信用のサーバ機能**: 他ノードからの接続を受け付けるリスナーソケット。これは上記のように`listen()`と`accept()`で実装できます。
 
 - **送信用のクライアント機能**: 自分から他ノードへ接続していく機能。これは`tcpConnectToAddress()`を使って、既知のノードに対し接続を開きます。
 
-例えば、ノードプログラムを起動する際に引数で接続先(既存ノードのIPアドレス)を与え、もし指定があればそのアドレスに対して接続を試み、成功したらお互いにメッセージ交換を開始する、という流れが考えられます。新規ノードが最初にネットワークに参加するとき、既知のノードの情報が必要になるため、通常は**ブートストラップノード**（既に稼働している参加ノードのアドレス）をいくつかハードコードするか、外部から取得します ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=))。今回はシンプルに、手動で接続先を指定する方式で実装します。
+例えば、ノードプログラムを起動する際に引数で接続先(既存ノードのIPアドレス)を与え、もし指定があればそのアドレスに対して接続を試み、成功したらお互いにメッセージ交換を開始する。という流れが考えられます。新規ノードがネットワークに参加するとき、既知のノードの情報が必要になるため、通常は**ブートストラップノード**（既に稼働している参加ノードのアドレス）をいくつかハードコードするもしくは、外部から取得します。今回はシンプルに、手動で接続先を指定する方式で実装します。
 
 **基本メッセージプロトコル:**
-ノード間でやりとりするメッセージは、まずは文字列ベースで構いません。例えば、最初のハンドシェイクとして「VERSION」メッセージを交換し、互いにノードのバージョンや識別子を伝えるようにします。実際のBitcoinプロトコルでも、接続直後に`version`メッセージと`verack`（承認応答）メッセージを交わすハンドシェイクがあります ([Bitcoin Networking | How to Connect To the P2P Network](https://learnmeabitcoin.com/technical/networking/#:~:text=In%20the%20Bitcoin%20protocol%2C%20the,handshake%20works%20like%20this))。本実装では簡略化して、「HELLO」やノードのIDを送って相手から挨拶を受け取る程度でも十分です。
+ノード間でやりとりするメッセージは、まずは文字列ベースで構いません。例えば、最初のハンドシェイクとして「VERSION」メッセージを交換し、互いにノードのバージョンや識別子を伝えるようにします。実際のBitcoinプロトコルでも、接続直後に`version`メッセージと`verack`（承認応答）メッセージを交わすハンドシェイクがあります ([Link](https://learnmeabitcoin.com/technical/networking/#:~:text=In%20the%20Bitcoin%20protocol%2C%20the,handshake%20works%20like%20this))。本実装では簡略化して、「HELLO」やノードのIDを送って相手から挨拶を受け取る程度でも十分です。
 
-例えば、以下のような簡易プロトコルを実装できます:
+例えば、以下のような簡易プロトコルを実装できます。
+
 - 接続開始時: ノードA->Bに `"HELLO A"` と送信、ノードB->Aに `"HELLO B"` と返す。
 - これによりお互い相手のIDを認識したら、以後ブロックやトランザクションの同期メッセージを送る。
 
 **ノードリストの管理:**
-各ノードは、接続中または既知の他ノードのリストを保持します。例えば`[]Peer`のような配列やリスト構造に、ピアの情報（IPアドレス、ポート、ノードIDなど）を保持します。新たなノードと接続した際にリストに追加し、切断時にリストから削除します。
+各ノードは、接続中または既知の他ノードのリストを保持します。例えば`[]Peer`のような配列やリスト構造に、ピアの情報（IPアドレス、ポート、ノードIDなど）を保持します。新たなノードと接続した際にリストへ追加し、切断時にリストから削除します。
 
-また、既に接続したピアから**別のノードのアドレス情報**を教えてもらう仕組みもあるとネットワークは効率的です。Bitcoinでは`addr`メッセージで既知ノードのアドレスリストを交換し、新規ノード発見に役立てています。今回の簡易実装ではそこまでは行いませんが、**将来的な拡張**としてノードリストをお互いに共有し合えば、ネットワーク全体が自動でピア発見（Peer Discovery）できるようになるでしょう ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=)) ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Because%20every%20node%20stores%20a,of%20optimizing%20the%20network%20protocol))。
+また、既に接続したピアから**別のノードのアドレス情報**を教えてもらう仕組みもあるとネットワークは効率的です。Bitcoinでは`addr`メッセージで既知ノードのアドレスリストを交換し、新規ノード発見に役立てています。今回の簡易実装ではそこまでは行いませんが、**将来的な拡張**としてノードリストをお互いに共有し合えば、ネットワーク全体が自動でピア発見（Peer Discovery）できるようになるでしょう。
 
 > **参考:** ピア発見とは、新しく参加したノードが他のピアの存在を知るプロセスです。ブロックチェインでは全ノードが同じデータを持つため、まずは繋がる相手（ピア）を見つけることが重要になります ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Because%20every%20node%20stores%20a,of%20optimizing%20the%20network%20protocol))。一般的に各ノードは数個の既知のアドレス（ブートストラップノード）を持ち、そこから更に「あなたの知っているノードを教えて」と問い合わせて接続先を増やしていきます ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=))。
 
@@ -152,20 +161,20 @@ const Block = struct {
 
 ブロックに入る前の取引（トランザクション）も、各ノード間で事前に共有します。未承認トランザクションのプール（メモリプール、mempool）は各ノードが持っています。新しい取引がクライアントからノードに提出された場合、まずそのノードが検証し（署名の妥当性や二重支出でないかなど）、問題なければ**他のノードへ転送**します。これも基本的にはブロックの場合と同様に、**ピア接続を通じてトランザクションデータを送信**するだけです。
 
-例えばメッセージ種別 `"TX:{...}"` としてJSON化したTransactionデータを送るようにしておけば、受信側はそのトランザクションを自分のmempoolに追加し、さらにそれを他のピアへ中継（リレー）します。結果的に、ネットワーク内の全ノードがその未承認トランザクションを保有することになり、いずれマイナー（ブロック生成者）がそれをブロックに取り込みます ([How are Ethereum transactions propagated (broadcast)?](https://www.alchemy.com/overviews/transaction-propagation#:~:text=Pooled%20transactions%20are%20pending%20transactions,storage%20of%20a%20single%20node))。
+例えばメッセージ種別 `"TX:{...}"` としてJSON化したTransactionデータを送るようにしておけば、受信側はそのトランザクションを自分のmempoolに追加します。さらにそれを他のピアへ中継（リレー）します。結果的に、ネットワーク内の全ノードがその未承認トランザクションを保有することになり、いずれマイナーがそれをブロックに取り込みます。 ([link](https://www.alchemy.com/overviews/transaction-propagation))
 
-この**トランザクション伝搬**もブロック伝搬と同じく効率や信頼性が問題になります。本実装では全てのピアに即時転送する簡単な方法を取りますが、実際のBitcoinでは「トランザクションのトリクル中継」というアルゴリズムで不要な重複転送を抑制しています ([How do block explorers determine propagation through nodes/P2P ...](https://bitcoin.stackexchange.com/questions/80876/how-do-block-explorers-determine-propagation-through-nodes-p2p-protocol#:~:text=Nodes%20implement%20logic%20called%20transaction,attempt%20to%20prevent%20privacy))。しかし基本的な目的は同じで、**各ノードが持つ未承認トランザクションプールを同期させる**ことにあります ([How are Ethereum transactions propagated (broadcast)?](https://www.alchemy.com/overviews/transaction-propagation#:~:text=Pooled%20transactions%20are%20pending%20transactions,storage%20of%20a%20single%20node))。こうすることで、仮に特定のノードにだけトランザクションが届いても他のノードに広まり、ネットワーク全体として次のブロックに含める取引集合が共有されるわけです。
+この**トランザクション伝搬**もブロック伝搬と同じく効率や信頼性が問題になります。本実装では全てのピアに即時転送する簡単な方法を取りますが、実際のBitcoinでは「トランザクションのトリクル中継」というアルゴリズムで不要な重複転送を抑制しています ([link](https://bitcoin.stackexchange.com/questions/80876/how-do-block-explorers-determine-propagation-through-nodes-p2p-protocol))。しかし基本的な目的は同じで、**各ノードが持つ未承認トランザクションプールを同期させる**ことにあります。こうすることで、仮に特定のノードにだけトランザクションが届いても他のノードに広まり、ネットワーク全体として次のブロックに含める取引集合が共有されるわけです。
 
 > **参考:** Ethereumネットワークでも、ノード同士が接続するとお互いの持つ未処理トランザクション（メモプール）内容を交換し合い、各ノードが**全ての保留中トランザクションのリスト**を持つようになります ([How are Ethereum transactions propagated (broadcast)?](https://www.alchemy.com/overviews/transaction-propagation#:~:text=Pooled%20transactions%20are%20pending%20transactions,storage%20of%20a%20single%20node))。これにより一部ノードにしか届かなかった取引も、ネットワーク全体で共有されます。
 
 ### Zigのマルチスレッド・非同期処理によるネットワーク通信
 
-P2Pノードは同時に複数の相手と通信を行う必要があるため、1つのスレッドで順番に処理しているだけでは効率が悪くなります。Zigにはスレッドを生成する仕組みや、非同期I/Oを扱うイベントループの仕組みがあります ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。適切に活用することで並行処理が可能です。
+P2Pノードは同時に複数の相手と通信をする必要があるため、1つのスレッドで順番に処理しているだけでは効率が悪くなります。Zigにはスレッドを生成する仕組みや、非同期I/Oを扱うイベントループの仕組みがあります ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。適切に活用することで並行処理が可能です。
 
 **マルチスレッドによる実装:**
 最も分かりやすいのは**接続ごとにスレッドを分ける**方法です。新しい接続を`accept()`したら、新規スレッドを起動し、その中でメッセージ受信処理を行います。本体（メインスレッド）は引き続き次の`accept()`待ちに戻ります。こうすれば複数クライアントから同時にメッセージが来ても並行して処理できます。ただし共有データ（ブロックチェインやmempool、ノードリストなど）にアクセスするときは適切な同期（Mutex等）が必要です。
 
-Zigでスレッドを作るには、`std.Thread.spawn`関数を使う方法があります。または、`std.Thread`構造体を生成して手動で開始することもできます。例えば:
+Zigでスレッドを作るには、`std.Thread.spawn`関数を使う方法があります。または、`std.Thread`構造体を生成して手動で開始できます。例えば以下のようになります。
 
 ```zig
 const handle_conn = struct {
@@ -191,9 +200,9 @@ _ = try std.Thread.spawn(handle_conn.run, .{connection});
 上記のように、`handle_conn.run`関数を別スレッドで実行することで、メインスレッドから独立した通信処理ができます。なお、スレッド終了後に`connection.stream.close()`を呼ぶように注意します（`defer`でスレッド内に書くか、Main側でjoinして後処理）。
 
 **非同期I/Oとイベントループ:**
-Zigのもう1つのアプローチは、**async/await**を用いた非同期処理です。Zigのasyncはカラーブラインド(colorblind)アプローチと呼ばれ、通常の関数と同様に扱える軽量なスレッドのようなものです ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。Zig標準ライブラリには`async`に対応したI/Oイベントループ (`std.async.Loop`) があり、同一スレッド内で複数の非同期タスクを実行できます ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。
+Zigのもう1つのアプローチは、**async/await**を用いた非同期処理です。Zigのasyncはカラーブラインド(colorblind)アプローチと呼ばれ、通常の関数と同様に扱える軽量なスレッドのようなものです。 ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。Zig標準ライブラリには`async`に対応したI/Oイベントループ (`std.async.Loop`) があり、同一スレッド内で複数の非同期タスクを実行できます。 ([Concurrency and Asynchronous Programming in Zig - xeg io](https://www.xeg.io/shared-searches/concurrency-and-asynchronous-programming-in-zig-a-comprehensive-guide-667c337ef22facffcd14f63d#:~:text=Concurrency%20and%20Asynchronous%20Programming%20in,loop%20to%20manage%20asynchronous%20tasks))。
 
-例えば、各接続ごとに非同期タスクを開始し、`reader.read`を`async`で待機しつつ他の接続処理と並行させる、といったことが可能です。現在(zig 0.11)の標準ではまだ一部機能が発展途上ですが、Linux環境であればio_uringを使った効率的な非同期I/Oも実験的に利用できます ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。
+例えば、各接続ごとに非同期タスクを開始し、`reader.read`を`async`で待機しつつ他の接続処理と並行させる、といったことが可能です。現在(zig 0.14)の標準ではまだ一部機能が発展途上ですが、Linux環境であればio_uringを使った効率的な非同期I/Oも実験的に利用できます。 ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。
 
 > **参考:** Zig製の高度なブロックチェイン実装例として**Rheia**があります。このプロジェクトでは各CPUコアごとにスレッドを割り当てつつ、ネットワークI/Oはio_uringによるシングルスレッドのイベントループで処理する設計を採用しています ([GitHub - lithdew/rheia: A blockchain written in Zig.](https://github.com/lithdew/rheia#:~:text=concurrency))。このように用途に応じてスレッドと非同期I/Oを組み合わせ、性能と並行性を引き出すことができます。
 
@@ -201,17 +210,25 @@ Zigのもう1つのアプローチは、**async/await**を用いた非同期処�
 
 ## 3. フルノード・軽量ノードの違いと実装
 
-ブロックチェインネットワークには、すべてのデータを保持し完全に検証を行う**フルノード(Full Node)**と、必要最低限のデータのみ保持し簡易的な検証を行う**軽量ノード(Lightweight Node)**が存在します。それぞれ役割と動作が異なるため、実装上のアプローチも異なります。この章ではフルノードと軽量ノード（特にビットコインで言うSPV: Simplified Payment Verificationノード）の違いを説明し、軽量ノードが限られた情報でブロックを検証する方法、そしてフルノードとして動作する場合のデータ管理について解説します。
+ブロックチェインネットワークには、すべてのデータを保持し完全に検証するフルノードと、必要最低限のデータのみ保持し簡易的な検証する軽量ノードが存在します。
+それぞれ役割と動作が異なるため、実装上のアプローチも異なります。この章ではフルノードと軽量ノード（特にビットコインで言うSPV: Simplified Payment Verificationノード）の違いを理解する。軽量ノードが限られた情報でブロックを検証する方法。そしてフルノードとして動作する場合のデータ管理について解説します。
 
 ### フルノードと軽量ノードの役割の違い
 
-**フルノード**: ネットワーク上の全トランザクションとブロックのコピーを保持し、コンセンサスルールに則って**すべての取引とブロックを検証**します ([Blockchain Workings and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=,the%20network%27s%20security%20and%20resilience))。不正なブロックやトランザクションがあれば拒否し、正しいブロックチェインを維持することでネットワークの安全性と完全性に貢献しています。フルノードは完全な台帳を持つため、新規ノードへのデータ提供元としても機能し、分散ネットワークの根幹を支えます ([Blockchain Workings and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=,the%20network%27s%20security%20and%20resilience))。
+#### フルノード
 
-**軽量ノード (SPVノード)**: 全ブロックデータは持たず、各ブロックのヘッダ情報（ブロックハッシュやMerkleルートなど**ブロックのメタデータ**）だけを保持します ([Blockchain Workings and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=,for%20more%20detailed%20transaction%20data))。個々のトランザクションデータは必要に応じてフルノードから取得し、簡易な検証のみ行います。SPVノードは常時起動して全データを追う必要がなく、リソース消費が少ないため、モバイルウォレットなどに利用されます ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=To%20clarify%2C%C2%A0%20a%20light%20client,or%20running%20a%20full%20node)) ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=SPVs%20provide%20a%20minimized%20way,query%20nodes%20regarding%20specific%20transactions))。
+ネットワーク上の全トランザクションとブロックのコピーを保持し、コンセンサスルールに則って**すべての取引とブロックを検証**します。不正なブロックやトランザクションがあれば拒否し、正しいブロックチェインを維持することでネットワークの安全性と完全性に貢献しています。フルノードは完全な台帳を持つため、新規ノードへのデータ提供元としても機能し、分散ネットワークの根幹を支えます。
 
-上記のQuickNodeによる定義にもあるように ([Blockchain Workings and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=,for%20more%20detailed%20transaction%20data))、ライトノードはブロックヘッダのみをダウンロードし、それを使ってトランザクションの真正性を確認します。ただし、**フルノードに依存**する部分も大きく、詳細な取引内容や未承認トランザクションの取得などはフルノードから提供してもらう必要があります。
+#### 軽量ノード (SPVノード)
 
-表にまとめると:
+全ブロックデータは持たず、各ブロックのヘッダ情報（ブロックハッシュやMerkleルートなど**ブロックのメタデータ**）だけを保持します。 ([Blockchain Workings
+and Fundamentals | QuickNode Guides](https://www.quicknode.com/guides/web3-fundamentals-security/how-blockchains-work#:~:text=,for%20more%20detailed%20transaction%20data))。
+
+個々のトランザクションデータは必要に応じてフルノードから取得し、簡易な検証のみ行います。SPVノードは常時起動して全データを追う必要がなく、リソース消費が少ないため、モバイルウォレットなどに利用されます。 ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=To%20clarify%2C%C2%A0%20a%20light%20client,or%20running%20a%20full%20node))。
+
+上記のQuickNodeによる定義にもあるように、ライトノードはブロックヘッダのみをダウンロードし、それを使ってトランザクションの真正性を確認します。ただし、**フルノードに依存**する部分も大きく、詳細な取引内容や未承認トランザクションの取得などはフルノードから提供してもらう必要があります。
+
+表にまとめると以下になります。
 
 | ノード種別      | 保持データ                       | 検証内容                     | 利点                     | 欠点                           |
 | --------------- | ------------------------------- | --------------------------- | ------------------------ | ------------------------------ |
@@ -222,15 +239,15 @@ Zigのもう1つのアプローチは、**async/await**を用いた非同期処�
 
 軽量ノード（SPV）は、主に**ブロックヘッダ列**を追跡することでネットワークのブロックチェインを追いかけます。具体的には以下の手順で動作します ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation)) ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=transactions)):
 
-1. **ブロックヘッダのみ取得**: ネットワークのフルノードに接続し、最新のブロックヘッダを順次ダウンロードします（例えばビットコインでは`getheaders`メッセージを送り、何万件ものブロックヘッダ一覧を取得します ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Imagine%20you%20just%20set%20up,getheaders%20message%20to%20your%20peers))）。ヘッダには前のブロックのハッシュとMerkleルート（ブロック内全トランザクションの要約ハッシュ）が含まれます。
+1. **ブロックヘッダのみ取得**:ネットワークのフルノードに接続し、最新のブロックヘッダを順次ダウンロードします。例えばビットコインでは`getheaders`メッセージを送り、何万件ものブロックヘッダ一覧を取得します。ヘッダには前のブロックのハッシュとMerkleルートが含まれます。
 
 2. **最長チェインの把握**: 受け取ったヘッダの連結リストから、現在の最長ブロックチェイン（およびその長さ＝ブロック高）を把握します。SPVノードはこの**ブロックヘッダの連なり**だけでチェインの長さとPoW累積難易度を確認し、もっとも信頼できるチェインを追跡します。
 
-3. **トランザクションの検証要求**: ユーザが自分の関心あるトランザクション（例えば自分のウォレットの受取TXなど）を検証したいとき、該当TXのID（ハッシュ）を使って**Merkleブランチの照会**を行います ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,the%20active%20chain%20demonstrates%20that)) ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=transactions))。具体的には、そのTXが含まれているブロックを特定し（ブロックヘッダからMerkleルートは分かるので、フルノードに問い合わせて該当ブロック内のMerkle経路=兄弟ハッシュのリストをもらう）、そのMerkleパスを使って自分でMerkleルートを計算します。
+3. **トランザクションの検証要求**: ユーザが自分の関心あるトランザクション（例えば自分のウォレットの受取TXなど）を検証したいとき、該当TXのID（ハッシュ）を使って**Merkleブランチの照会**します。 ([link](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,the%20active%20chain%20demonstrates%20that))。 具体的には、そのTXが含まれているブロックを特定し、そのMerkleパスを使って自分でMerkleルートを計算します。
 
-4. **Merkleルートの照合**: フルノードから提供されたそのトランザクションのMerkleパスを使い、自分で計算したMerkleルートと、先に保存してあるブロックヘッダ中のMerkleルート値を比較します。一致すれば、そのトランザクションは確かにそのブロックに含まれており、さらにそのブロック自体は最長チェインに載っている（=承認済み）ことが保証されます ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation))。SPVノードはこれによって**自分に関係する取引だけ**の検証を簡易に行います。
+4. **Merkleルートの照合**: フルノードから提供されたそのトランザクションのMerkleパスを使い、自分で計算したMerkleルートと、ブロックヘッダ中のMerkleルート値を比較します。一致すれば、そのトランザクションは確かにそのブロックに含まれており、さらにそのブロック自体は最長チェインに載っている（=承認済み）ことが保証されます。SPVノードはこれによって**自分に関係する取引だけ**の検証を簡易に行います。
 
-SPVのポイントは、「ブロック全体は見ずとも、そのブロックが確かに正当なチェインの一部であり、特定の取引が含まれている事実を確認できる」点です ([Bitcoinwiki](http://bitcoinwiki.org/wiki/simplified-payment-verification#:~:text=As%20noted%20in%20Nakamoto%20%E2%80%98s,it%20further%20establish%20the%20confirmation))。ただし、SPVは**完全な検証ではない**ことにも注意しましょう。例えば、SPVノードは各トランザクションの署名有効性や二重支出検出を自力では行いません。それらは**ネットワーク（マイナーやフルノード）を信頼**する形になります。一応、最長チェイン原則（もっとも多くのPoWを積んだチェインを信用）によって、改竄された取引が含まれるチェインは最長になり得ないため、現実的には安全と考えられています。しかし100％ではなく、理論上は権悪なマイナーが多数存在するとSPVノードは欺かれる可能性もあります ([Simplified Payment Verification (SPV) Meaning | Ledger](https://www.ledger.com/academy/glossary/simplified-payment-verification-spv#:~:text=The%20SPV%20client%20can%20request%C2%A0,SPV%20proofs%20to%20confirm%20invalid))。このトレードオフを理解した上で、用途に応じてSPVノードは活用されています。
+SPVのポイントは、「ブロック全体は見ずとも、そのブロックが確かに正当なチェインの一部であり、特定の取引が含まれている事実を確認できる」点です。ただし、SPVは**完全な検証ではない**ことにも注意しましょう。例えば、SPVノードは各トランザクションの署名有効性や二重支出検出を自力では行いません。それらは**ネットワーク（マイナーやフルノード）を信頼**する形になります。一応、最長チェイン原則（もっとも多くのPoWを積んだチェインを信用）によって、改竄された取引が含まれるチェインは最長になり得ないため、現実的には安全と考えられています。しかし100％ではなく、理論上は権悪なマイナーが多数存在するとSPVノードは欺かれる可能性もあります。このトレードオフを理解した上で、用途に応じてSPVノードは活用されています。
 
 **実装面の工夫:**
 SPVノードを実装する場合、フルノードとの通信プロトコルが重要です。ブロックヘッダだけ大量に取得する手段や、特定トランザクションのMerkleブランチを問い合わせるメッセージなどを設計します。Bitcoinでは`getheaders`や`getdata (merkleblock)`メッセージでこれらを実現しています。簡単な実装では、「ライトノードモード」のフラグを用意し、それが有効なら起動時に**ヘッダのみ同期**するようなロジックを入れることになります。フルノードではブロック全体を要求する処理（例えば`getblocks`を送って全ブロックダウンロード）を、ライトノード時には`getheaders`だけ送る、といった分岐です。
@@ -271,15 +288,15 @@ SPVノードを実装する場合、フルノードとの通信プロトコル�
 
 次に、稼働中のネットワークに後からノードを参加させるケースを試します。例えば上記テストでノードAとBが既に10ブロック程度進んだ状態に、新しくノードCを起動して参加させるシナリオです。
 
-手順:
+手順は以下です。
 
 1. **ノードA・B稼働中**: ノードAとBは引き続き動かしておきます（ブロック高10くらいまで成長しているとします）。
 
-2. **ノードC起動**: ノードCを起動し、起動時に既知ノードとしてAかBのアドレスを指定します。ノードCは接続後、まず自分のチェインが空（もしくはジェネシスのみ）であることを認識し、ネットワークからブロックを貰う必要があります。そこで**同期要求**を送ります。簡単な実装では、接続直後に自分の最新ブロックハッシュ（あるいは高さ）を相手に送り、相手はその次のブロック以降を順次送ってくれる、というプロトコルが考えられます。Bitcoinでは新規ノードは`getheaders`を送り、使うべきではない言葉なので修正してくださいブロックのヘッダ一覧を取得した後、`getdata`で実際のブロック本体を要求するという流れになっています ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Imagine%20you%20just%20set%20up,getheaders%20message%20to%20your%20peers))。
+2. **ノードC起動**: ノードCを起動し、起動時に既知ノードとしてAかBのアドレスを指定します。ノードCは接続後、まず自分のチェインが空（もしくはジェネシスのみ）であることを認識し、ネットワークからブロックを貰う必要があります。そこで**同期要求**を送ります。簡単な実装では、接続直後に自分の最新ブロックハッシュ（あるいは高さ）を相手に送り、相手はその次のブロック以降を順次送ってくれる、というプロトコルが考えられます。Bitcoinでは新規ノードは`getheaders`を送り、ブロックのヘッダ一覧を取得した後、`getdata`で実際のブロック本体を要求するという流れになっています。
 
-3. **ブロック同期**: ノードCはノードA(B)から送られてくるブロックを受信し、自身のチェインに追加していきます。例えばジェネシス以降の10ブロックを順番に受け取って検証・追加する処理を実装します。一度に大量に送るのではなく、1ブロック受信・追加完了したら次を要求する形にすると安全です。全てのブロックを取り込んだら、ノードCのブロック高も10に追いつき、他のノードと同期完了です。
+6. **ブロック同期**: ノードCはノードA(B)から送られてくるブロックを受信し、自身のチェインに追加していきます。例えばジェネシス以降の10ブロックを順番に受け取って検証・追加する処理を実装します。一度で大量に送るのではなく、1ブロック受信・追加完了したら次を要求する形にすると安全です。全てのブロックを取り込んだら、ノードCのブロック高も10に追いつき、他のノードと同期完了です。
 
-4. **動作確認**: ノードCが同期後、今後ネットワークで新規に発生するブロック（例えばノードAやBで生成）が正しくCにも配信されるかを確認します。これで、新規参加ノードも含めた3ノード全てが引き続き同じチェインを保って進んでいけばOKです。
+7. **動作確認**: ノードCが同期後、今後ネットワークで新規に発生するブロック（例えばノードAやBで生成）が正しくCにも配信されるかを確認します。これで、新規参加ノードも含めた3ノード全てが引き続き同じチェインを保って進んでいけばOKです。
 
 この新規ノード同期処理は、実装上は**ブロックの一括要求/送信**になるため、抜け漏れがないよう注意します。特に、自分の持っている最新ブロックと、ネットワーク側最新ブロックとの間に**分岐**がないか（フォークしていないか）もチェックが必要です。もし何らかの理由でチェインにフォークが発生していたら、どちらを採用するか（通常はPoW長い方）を決め、もう一方のブロックは破棄する処理も入ります。今回は単純な直線的成長を前提としています。
 
@@ -310,5 +327,3 @@ CPU使用率やメモリ使用量も観察ポイントです。特にフルノ�
 
 **まとめ:**
 ここまで、Zigを用いたP2Pブロックチェインネットワークの基本実装について解説しました。ソケット通信から始まり、ブロック/トランザクションの共有、フルノードvs軽量ノードの概念、そして実際の動作テストとデバッグ方法まで、一通りの流れを追いました。最終的に重要なのは、各ノードが協調しあって**一つの一貫した台帳（ブロックチェイン）を維持する**ことです。そのためのネットワーク基盤として、今回実装したP2Pの仕組みが機能します。ぜひ自身でもコードを動かし、ノードを増やしたりネットワークを不安定にしてみたりして、分散システムならではの挙動を観察してみてください。これによりブロックチェインの分散性と信頼モデルへの理解が深まるでしょう。
-
-**参考資料:** P2Pネットワークやブロックチェイン実装のさらなる詳細については、BitcoinやEthereumのプロトコルドキュメント、Zigの公式ドキュメントやコミュニティリソース等を参照してください。実例としては、Bitcoinのピア発見と同期の流れ ([What is a P2P Network? - Peer-to-Peer Networks | Horizen Academy](https://www.horizen.io/academy/peer-to-peer-networks-p2p/#:~:text=Imagine%20you%20just%20set%20up,getheaders%20message%20to%20your%20peers))やEthereumノードのネットワーク動作 ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=)) ([ethereum - Nodes in blockchain - Stack Overflow](https://stackoverflow.com/questions/76839249/nodes-in-blockchain#:~:text=,offline%20when%20a%20transaction%20happens))などが挙げられます。本記事内でも一部引用しましたが、原典にあたることでより体系的な知識が得られるはずです。
