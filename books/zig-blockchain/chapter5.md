@@ -38,14 +38,14 @@ const std = @import("std");
 pub fn main() !void {
     // 1. サーバノードとしてソケットを開く (ポート8080で待ち受け)
     var server_addr = try std.net.Address.resolveIp("0.0.0.0", 8080);
-    var listener = try server_addr.listen(.{});        // リッスン開始 ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))
-    defer listener.deinit();                           // プログラム終了時にクローズ
+    var listener = try server_addr.listen(.{}); // リッスン開始 ([how to set up a zig tcp server socket - Stack Overflow](https://stackoverflow.com/questions/78125709/how-to-set-up-a-zig-tcp-server-socket#:~:text=const%20addr%20%3D%20std.net.Address.initIp4%28.,listen))
+    defer listener.deinit(); // プログラム終了時にクローズ
 
     std.log.info("ノードA: ポート8080で待機中...", .{});
 
     // 2. 新規接続を受け付ける
     const connection = try listener.accept();
-    defer connection.stream.close();                   // 接続ストリームをクローズ
+    defer connection.stream.close(); // 接続ストリームをクローズ
     std.log.info("ノードA: 新しい接続を受け付けました: {any}", .{connection.address});
 
     // 3. 相手からのメッセージを読み取る
@@ -54,11 +54,18 @@ pub fn main() !void {
     const bytes_read = try reader.readAll(&buffer);
     std.log.info("ノードA: 受信したメッセージ: {} バイト", .{bytes_read});
 
-    // ...（ここで受信メッセージの内容を処理）...
+    // 受信したメッセージの内容を表示
+    const message = buffer[0..bytes_read];
+    std.log.info("ノードA: メッセージ内容: {s}", .{message});
 }
 ```
 
 上記は一例ですが、このコードをノードAとして起動すると、自分の8080ポートで接続を待ち受けます。`listener.accept()`により外部からの接続要求を1件受け付け、`connection.stream.reader()`で入力ストリームを取得しています。 このように、Zigでは`stream`経由で読み書きをができるラッパーが提供されており、`reader()`や`writer()`メソッドでバッファを扱うことができます。
+
+```bash
+❯ zig build run
+info: ノードA: ポート8080で待機中...
+```
 
 クライアント（ノードB側）からは例えば以下のように接続と送信をします。
 
@@ -68,16 +75,33 @@ const std = @import("std");
 pub fn main() !void {
     // ノードB: ノードA（localhost:8080）へ接続しメッセージ送信
     const remote_addr = try std.net.Address.resolveIp("127.0.0.1", 8080);
-    var socket = try std.net.tcpConnectToAddress(remote_addr);  // 接続 ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))
+    var socket = try std.net.tcpConnectToAddress(remote_addr); // 接続 ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))
     defer socket.close();
 
+    const message = "Hello from NodeB\n";
     const writer = socket.writer();
-    try writer.writeAll("Hello from NodeB\n");  // メッセージ送信 ([Zig Common Tasks](https://renatoathaydes.github.io/zig-common-tasks/#:~:text=pub%20fn%20main%28%29%20%21void%20,%7D))
-    std.log.info("ノードB: メッセージを送信しました", .{});
+    std.log.info("ノードB: 送信メッセージ: {s}", .{message});
+    try writer.writeAll(message);
+    std.log.info("ノードB: メッセージの送信が完了しました", .{});
 }
 ```
 
 ノードBを実行すると、ノードAで待ち受けている8080番ポートに接続し、「Hello from NodeB」という文字列を送ります。ノードA側ではそのメッセージを受け取り、ログに表示する、という流れです。
+
+```bash
+❯ zig build run
+info: ノードB: 送信メッセージ: Hello from NodeB
+
+info: ノードB: メッセージの送信が完了しました
+```
+
+```bash
+❯ zig build run
+info: ノードA: ポート8080で待機中...
+info: ノードA: 新しい接続を受け付けました: 127.0.0.1:58650
+info: ノードA: 受信したメッセージ: 17 バイト
+info: ノードA: メッセージ内容: Hello from NodeB
+```
 
 **ポイント解説:**
 
