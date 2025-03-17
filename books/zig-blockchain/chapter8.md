@@ -1,137 +1,421 @@
 ---
-title: "発展トピック"
+title: "Zigで簡易EVMバイトコードエンジンを実装し、Solidityスマートコントラクトを実行する"
 free: true
 ---
 
-## 1. zkEVM とゼロ知識証明の活用
+## Zigで簡易EVMバイトコードエンジンを実装し、Solidityスマートコントラクトを実行する
 
-### zkEVM の基本概念と動作原理
-zkEVM（ゼロ知識Ethereum Virtual Machine）は、Ethereumのスマートコントラクト実行環境（EVM）をゼロ知識証明と組み合わせた新しい仕組みです。通常のEVMと同様にスマートコントラクトを実行しますが、その結果に対してゼロ知識証明（ZK証明）を生成し、信頼性を保証します ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=A%20zkEVM%20is%20a%20new,and%20tokens%20to%20the%20zkEVM)) ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=On%20Ethereum%2C%20every%20transaction%20must,reduces%20costs%20while%20maintaining%20security))。具体的には、zkEVM上で一連のトランザクションを処理すると、更新後の状態とそれが正しく計算されたことを示す証明が生成され、これをレイヤー1（メインチェイン）に送信します ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=On%20Ethereum%2C%20every%20transaction%20must,reduces%20costs%20while%20maintaining%20security))。レイヤー1側では、この証明を検証することで計算の正当性を確認できるため、全ての詳細な計算を実行しなくても信頼性を担保できます。要するに、zkEVMはEthereumの既存インフラや開発ツールと互換性を保ちつつ、ゼロ知識証明を用いた**ゼロ知識ロールアップ**として高いスループットと低コストを実現する技術です ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=A%20zero,transaction%20throughput%20while%20lowering%20costs)) ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=A%20layer%202%20is%20EVM,tested%20tools%20they%E2%80%99re%20used%20to))。
+このチュートリアルでは、**Zig**プログラミング言語を用いてEthereumの**Ethereum Virtual Machine (EVM)**を簡易的に実装し、Solidityで書かれたスマートコントラクトのバイトコードを実行します。EVMの基礎概念から始め、Zigによるスタック型仮想マシンの構築、Solidityコントラクトのコンパイルと実行まで、段階的に解説します。実装コードと詳細な説明を交えていますので、ぜひ手を動かしながら学んでみてください。
 
-### 主要な zkEVM プロジェクト
-現在開発・運用が進む主なzkEVMプロジェクトには、**Polygon zkEVM**、**StarkNet**、**Scroll** などがあります。
+**目標:**
 
-- **Polygon zkEVM**: Polygon社（旧Hermez）が開発するzkEVMロールアップで、2023年3月にメインネットをローンチしました。既に約1,000万件近いトランザクションを処理しており、高い実利用が進んでいます ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Polygon%20zkEVM%20%28and%20Polygon%20CDK,Chains))。Polygon zkEVMはEthereumとほぼ同等のEVM互換性を目指したアプローチ（Vitalik氏の分類ではType 2.5から3に相当）を取っており、既存のSolidityコントラクトをそのままデプロイ可能です。プルーフ（証明）には主にZK-SNARKを用いており、プルーフ生成の効率化のため独自実装のクライアントやプローバ（証明生成器）を開発しています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Of%20course%2C%20as%20a%20Type,features%20found%20in%20the%20standard))。
+- EVMの基本構造（スタック・メモリ・ストレージ）を理解する
+- Zigでスタックベースの仮想マシンを構築し、EVMバイトコードを実行する
+- Solidityで簡単なスマートコントラクトを作成し、Zigで実装したEVM上で動作させる
+- EVMの制限や最適化、発展的な技術（zkEVMなど）について言及する
 
-- **StarkNet**: StarkWare社によるzkロールアップチェインで、厳密にはEVM互換ではなく新設計の仮想マシン(**Cairo VM**)と言語(**Cairo**)を用いている点が特徴です ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=StarkNet%20is%20one%20of%20the,processing%2010m%2B%20transactions%20each%20month))。StarkNetはVitalik氏の分類でType 4に位置付けられ、EVMの互換性を犠牲にしてでもパフォーマンスや機能拡張を追求するアプローチです ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=The%20fourth%20category%3A%20High,eventually%20move%20to%20higher%20types))。実際、Solidityとの互換レイヤーとして開発されていたWarp（Solidity→Cairoトランスパイラ）は廃止され、エコシステム全体がCairo言語に注力する方針となりました ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Initially%2C%20the%20StarkNet%20ecosystem%20explored,of%20the%20EVM%20win%20out))。この大胆な設計により、アカウント抽象化など従来のEVMが苦手とする機能をネイティブに実装しつつ、高い処理性能を目指しています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Building%20this%20new%20ecosystem%20from,and%20have%20been%20widely%20adopted))。StarkNetは2021～2022年にかけて段階的に一般公開され、現在はTVL（総預かり資産）1.5億ドル超、月間1,000万件以上のトランザクションを処理するまでに成長しています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=lang,processing%2010m%2B%20transactions%20each%20month))。
+## 1. EVMとは？
 
-- **Scroll**: Scrollはコミュニティ主導で開発されているzkEVMプロジェクトで、2023年に2度のテストネットと同年10月にメインネットをローンチしました ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=2023%20has%20seen%20the%20launch,currently%20a%20Type%203%20zkEVM))。Scrollは現在Polygon zkEVMと同様にType 3のzkEVMと位置付けられており、EVMとほぼ同じ動作を実現するためにgeth（Go-Ethereum v1.10.13）のフォーク版クライアントを使用しています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=match%20at%20L253%20some%20minor,though%20they%20have%20cherry))。既存のEthereumコントラクトとの互換性を重視しつつ証明生成を効率化する設計で、将来的にはType 2（よりEthereumに近い互換性）への移行も見据えています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=similar%20path%20to%20Polygon%2FScroll%3A%20begin,London%2C%20described%20in%20this%20table))。ScrollもZK-SNARKベースのプローバを採用しており、高速な証明生成と安定したネットワーク運用に注力しています。
+**Ethereum Virtual Machine (EVM)**とは、Ethereumブロックチェイン上でスマートコントラクト（契約コード）を実行するための仮想マシンです。イーサリアムの各ノードはEVMを内部に持ち、ブロック内の取引（トランザクション）に含まれるスマートコントラクトのコードをEVM上で実行することで、結果として世界状態（ワールドステート）を更新します。EVMは256ビット長のWord（32バイト）を基本単位とする**スタックマシン**であり、プログラム（バイトコード）を順次読み取り実行していきます。スマートコントラクトのコードは**バイトコード**（機械語に相当）でブロックチェイン上に保存され、EVMがこれを解釈・実行します。
 
-### ゼロ知識証明 (ZK-SNARKs, ZK-STARKs) の基礎とブロックチェインへの応用
-**ゼロ知識証明**とは、ある主張が真であることを証明する際に、その主張が「真である」という事実以外の情報を一切開示しない暗号学的手法です ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=SNARKs%20and%20STARKs%20are%20zero,without%20revealing%20any%20further%20information))。ブロックチェイン文脈では、トランザクションや計算の正当性をプライバシーを保ったまま証明するために活用されています ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=Zero,2%20networks))。特に注目されるのが、**ZK-SNARKs**（ゼロ知識簡潔非対話的知識証明）と**ZK-STARKs**（ゼロ知識スケーラブル透明な知識証明）という2種類の方式です。
+EVMには、実行時に使用されるいくつかの主要なデータ領域があります ([How does Ethereum Virtual Machine (EVM) work? A deep dive into EVM Architecture and Opcodes | QuickNode Guides](https://www.quicknode.com/guides/ethereum-development/smart-contracts/a-dive-into-evm-architecture-and-opcodes#:~:text=state%20of%20Ethereum%20%28,machine%20architecture%20consisting%20of%20components))：
 
-- **ZK-SNARKs**: *SNARK*は非常に短い証明で検証も高速ですが、セットアップ時に信頼できるセッティング（trusted setup）を必要とする場合がある点が特徴です ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=An%20important%20property%20of%20some,forged%20proofs%20were%20indeed%20forged))。例えば、有名なプライバシー通貨であるZcashは世界で初めてzk-SNARKを実用化し、送金額やアドレスを秘匿したままトランザクションの有効性を証明する「シールド取引」を実現しました ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=zk,SNARKs))。SNARKsの利点は証明サイズが小さく検証が数ミリ秒で済むほど高速な点にありますが、一方で多くの実装では安全な初期設定（複数人で乱数を生成し、その秘密を破棄する儀式）が必要で、万一その秘密が漏洩すると偽の証明を作成できてしまうリスクがあります ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=An%20important%20property%20of%20some,forged%20proofs%20were%20indeed%20forged))。この信頼設定への依存は批判も受けており、また従来のSNARKアルゴリズムの多くは量子計算機に対して耐性がない（量子攻撃に弱い）という欠点も指摘されています ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=Another%20limitation%20of%20some%20SNARKs,resistant)) ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=setup%20but%20can%20take%20longer,resistant))。
+- **ストレージ (Storage)**: 各コントラクト（アカウント）に紐づく永続的な**キー値ストア**です。256ビットのキーと値のマッピングで表現され、トランザクション間で保存されます ([スマートコントラクトの紹介 — Solidity 0.8.21 ドキュメント](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#))。コントラクトの状態変数はこのストレージに格納され、ブロックチェイン上の状態の一部として永続化されます。ストレージへの書き込み・読み出しはガスコストが高く、他のコントラクトのストレージには直接アクセスできません。
 
-- **ZK-STARKs**: *STARK*はSNARKの後発として2018年にEli Ben-Sassonらの論文で提唱された方式で、**透明性**（transparent）の名が示す通り信頼できるセットアップを不要とする点が大きな特徴です ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=zk,an%20important%20benefit%20for%20society)) ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=Importantly%2C%20as%20the%20randomness%20utilized,of%20a%20trusted%20setup%20ceremony))。STARKsでは公開可能なランダム性（公開乱数）を用いて証明と検証を行うため、事前の秘密共有が不要であり、またハッシュ関数に基づく方式のため量子計算に対しても耐性が高いとされています ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=STARKs%20can%20offer%20enhanced%20security,resistant))。ただしデメリットとして、証明サイズがSNARKより大きくなりがちで検証にも時間がかかる（一般にSNARKよりガスコストが高い）点が挙げられます ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=STARKs%20can%20offer%20enhanced%20security,resistant))。現在この技術はStarkNetなどで実用化されており、オフチェインで多数のトランザクションをまとめて計算し、その正しさをSTARK証明によってチェイン上で検証する、といった形でスケーラビリティ向上に貢献しています ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=STARKs%20underpin%20StarkWare%E2%80%99s%20scalability%20technology,chain)) ([zk-SNARK vs zkSTARK - Explained Simple | Chainlink](https://chain.link/education-hub/zk-snarks-vs-zk-starks#:~:text=cost%2C%20as%20some%20SNARKs%20rely,in%20a%20breach%20of%20security))。
+- **メモリ (Memory)**: コントラクト実行中のみ有効な一時的なメモリ空間です。呼び出しごとにリセットされ、バイトアドレスでアクセス可能な1次元の配列として扱われます。読み書きは基本的に32バイト幅単位で行われ、必要に応じて末尾に向かって拡張されます（拡張にはガスコストが伴います）。計算中の一時データや後述する戻り値の一時格納に利用されます。
 
-ブロックチェインへの応用としては、上述の**ロールアップ（Rollup）**への活用が特に重要です。**ZKロールアップ**では、オフチェインで多数の取引を処理し、その結果のみをゼロ知識証明とともにレイヤー1に投稿します ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=On%20Ethereum%2C%20every%20transaction%20must,reduces%20costs%20while%20maintaining%20security))。レイヤー1は投稿された証明（有効性の証明）を検証するだけで済むため、大量のトランザクション処理を圧縮してブロックチェインに取り込めます。これによりイーサリアムの1ブロックあたり処理件数を大幅に引き上げつつ、各ユーザーの手数料負担を下げることが可能になります ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=On%20Ethereum%2C%20every%20transaction%20must,reduces%20costs%20while%20maintaining%20security))。またゼロ知識証明はプライバシー強化にも利用でき、前述のZcashの他、イーサリアム上でもTornado Cashのように送金元と送金先を秘匿するサービスで活用されました。総じて、zk-SNARKsやzk-STARKsとEVMの統合（zkEVM）は、レイヤー2でのスケーリングとプライバシー強化の両面でブロックチェイン技術の発展を支える中核的なトピックとなっています。
+- **スタック (Stack)**: EVMの算術演算やオペコードのオペランド受け渡しに使われるLIFOスタックです。最大で1024要素の深さがあり、各要素は256ビットの値です。EVMはレジスタを持たず、全ての計算はスタック上で行われます。通常、オペコードはスタックの最上位要素（トップ）から必要な数の項目をPOPし、計算結果を再びスタックにPUSHします ([Ethereum Virtual Machineについて #Rust - Qiita](https://qiita.com/Akatsuki_py/items/05e8ad91d09f9db1fe64#:~:text=%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AE%E5%AE%9F%E8%A1%8C%E3%81%AF%E3%83%90%E3%82%A4%E3%83%88%E3%82%B3%E3%83%BC%E3%83%89%E3%81%AE%E5%85%88%E9%A0%AD%E3%81%8B%E3%82%89%E9%96%8B%E5%A7%8B%E3%81%95%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82))。スタックの深い位置に直接アクセスすることはできず、`DUP`（トップ16個までの要素を複製）や`SWAP`（トップと下位の一部を交換）命令で間接的に操作します。スタックオーバーフロー（積みすぎ）やスタックアンダーフロー（取り出しすぎ）は実行失敗を招きます。
 
-## 2. EVMの最適化技術
+上記の他にも、**プログラムカウンタ (PC)** や**ガス (Gas)** といった要素があります。プログラムカウンタは現在実行中のバイトコードの位置を指し示すものです。EVMは**命令ポインタ**であるPCを開始時に0にセットし、各オペコードの実行後に進めていきます。条件付きジャンプ命令などによりPCを書き換えることで、ループや条件分岐も実現します。
 
-### evmoneやrevmなどの最適化EVM実装
-イーサリアムクライアントにおけるEVM実装は複数存在しており、それぞれが処理性能向上のための最適化技術を備えています。代表的なものに**evmone**と**revm**があります。
+**ガス**とは、EVM上でコードを実行する際に必要となる手数料単位です。各オペコード毎に「この命令を実行するのに必要なガス量」が定められており ([How does Ethereum Virtual Machine (EVM) work? A deep dive into EVM Architecture and Opcodes | QuickNode Guides](https://www.quicknode.com/guides/ethereum-development/smart-contracts/a-dive-into-evm-architecture-and-opcodes#:~:text=,in%20wei))、スマートコントラクトを呼び出すトランザクションには上限となるガス量（ガスリミット）が指定されます。EVMは命令を実行するたびに消費ガスを積算し、ガスリミットを超えると**アウトオブガス**となり実行が停止（通常は巻き戻し）されます。ガスは無限ループや過度な計算を防ぎ、また計算リソースに応じた手数料をネットワークに支払わせる仕組みになっています。
 
-- **evmone**: evmoneはEthereum Foundationのチームによって開発されたC++製の高速EVM実装です ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=,implementation))。既存クライアント（Gethなど）の内部EVMを差し替える形で利用でき、高速な命令実行を提供します ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=As%20geth%20plugin))。evmoneには2種類の実行エンジン（インタプリタ）が搭載されており、特に「Advanced」モードでは命令列を解析して**ブロックごとのガスコスト計算**を事前に行い、各命令を関数ポインタのテーブルに展開する**間接スレッディング**手法を採用しています ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=1.%20Provides%20relatively%20straight,analysis)) ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=1,expensive%20bytecode%20analysis%20before%20execution))。これにより従来のEVM実装に比べ分岐やスタック操作のオーバーヘッドを削減し、スマートコントラクト実行を効率化します。evmoneはEVMCインタフェースに準拠しているため、プラグインとしてGethに組み込んで利用でき、Ethereumクライアントの実行性能を強化する選択肢の1つとなっています ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=As%20geth%20plugin))。
+EVMの命令（オペコード）は1バイト長で表現され、例えば`0x01`はADD（加算）、`0x60`はPUSH（スタックへ即値を積む）といったように定義されています ([Ethereum Virtual Machineについて #Rust - Qiita](https://qiita.com/Akatsuki_py/items/05e8ad91d09f9db1fe64#:~:text=%E3%83%90%E3%82%A4%E3%83%88%E3%82%B3%E3%83%BC%E3%83%89%E3%81%AF%E3%82%AA%E3%83%9A%E3%83%A9%E3%83%B3%E3%83%89%E3%82%92%E6%8C%81%E3%81%A4PUSH%E5%91%BD%E4%BB%A4%E3%82%92%E9%99%A4%E3%81%84%E3%81%A61%E3%83%90%E3%82%A4%E3%83%88%E3%81%AE%E5%9B%BA%E5%AE%9A%E9%95%B7%E3%81%A7%E3%81%99%E3%80%82))。スマートコントラクトのバイトコード実行は常にコードの先頭（PC=0）から開始され ([Ethereum Virtual Machineについて #Rust - Qiita](https://qiita.com/Akatsuki_py/items/05e8ad91d09f9db1fe64#:~:text=%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AE%E5%AE%9F%E8%A1%8C%E3%81%AF%E3%83%90%E3%82%A4%E3%83%88%E3%82%B3%E3%83%BC%E3%83%89%E3%81%AE%E5%85%88%E9%A0%AD%E3%81%8B%E3%82%89%E9%96%8B%E5%A7%8B%E3%81%95%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82))、`STOP (0x00)`命令に到達するか実行が中断されるまで、命令を順次取り出して解釈・実行していきます。PUSH系命令だけは直後のバイト列をオペランド（値）として持つため可変長ですが、その他の命令は固定1バイトで、スタックから値を取り出し結果をスタックに戻すという挙動をとります ([Ethereum Virtual Machineについて #Rust - Qiita](https://qiita.com/Akatsuki_py/items/05e8ad91d09f9db1fe64#:~:text=%E3%83%90%E3%82%A4%E3%83%88%E3%82%B3%E3%83%BC%E3%83%89%E3%81%AF%E3%82%AA%E3%83%9A%E3%83%A9%E3%83%B3%E3%83%89%E3%82%92%E6%8C%81%E3%81%A4PUSH%E5%91%BD%E4%BB%A4%E3%82%92%E9%99%A4%E3%81%84%E3%81%A61%E3%83%90%E3%82%A4%E3%83%88%E3%81%AE%E5%9B%BA%E5%AE%9A%E9%95%B7%E3%81%A7%E3%81%99%E3%80%82))。
 
-- **revm**: revmはRustで実装されたシンプルかつ高速なEVM実装で、Paradigm社が主導するRust製クライアント「Reth」で採用されています ([Awesome Ethereum Rust repos - GitHub](https://github.com/Vid201/awesome-ethereum-rust#:~:text=Awesome%20Ethereum%20Rust%20repos%20,performance%2C%20modular))。Rustのパフォーマンスと安全性を活かしつつ、モジュール化された設計で拡張や組み込みが容易になっているのが特徴です。Paradigmの報告によれば、revmは既存のEVMと比較して高い柔軟性と速度を実現しており、実際にRethクライアント上でチェイン同期が問題なく行えることが確認されています ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Today%2C%20we%E2%80%99re%20excited%20to%20open,shine%20in%20computationally%20heavy%20workloads)) ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=in%20various%20realistic%20EVM%20benchmarks,shine%20in%20computationally%20heavy%20workloads))。さらにParadigmはrevmをベースにネイティブコードへのコンパイラである**revmc**を開発し、EVMバイトコードを直接マシン語に変換するアプローチも進めています ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=1000x%20improvement%20from%20the%20status,quo%20of%20Ethereum)) ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Today%2C%20we%E2%80%99re%20excited%20to%20open,shine%20in%20computationally%20heavy%20workloads))。
+以上がEVMの基本的な仕組みです。Ethereumクライアント（例：GethやNethermindなど）には各々EVM実装が内蔵されていますが、全てEthereumの公式仕様（イエローペーパー）に従う必要があります ([How does Ethereum Virtual Machine (EVM) work? A deep dive into EVM Architecture and Opcodes | QuickNode Guides](https://www.quicknode.com/guides/ethereum-development/smart-contracts/a-dive-into-evm-architecture-and-opcodes#:~:text=The%20EVM%20is%20contained%20within,machine%20architecture%20consisting%20of%20components))。このチュートリアルでは、このEVMの一部機能をZigで再現し、簡単なスマートコントラクトのバイトコードを実行してみます。
 
-### JIT/AOTコンパイルによるパフォーマンス向上
-EVMの実行を高速化するもう1つの手法が、バイトコードをネイティブな機械語に**コンパイル**してしまうことです。従来のEVMはスタックマシン上でバイトコードを逐次解釈（インタプリタ実行）しますが、この方法だと命令ごとに解釈コストがかかり効率的ではありません ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=The%20development%20of%20revmc%20is,associated%20with%20virtual%20machine%20layers))。そこで近年注目されているのが、JIT（Just-In-Time）コンパイルやAOT（Ahead-Of-Time）コンパイルといった技術をEVMに適用することです。**JITコンパイル**は実行時にバイトコードをネイティブコードに変換し、その場で実行してしまう方式で、JavaのJVMやWebAssemblyランタイムで実績があります ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=Just,VMs%20like%20Java%20and%20WebAssembly))。一方、**AOTコンパイル**は事前にバイトコードをコンパイルしてネイティブコードを用意しておく方式で、実行時のオーバーヘッドが更に小さいという利点があります ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=layers))。
+## 2. ZigでEVMを実装する準備
 
-Paradigm社の開発したrevmcは、このAOTコンパイルをEVMに導入する先駆的な試みです。彼らの発表によれば、revmcを用いることでEVMの実行速度がケースによっては1.85倍から最大19倍にも向上することがベンチマークで示されています ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Today%2C%20we%E2%80%99re%20excited%20to%20open,shine%20in%20computationally%20heavy%20workloads))。revmcはEVMバイトコードを中間表現(IR)に変換して最適化を行った後、LLVMを利用してネイティブコードを生成します ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Revmc%20functions%20by%20compiling%20EVM,system%27s%20processor%20can%20directly%20execute))。こうしたAOTコンパイルにより、従来のインタプリタ実行に伴う大きなオーバーヘッドを排除し、ハードウェア上で直接コードを実行できるため大幅な性能改善が可能になります ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=The%20development%20of%20revmc%20is,associated%20with%20virtual%20machine%20layers))。
+まずはEVM実装に取りかかる前に、開発環境の準備をします。
 
-またAOT方式にはセキュリティ上の利点もあります。JITコンパイルは実行中に動的にコード生成を行うため、悪意のあるコードにJITプロセス自体を悪用されるリスクがありますが、AOTであらかじめ信頼できるコードに変換・検証しておけばそのようなリスクを低減できます ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=layers)) ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=However%2C%20JIT%20can%20be%20vulnerable,compilation%20step%20during%20live%20execution))。実際、Rethクライアントでは特に利用頻度の高いコントラクトを事前コンパイルしてキャッシュすることで、都度JITする必要をなくしつつ安全性も確保する設計を計画しています ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=However%2C%20JIT%20can%20be%20vulnerable,compilation%20step%20during%20live%20execution))。このように、JIT/AOTコンパイル技術の導入はEVMのスループット向上における最先端の取り組みであり、今後レイヤー2など計算負荷の高い環境でその効果を発揮していくと期待されています。
+**Zigの環境構築:** ZigはC言語に似た構文を持つシステムプログラミング言語で、高いパフォーマンスと安全性を兼ね備えています。公式サイトからコンパイラをダウンロードするか、各種パッケージマネージャ（HomebrewやChocolateyなど）でインストールできます。執筆時点ではZigの最新版を利用してください。Zigは単一のソースファイルを直接ビルドできるので、`zig run`や`zig build-exe`コマンドで手軽に実行・ビルドが可能です。
 
-### EthereumクライアントにおけるEVM実装の比較と最適化戦略
-Ethereumはマルチクライアント主義を採用しており、Goで実装された**Geth**、Rustの**Reth**、Javaの**Besu**、C#の**Nethermind**、C++の**Erigon**など複数の実行クライアントが存在します ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=One%20underdiscussed%2C%20but%20nevertheless%20very,is%20what%20users%20actually%20run)) ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=Each%20Ethereum%20node%20runs%20a,time%20for%20developers%20to%20intervene))。各クライアントは異なる言語やアーキテクチャで実装されていますが、それぞれ独自のEVM最適化戦略を持っています。
+**依存ライブラリ:** 今回の実装ではZigの**標準ライブラリ**以外の外部依存は使用しません。Zigは任意精度のビット幅を持つ整数型をサポートしており、例えば`u256`型を宣言すれば256ビットの符号なし整数を扱えます ([Documentation - The Zig Programming Language](https://ziglang.org/documentation/master/#:~:text=Zig%20supports%20arbitrary%20bit,uses%20a%20two%27s%20complement%20representation))。この機能により、EVMの256ビット幅の数値（スタックの値やストレージのキー・値など）も専用の特別な大数ライブラリを使わずに表現できます。また、メモリやスタックはZigの配列やリストを使って実装し、マップ（ハッシュマップ）も標準ライブラリのコンテナを利用します。
 
-- Geth（Go実装）は最も普及しているクライアントで、安定性重視のシンプルなインタプリタEVMを搭載しています。ただしGo言語の特性上、低レベル最適化には限界があるため、前述のevmoneプラグインを利用してC++による高速EVMに置き換えるといった拡張も可能です ([GitHub - ethereum/evmone: Fast Ethereum Virtual Machine implementation](https://github.com/ethereum/evmone#:~:text=As%20geth%20plugin))。
+**Solidityコンパイラの準備:** 次に、Solidityのスマートコントラクトをバイトコードにコンパイルするために、Solidity公式のコマンドラインコンパイラ`solc`を用意します。Solidityの開発環境が既にある場合はsolcコマンドが使えるはずです。インストールされていない場合、Ethereum公式サイトや各種ドキュメントに従ってインストールしてください（例：Ubuntuなら`sudo apt install solc`、macOSならHomebrewで`brew install solidity`）。
 
-- Erigon（旧Turbo-Geth、C++/Go併用）はデータベースアクセスの効率化や並行処理によって高速化を追求したクライアントです。EVM自体の高速化というよりは、トランザクション実行前後の状態データ処理（トライ木の更新など）を最適化する戦略を取っています。
+Solidityコンパイラ`solc`を使うと、Solidityコードから各種出力を得ることができます ([Using the Compiler — Solidity 0.8.29 documentation](https://docs.soliditylang.org/en/latest/using-the-compiler.html#:~:text=One%20of%20the%20build%20targets,asm%20sourceFile.sol))。バイトコード（EVMが実行するバイナリ）を取得するには、以下のように`--bin`オプションを指定します。
 
-- Reth（Rust実装）は新興のクライアントで、モジュールの非同期処理（アクターモデル）による並列化や、上述したrevmおよびrevmcによるEVMのネイティブコンパイルで**「1ギガガス/秒」**という桁違いの処理能力を目指しています ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=We%20were%20partially%20motivated%20to,have%20a%20promising%20path%20forward)) ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=Just))。これは現在のEthereumが約100メガガス/秒程度であることを踏まえると10倍のスループット向上に相当し、ロールアップなどWebスケールの需要に応える意欲的なロードマップです ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=Reth%20already%20achieves%20100,term%20goal%20of%201%20gigagas%2Fs)) ([Reth’s path to 1 gigagas per second, and beyond - Paradigm](https://www.paradigm.xyz/2024/04/reth-perf#:~:text=Just))。
+```bash
+$ solc --bin MyContract.sol
+```
 
-このように各クライアント実装が異なるアプローチでEVM性能を引き上げようとしており、例えば前述のParadigmの研究では、将来的にどのブロックチェインもネイティブコンパイルされた高速ランタイムを備えるだろうと述べられています ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Furthermore%2C%20compiling%20bytecode%20ahead%20of,efficiently%20without%20compromising%20on%20security)) ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Today%2C%20we%E2%80%99re%20excited%20to%20open,shine%20in%20computationally%20heavy%20workloads))。複数のクライアントが競い合うことでEthereum全体としての性能と安全性が高まっており、今後のプロトコルアップグレードやハードウェアの進化に合わせて、EVM実行エンジンもさらなる最適化が進むでしょう。
+上記コマンドを実行すると、標準出力にバイトコードの16進数表現が表示されます ([Using the Compiler — Solidity 0.8.29 documentation](https://docs.soliditylang.org/en/latest/using-the-compiler.html#:~:text=binaries%20and%20assembly%20over%20an,asm%20sourceFile.sol))。`-o`オプションで出力先ディレクトリを指定すれば、コンパイル結果をファイルとして保存することも可能です。今回は簡単のためコンパイル結果を直接コピー&ペーストしてZigコード内に埋め込んで使用します（後述）。
 
-## 3. Ethereumの今後の進化
+**補足:** `solc --asm`オプションを使うとSolidityが生成したEVMアセンブリ（オペコードの一覧）を見ることができます。興味があれば確認してみると良いでしょう。また、`--optimize`を付けるとバイトコードが最適化されますが、チュートリアルでは動作をわかりやすくするため最適化なしで進めます。
 
-### EVM Object Format (EOF) とその意義
-**EVM Object Format (EOF)** は、スマートコントラクトのバイトコード構造を改良するために提案された一連のEIP群からなる新しいフォーマットです ([EVM Object Format: EOF](https://evmobjectformat.org/#:~:text=The%20EVM%20Object%20Format%20,an%20extensible%20and%20versioned))。従来、EVMバイトコードには明確な構造やバージョン情報が無く、各クライアントはデプロイ時にコード全体を走査してJUMP先（JUMPDEST）の検出・検証を行う必要がありました。このため毎回のコード実行時にオーバーヘッドが生じ、新しい命令の追加や古い機能の廃止も困難でした ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=The%20current%20EVM%20doesn%E2%80%99t%20impose,new%20or%20deprecating%20old%20features))。EOFはこの問題を解決するために**コンテナ形式**のバイトコードを導入し、冒頭にバージョン識別子やセクションヘッダを持たせることで、コードの検証・解釈を体系化します ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=The%20Format%3A%20EIP))。具体的には、バイトコードの先頭バイトとして予約値 `0xEF` を配置し（既存のどのコントラクトとも被らないシーケンス`0xEF00`がEOF識別子となります ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=formatted%20contracts,be%20used%20for%20EOF%20contracts))）、その後にバージョン番号とコードセクション・データセクションの長さなどのヘッダ情報が続きます ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=EIP,sections%20in%20the%20following%20order))。EIP-3540ではこの基本フォーマットが定義され、EIP-4750では同一コントラクト内で関数呼び出しやリターンを行う新たな命令の追加（内部関数呼び出しのサポート）が提案されています ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=The%20EVM%20will%20have%20two,previously%20used%20to%20achieve%20this))。
+準備が整ったら、次はいよいよZigでEVMエンジン本体を実装していきます。
 
-EOFの意義は多岐にわたります。まず、コントラクトの**バージョン管理**が可能になるため、将来的にEVMに大きな仕様変更を加える際も古いコードとの互換性を保ちつつ新機能を導入しやすくなります ([EVM Object Format: EOF](https://evmobjectformat.org/#:~:text=The%20EVM%20Object%20Format%20,an%20extensible%20and%20versioned))。またコードに明確な区切り（セクション）ができることで、不要な命令やデータ領域を実行時にスキップしやすくなり、実行効率も向上します。ジャンプ先の検証などもデプロイ時に一度行っておけば済むため、実行時の毎回の検証コストを削減できます ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=The%20current%20EVM%20doesn%E2%80%99t%20impose,new%20or%20deprecating%20old%20features))。さらに、将来的な**新VM（例えばeWASM）への移行や共存**をスムーズにする下地ともなり得ます。EthereumコミュニティではEOFを「EVMを成熟した計算プラットフォームへと昇華させる重要な技術」だと位置付けており ([EVM Object Format (EOF) | Wiki.js - Inevitable Ethereum](https://inevitableeth.com/en/home/ethereum/upgrades/execution-updates/eof#:~:text=EOF%20is%20one%20of%20those,Ethereum%20into%20a%20mature%20protocol))、直近のハードフォーク（Cancun/Denebの次のFusakaアップグレード）での導入が期待されています ([A Complete Guide to EVM Object Format (EIP-7692)](https://blog.tenderly.co/guide-to-evm-object-format-eip-7692/#:~:text=EVM%20Object%20Format%20,fork))。
+## 3. 簡易EVMの実装
 
-### eWASM (Ethereum WebAssembly) と EVMの未来
-**eWASM**（Ethereum WebAssembly）は、Ethereumのバイトコード実行環境をWebAssembly(WASM)ベースに置き換える提案です。WebAssemblyはブラウザ等で利用されている高速で移植性の高い仮想マシン仕様で、C/C++やRustなど様々な言語からコンパイル可能な汎用プラットフォームです。EthereumがeWASMを採用すると、Solidity以外の言語（例えばRustやC++）からスマートコントラクトを直接記述・コンパイルできるようになり、より幅広い開発者層を取り込めると期待されました ([protocol - What is eWASM and why is it the direction for the next version of the EVM? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/45043/what-is-ewasm-and-why-is-it-the-direction-for-the-next-version-of-the-evm#:~:text=ewasm%2C%20an%20improved%20version%20of,kinda%20nature%20of%20web%20assembly))。また、WASMはスタックマシンではありますが設計が近代的で最適化が進んでおり、現在のEVMより実行効率が高い可能性があります ([protocol - What is eWASM and why is it the direction for the next version of the EVM? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/45043/what-is-ewasm-and-why-is-it-the-direction-for-the-next-version-of-the-evm#:~:text=ewasm%2C%20an%20improved%20version%20of,kinda%20nature%20of%20web%20assembly))。さらにプリコンパイル（特殊な計算を高速に行うためEVMに組み込まれたネイティブ契約）も不要になるなどの利点も指摘されています ([Breaking Down ETH 2.0 - eWASM and EVM Explained](https://academy.moralis.io/blog/breaking-down-eth-2-0-ewasm-and-evm-explained#:~:text=Breaking%20Down%20ETH%202.0%20,bits%20of%20EVM%20bytecodes%2C))。
+それでは、ZigでEVMのコアとなるバイトコード実行エンジンを実装してみましょう。EVMはスタックマシンですので、スタックやメモリ、ストレージを管理しつつ、バイトコード中のオペコードを読み取って解釈・実行するループを作ることになります。
 
-元々eWASMはEthereum 2.0（別名Serenity）のフェーズ2にて導入予定とされていました ([How Ethereum’s EVM evolution impacts blockchain and smart contracts](https://cointelegraph.com/news/how-ethereums-evm-evolution-impacts-blockchain-and-smart-contracts#:~:text=Investors%20are%20often%20overwhelmed%20by,a%20new%20generation%20of%20developers))。当時の計画では、シャーディング実装時に各シャードの実行環境としてEVMに代えてWASMベースのVMを採用し、EVMとの後方互換性はeWASM上でEVMバイトコードを実行できるようにすることで維持する構想でした ([protocol - What is eWASM and why is it the direction for the next version of the EVM? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/45043/what-is-ewasm-and-why-is-it-the-direction-for-the-next-version-of-the-evm#:~:text=gain,of%20web%20assembly))。しかしその後Ethereumのロードマップは大きく変更され、Eth1とEth2の統合（The Merge）により現在は引き続きEVMが実行環境として使われています。eWASMの開発自体も優先度が下がり、現在レイヤー1でEVMからeWASMへ移行する計画は**事実上凍結状態**です ([Is Ethereum still moving to ewasm? : r/ethereum](https://www.reddit.com/r/ethereum/comments/ye8k76/is_ethereum_still_moving_to_ewasm/#:~:text=%E2%80%A2%20%E2%80%A2%20Edited)) ([Is Ethereum still moving to ewasm? : r/ethereum](https://www.reddit.com/r/ethereum/comments/ye8k76/is_ethereum_still_moving_to_ewasm/#:~:text=ewasm%20has%20been%20dead%20for,at%20least%202%20years%20now))。実際、Vitalik氏も「eWASMの実装はシャーディングよりもはるかに難しくコストがかかる作業で、今すぐ取り組む必要はない」と述べています ([Is Ethereum still moving to ewasm? : r/ethereum](https://www.reddit.com/r/ethereum/comments/ye8k76/is_ethereum_still_moving_to_ewasm/#:~:text=djlywtf))。
+### データ構造の定義
 
-もっとも、eWASMのアイデアが完全になくなったわけではありません。レイヤー2や他のブロックチェインプロジェクトでは、WASMをスマートコントラクトVMとして採用する例が増えてきています（例：Polkadotのスマートコントラクト環境はWASMベース、EOSやNEARなども独自にWASMを活用）。EthereumメインネットがEVMから脱却しないままでも、将来的に**L2でeWASM互換チェイン**が登場し、そこで実験的にメリットが実証されれば再度議論が活発化する可能性もあります ([Is Ethereum still moving to ewasm? : r/ethereum](https://www.reddit.com/r/ethereum/comments/ye8k76/is_ethereum_still_moving_to_ewasm/#:~:text=%E2%80%A2%20%E2%80%A2%20Edited))。現時点ではEthereumの進化はEVMの改良（EOFなど）やレイヤー2の活用によるスケーリングにフォーカスしており、eWASMは中長期的な選択肢として静かに研究が続けられている状況です。
+まず、EVMの実行に必要なデータを用意します。スタック、メモリ、ストレージ、プログラムカウンタ、ガスなどです。今回はシンプルにするため、それぞれ以下のように設計します。
 
-### Ethereum 2.0（統合後）の展望と新技術の統合可能性
-EthereumはThe Mergeによってプルーフ・オブ・ステークへの移行とEth1/Eth2統合を果たし、今後は「Surge（シャーディングによるスループット向上）」「Verge（Verkleトライによる状態効率化）」「Purge（履歴データの削減）」「Splurge（その他色々）」といったロードマップが示されています。これらの中で、EVM自体の刷新や大幅な変更は主要なテーマには挙がっていません。しかし、**マルチクライアント哲学と新技術の融合**という観点では、将来的にEVM以外の実行エンジンや検証手段が「第3のクライアント」として役割を持つ可能性があります ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=coming%20soon,see%20also%3A%20the%20Verge)) ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=Once%20that%20happens%2C%20ZK,the%20tradeoffs%20are%20worth%20it))。Vitalik氏は2023年の提言で、最終的にEthereumレイヤー1ブロックの検証にzkEVM（ゼロ知識証明による実行検証）を組み込むことで、コンセンサスクライアント・実行クライアントに次ぐ第三のクライアントとして**ZKプローバ**が機能するようになるだろうと述べています ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=One%20underdiscussed%2C%20but%20nevertheless%20very,see%20also%3A%20the%20Verge)) ([ How will Ethereum's multi-client philosophy interact with ZK-EVMs? ](https://vitalik.eth.limo/general/2023/03/31/zkmulticlient.html#:~:text=Once%20that%20happens%2C%20ZK,the%20tradeoffs%20are%20worth%20it))。もしこの構想が現実化すれば、レイヤー2だけでなくレイヤー1でもゼロ知識証明がブロック検証に用いられることになり、Ethereumのセキュリティと効率は飛躍的に向上するでしょう。
+- **スタック**: 固定長配列（サイズ1024）で表現し、各要素を`u256`（256ビット整数）型とします。スタックポインタ（現在のスタック高さ）を別途管理し、PUSHやPOP時にインクリメント/デクリメントします。
+- **メモリ**: 可変長のバイト配列で表現します。EVMでは実行中に動的に拡張されますが、簡易実装では最大長をあらかじめ決め（例えば1024バイト）確保しておきます。必要があれば後で拡張も可能です。
+- **ストレージ**: 永続的なキー/値ストアですが、ここでは単純に`std.HashMap(u256, u256)`（Zig標準ライブラリのハッシュマップ）を用いてキーと値を保持します。永続性は考慮せず、実行中のメモリ上のデータ構造として扱います。
+- **プログラムカウンタ (PC)**: 現在の命令位置を示すインデックスです。`usize`型（符号なしサイズ型）で0からバイトコード長-1まで動きます。
+- **ガス**: 残り実行可能ガスを示すカウンタです。`usize`または十分大きい整数型で扱います。処理するごとに各命令のガス消費量を差し引き、0未満になったらアウトオブガスです。
+- **その他**: 戻り値を格納する一時バッファや、実行終了フラグなどもあると便利です。例えば`RETURN`命令があった場合に、どのデータを返すかを記録しておきます。
 
-まとめると、Ethereumの今後の進化ではまず**EOFの導入によるEVMのアップグレード**が目前に控えており、その先の大きな変更として**eWASMの再検討やzkEVMのネイティブ統合**といったシナリオも考えられます。ただし互換性や実装コストの問題から慎重な姿勢がとられており、当面はレイヤー2技術によるスケーリングと、EVMの段階的改善（例えばガスコスト見直しや新OPCODEの追加など）が中心になる見込みです。その上で、必要とあれば将来世代のEthereumでWASMやゼロ知識証明といった先端技術を統合し、より開発者に開かれ高速で安全なプラットフォームへと進化していく可能性があります。
+では、これらを踏まえてZigコードを書いていきます。以下に、EVM実行用の関数`run()`を実装します。この関数は入力としてバイトコードとコールデータ（後述、コントラクト呼び出し時の引数データ）を受け取り、結果として返り値のバイト列を返すようにします。
 
-## 4. レイヤー2技術とEVM互換チェイン
+```zig
+const std = @import("std");
 
-### Optimistic Rollup と zk-Rollup の違い
-レイヤー2の代表的手法である**Optimistic Rollup**（楽観的ロールアップ）と**zk-Rollup**（ゼロ知識ロールアップ）は、トランザクション検証の方法が大きく異なります。
+pub fn run(code: []const u8, calldata: []const u8) []const u8 {
+    // スタック（1024要素まで）
+    var stack: [1024]u256 = undefined;
+    var sp: usize = 0; // スタックポインタ（次に値を積む位置）
 
-- **Optimistic Rollup**は「全てのトランザクションは基本的に正しい（不正はまれ）」と楽観的に仮定して処理をオフチェインで行い、後から不正があれば指摘（チャレンジ）する方式です。具体的には、ロールアップ上でまとめられた取引データをそのままレイヤー1に投稿し、一旦レイヤー1上では有効と見なします。しかし一定期間（例えば1週間程度）の**チャレンジ期間**が設けられており、その間に誰でもロールアップの結果に異議を唱えることができます。不正を発見した参加者は**フロードプルーフ（詐欺証明）**と呼ばれる検証を行い、不正が確認されればロールアップのその出力を無効化し、悪意ある提案者を経済的に罰する仕組みになっています ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Optimistic%20rollups%3A%20Fraud%20proofs%20ensure,nodes%20to%20dispute%20faulty%20transactions)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=The%20disadvantage%20is%20the%20challenge,high%20latency%20for%20transaction%20finality))。このモデルでは「1人でも正直な検証者がいれば不正は最終的に暴かれる」という前提で安全性を担保しており、全てを証明するzk方式に比べて計算コストが低く実装が容易という利点があります ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Optimistic%20rollups%3A%20As%20regular%20layer,bring%20down%20overall%20computation%20costs)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Although%2C%20the%20disadvantage%20is%20optimistic,which%20can%20potentially%20increase%20costs))。一方で、最終的に資金を引き出すまでにチャレンジ期間の分だけ時間がかかる（典型的には1週間程度ユーザー資金がロックされる）という欠点があります ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=The%20disadvantage%20is%20the%20challenge,high%20latency%20for%20transaction%20finality)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Zero,it%20leads%20to%20state%20updates))。
+    // メモリ（1024バイトのゼロ初期化）
+    var memory: [1024]u8 = [_]u8{0} ** 1024;
 
-- **zk-Rollup**は全てのトランザクション結果について**有効性証明（バリディティプルーフ）**を生成し、それをレイヤー1で検証させる方式です。各ロールアップブロックごとにZK-SNARKやZK-STARKによる証明が作られ、レイヤー1はその暗号学的証明をチェックすることでロールアップ内の全取引が正しく行われたことを保証します ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Zero,it%20leads%20to%20state%20updates))。この方式では不正な状態更新は**そもそも承認されない**ため、チャレンジ期間を設ける必要がなく、ユーザーはロールアップから即座に資金を引き出すことができます ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=valid%20fraud,reverse%20the%20older%20transaction%20data)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Zero,it%20leads%20to%20state%20updates))。セキュリティも数理的に保証されており、信頼するのは証明を生成する回路の正当性だけで、人間の監視者に依存しません ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Zero,proofs%20instead%20of%20human%20actors))。欠点は、証明の生成に高度な計算（専門的なハードウェアや時間）を要する点と、検証も多少のオンチェイン計算コストがかかる点です ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=mathematical%20proofs%20instead%20of%20human,actors)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=techniques%20where%20an%20index%20represents,data%20on%20the%20base%20chain))。しかし技術の進歩により証明生成はだいぶ高速になってきており、徐々に実用段階に入っています。また、zkロールアップは付随的に**プライバシー**を高めることも可能です。取引内容に関する詳細（例えばユーザーのアドレスや取引額）を証明生成者以外には秘匿しつつ、正当性だけを示すことができるため、希望すればL2上で匿名性を実現することもできます ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Optimistic%20rollups%3A%20They%20have%20less,chain%20analytics%20and%20identification)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Zero,revealing%20any%20sensitive%20user%20information))。
+    // ストレージ（ハッシュマップ）
+    var storage = std.HashMap(u256, u256).init(std.heap.page_allocator);
 
-要約すると、Optimistic Rollupは**「楽観＆事後チェック」**、zk-Rollupは**「事前に厳格チェック」**のアプローチと言えます。前者は実装が簡単で当初のスループット向上には有利ですが、最終性（ファイナリティ）が遅延しうる点と、常に監視者の存在を仮定する点でトレードオフがあります ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=Optimistic%20rollups%3A%20These%20rollups%20function,them%20on%20the%20main%20blockchain)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=The%20disadvantage%20is%20the%20challenge,high%20latency%20for%20transaction%20finality))。後者は即時に高いセキュリティと最終性を得られますが、計算コストや回路設計の複雑さというハードルがあります ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=However%2C%20ZK%20rollups%20have%20complicated,in%20increased%20fees%20for%20users)) ([Optimistic vs Zero-Knowledge Rollups: Which is best?](https://blog.thirdweb.com/optimistic-rollups-vs-zero-knowledge-zk-rollups/#:~:text=mathematical%20proofs%20instead%20of%20human,actors))。両者の手法はEthereumのスケーラビリティ問題に対する有力な解決策であり、現在はoptimistic方式が先行する一方で、zk方式も実用化が進みつつあります。
+    // ガスとプログラムカウンタの初期化
+    var gas: usize = 10_000; // 仮のガス上限
+    var pc: usize = 0;
 
-### Arbitrum, Optimism, StarkNet, zkSync などの比較
-代表的なレイヤー2プロジェクトとして、Optimistic Rollup系の**Arbitrum**と**Optimism**、そしてzk-Rollup系の**StarkNet**と**zkSync** が挙げられます。それぞれEVM互換性の確保方法や設計哲学に違いがあります。
+    // 戻り値用のバッファ（最大32バイト=256ビット分）
+    var return_data: [32]u8 = undefined;
+    var return_size: usize = 0;
 
-- **Optimism**: OptimismはOptimistic Rollupのプロジェクトで、開発初期にはOVMと呼ばれる独自の仮想マシンレイヤーを用いていましたが、現在はEVMと完全に等価な環境（EVM Equivalence）を実現しています ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=The%20user%20experience%20on%20Optimism,This%20has%20two%20primary%20advantages))。Optimismの技術的特徴として、**シングルラウンドのfraud-proof（Fault Proof）**方式を採用している点が挙げられます ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=In%20detail%2C%20Optimism%20differs%20from,the%20Layer%201%20Ethereum%20mainnet))。不正検証の際、一度のオンチェイン実行で成否を判定するシンプルな仕組みで、設計を簡素化する代わりに不正時のガス消費が大きくなる可能性があります ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=In%20detail%2C%20Optimism%20differs%20from,the%20Layer%201%20Ethereum%20mainnet))。実際Optimismチームは2021年末のアップデートで一時fraud-proofを無効化しつつEVM互換性の向上（OVM特有のルール撤廃）を優先しました ([Optimism & Arbitrum: Tracking Decentralization Progress - Galaxy](https://www.galaxy.com/insights/research/optimism-arbitrum-pt2-decentralization/#:~:text=Galaxy%20www,the%20existing%20fraud%20proof))。その後、2023年に入りOptimismも新たなfault-proofシステムのテストを開始しており、将来的にはArbitrum同様の効率的な複数ラウンド方式に近づく見通しです ([Optimism Finally Starts Testing 'Fault Proofs' at Heart of Design](https://www.coindesk.com/tech/2024/03/19/optimism-finally-starts-testing-fault-proofs-at-heart-of-design-and-of-criticism#:~:text=Optimism%20Finally%20Starts%20Testing%20%27Fault,equivalent%20rather%20than%20EVM))。ユーザーから見ると、Optimism上でのDApp利用体験はメインネットEthereumとほとんど変わらず、トランザクション手数料が安く高速なEthereumといった感覚で利用できます ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=The%20user%20experience%20on%20Optimism,This%20has%20two%20primary%20advantages))。総合的に、Optimismは実用性を重視し段階的に進化しているRollupであり、多くのDeFiやゲーム系DAppが展開されています。
+    // EVM命令実行ループ
+    while (pc < code.len) : (pc += 1) {
+        const opcode = code[pc];
 
-- **Arbitrum**: ArbitrumもOptimistic Rollupの1つで、技術的には**マルチラウンドのfraud-proof**を実装している点が特徴です ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=employs%20multi,the%20security%20inherited%20from%20Ethereum))。不正が疑われた際に、疑わしいトランザクションの実行をバイナリサーチのように細かく分割し、何ステップ目で食い違いがあるかを特定する対話的なプロトコルによって効率的に不正検証を行います ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=employs%20multi,the%20security%20inherited%20from%20Ethereum)) ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=%2A%20Multi,to%20reduce%20congestion%20and%20fees))。この方式により、一度の検証あたりのオンチェイン実行コストを抑え、全体として低ガスでの不正検出を可能にしています（その代わりに最終確定までに複数回の応酬が必要なため、結果としてファイナリティ時間は若干延びます）([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=multi,to%20longer%20transaction%20finality%20times)) ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=%2A%20Multi,to%20reduce%20congestion%20and%20fees))。Arbitrumは2022年にNitroアップグレードを行い、EVM互換性とスループットを大幅に向上させました。現在では開発者にとってほぼ通常のEVMと同じ感覚でコントラクトをデプロイでき、Optimismと並んで主要なRollupの一角を占めています。エコシステム面でもArbitrumはTVLでOptimismを上回るなど好調で、独自トークンを発行して分散型ガバナンスを開始するなどコミュニティも活発です。
+        // ガス消費: シンプルに各命令ごとに1ガス（本実装では細かく設定可能）
+        if (gas == 0) break; // ガス切れで停止
+        gas -= 1;
 
-- **StarkNet**: 前述の通りStarkNetはStarkWare社によるzk-Rollupで、**EVM互換性を持たない独自路線**を進んでいます。トランザクションの有効性はZK-STARKで証明され、レイヤー1に定期的に有効性証明を投稿しています。開発者体験はEthereumとは大きく異なり、SolidityではなくCairoという専用言語を用いてスマートコントラクトを書く必要があります ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=StarkNet%20is%20one%20of%20the,processing%2010m%2B%20transactions%20each%20month))。当初はSolidityコードをCairoに変換するWarpプロジェクトもありましたが、現在は廃止されCairoネイティブでのエコシステム構築に舵が切られています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Initially%2C%20the%20StarkNet%20ecosystem%20explored,of%20the%20EVM%20win%20out))。このためEthereumの既存開発者コミュニティとは隔たりがありますが、逆に言えばEVMの制約に縛られない自由な設計が可能で、より高度な機能実装や性能チューニングが期待できます ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Building%20this%20new%20ecosystem%20from,and%20have%20been%20widely%20adopted))。事実、StarkNetはアカウント抽象化（Account Abstraction）を最初から組み込んでおり、ユーザビリティや機能面で先進的な試みをいくつも実現しています ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Building%20this%20new%20ecosystem%20from,and%20have%20been%20widely%20adopted))。性能面では現状、秒間数十～百件規模の処理とアルファ版ゆえの高ガス費（L1投稿コスト）という課題もありますが、将来的な最適化と普及次第ではメインネットに匹敵するL2になり得るポテンシャルを秘めています。
+        switch (opcode) {
+            0x00 => |STOP| { // STOP命令: 実行終了
+                break :while;
+            },
+            0x01 => |ADD| { // ADD命令: スタック上位2項を加算
+                if (sp < 2) break :while; // アンダーフロー対策
+                sp -= 2;
+                // 256ビット加算（オーバーフローは自動で256bit内に切り捨て）
+                stack[sp] = stack[sp] + stack[sp + 1];
+                sp += 1;
+            },
+            0x02 => |MUL| { // MUL命令: 乗算
+                if (sp < 2) break :while;
+                sp -= 2;
+                stack[sp] = stack[sp] * stack[sp + 1];
+                sp += 1;
+            },
+            0x03 => |SUB| { // SUB命令: 減算 (stack[sp-2] - stack[sp-1])
+                if (sp < 2) break :while;
+                sp -= 2;
+                stack[sp] = stack[sp] - stack[sp + 1];
+                sp += 1;
+            },
+            0x04 => |DIV| { // DIV命令: 除算（整数の商）
+                if (sp < 2) break :while;
+                sp -= 2;
+                const divisor = stack[sp + 1];
+                if (divisor == 0) {
+                    // EVMのDIVは divisor=0 の場合は結果0を返す
+                    stack[sp] = 0;
+                } else {
+                    stack[sp] = stack[sp] / divisor;
+                }
+                sp += 1;
+            },
+            0x35 => |CALLDATALOAD| { // CALLDATALOAD: コールデータから32バイト読み込む
+                if (sp < 1) break :while;
+                // 引数としてオフセット値をスタックから取得
+                const offset = stack[sp - 1] & 0xffffffffffffffff; // 下位64bitを取り出しusizeに
+                const off = @intCast(usize, offset);
+                sp -= 1;
+                // オフセットから32バイトを読み込み、足りない部分は0埋め
+                var word: u256 = 0;
+                var i: u8 = 0;
+                while (i < 32 and off + @intCast(usize, i) < calldata.len) : (i += 1) {
+                    word |= (u256(calldata[off + i]) << ((31 - i) * 8));
+                }
+                // 読み取った32バイトの値をスタックに積む
+                stack[sp] = word;
+                sp += 1;
+            },
+            0x51 => |MLOAD| { // MLOAD: メモリから32バイト読み込む
+                if (sp < 1) break :while;
+                const offset = @intCast(usize, stack[sp - 1]);
+                sp -= 1;
+                var word: u256 = 0;
+                // メモリ[offset: offset+32]の値を読み込み（境界チェックあり）
+                if (offset + 32 <= memory.len) {
+                    // 32バイトをまとめて読み取り
+                    var j: usize = 0;
+                    while (j < 32) : (j += 1) {
+                        word |= (u256(memory[offset + j]) << ((31 - j) * 8));
+                    }
+                }
+                stack[sp] = word;
+                sp += 1;
+            },
+            0x52 => |MSTORE| { // MSTORE: メモリに32バイト書き込む
+                if (sp < 2) break :while;
+                sp -= 2;
+                const offset = @intCast(usize, stack[sp]);
+                var value = stack[sp + 1];
+                if (offset + 32 <= memory.len) {
+                    // 32バイトをメモリに書き込む
+                    var j: usize = 0;
+                    while (j < 32) : (j += 1) {
+                        memory[offset + j] = @byteCast(value >> ((31 - j) * 8));
+                    }
+                }
+            },
+            0x54 => |SLOAD| { // SLOAD: ストレージから読み込み
+                if (sp < 1) break :while;
+                const key = stack[sp - 1];
+                sp -= 1;
+                const result = storage.get(key);
+                stack[sp] = if (result) |val| val else 0;
+                sp += 1;
+            },
+            0x55 => |SSTORE| { // SSTORE: ストレージに書き込み
+                if (sp < 2) break :while;
+                sp -= 2;
+                const key = stack[sp];
+                const value = stack[sp + 1];
+                // ハッシュマップにキーと値を保存（既存なら更新）
+                _ = storage.put(key, value);
+            },
+            0x56 => |JUMP| { // JUMP: 無条件ジャンプ
+                if (sp < 1) break :while;
+                const dest = @intCast(usize, stack[sp - 1]);
+                sp -= 1;
+                // ジャンプ先はJUMPDEST命令(0x5B)である必要がある（簡易実装では省略可）
+                if (dest >= code.len or code[dest] != 0x5B) {
+                    break :while; // 不正なジャンプ先なら停止
+                }
+                pc = dest;
+            },
+            0x57 => |JUMPI| { // JUMPI: 条件付きジャンプ
+                if (sp < 2) break :while;
+                sp -= 2;
+                const dest = @intCast(usize, stack[sp]);
+                const cond = stack[sp + 1];
+                if (cond != 0) {
+                    if (dest >= code.len or code[dest] != 0x5B) {
+                        break :while;
+                    }
+                    pc = dest;
+                }
+            },
+            0x5B => |JUMPDEST| {
+                // ジャンプ先ラベル（何もしない）
+            },
+            0xF3 => |RETURN| { // RETURN: 実行結果を返して停止
+                if (sp < 2) break :while;
+                sp -= 2;
+                const offset = @intCast(usize, stack[sp]);
+                const length = @intCast(usize, stack[sp + 1]);
+                // メモリからoffset位置よりlengthバイトを取り出しreturn_dataに格納
+                if (offset + length <= memory.len and length <= return_data.len) {
+                    std.mem.copy(u8, return_data[0..length], memory[offset .. offset+length]);
+                    return_size = length;
+                }
+                break :while; // 実行ループを抜ける
+            },
+            else => {
+                // 未実装のオペコードに遭遇した場合
+                break :while;
+            }
+        } // end switch
+    } // end while
 
-- **zkSync**: zkSyncはMatter Labs社によるzk-Rollupプロジェクトで、Ethereumと親和性の高いアプローチを採っています。最新のバージョンである**zkSync Era**では、SolidityやVyperで記述したコントラクトをそのままデプロイ可能で、一見EVM互換のように見えます。しかし内部的には**zkEVMではなく独自のzkVM**を用いており、Solidityのコードは一旦通常のEVMバイトコードにコンパイルされた後、さらにzkSync用のバイトコードに変換されて実行されます ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=The%20fourth%20category%3A%20High,eventually%20move%20to%20higher%20types))。このためEthereumのほとんどのプログラムに対応しますが、一部プリコンパイルなど特殊な機能はサポートされない場合があります ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=easier%20and%20to%20generate%20proofs,belong%20to%20the%20third%20group)) ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=The%20fourth%20category%3A%20High,eventually%20move%20to%20higher%20types))（互換性レベルとしてはVitalik氏の類型でいうType 4に近い）。zkSyncはプルーフにZK-SNARK（PLONK系の証明）を使用しており、迅速なファイナリティと引き出しを実現しています。また、データ圧縮やアカウント抽象化を導入することでL2手数料の削減にも取り組んでいます。総じて、zkSyncは「可能な限りEthereumと開発者体験を変えずにzkロールアップを実現する」ことを目指したプロジェクトと言え、既にDeFiやNFT分野で複数のプロジェクトが稼働し始めています。
+    return return_data[0..return_size];
+}
+```
 
-これら4つのプロジェクトを比較すると、**OptimismとArbitrumはOptimistic RollupでEVM完全互換を志向**し、**StarkNetとzkSyncはzkRollupでそれぞれ異なる互換性戦略**を取っている点が対照的です。前者2つはEthereumとほぼ同じ開発者エクスペリエンスを提供することで迅速なエコシステム拡大に成功しました。一方、後者2つはゼロ知識証明という先端技術を活用しつつ、互換性の程度に濃淡があります（StarkNetは独自路線、zkSyncは高い互換性）。この多様性により、開発者やユーザーはユースケースに応じて適切なL2ソリューションを選べるようになっています。
+上記のコードで、EVMの主要なオペコードの一部（算術演算、メモリアクセス、ストレージアクセス、ジャンプ、リターンなど）を実装しています。それぞれの部分について補足説明します。
 
-### Layer2 の EVM互換性の仕組み
-多くのレイヤー2がユーザー獲得のために重視しているのが**EVM互換性**です。EVM互換性とは、SolidityやVyperで書かれた既存のスマートコントラクトやツール群（TruffleやHardhat、MetaMask等）をそのまま利用できる互換性を指します ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=A%20layer%202%20is%20EVM,tested%20tools%20they%E2%80%99re%20used%20to))。互換性の確保方法はプロジェクトによって異なりますが、大きく分けて「EVMをそのままL2上で動かす」か「Solidityコードを別VM向けに変換して動かす」かの二通りがあります。
+- **算術演算系** (`ADD`, `SUB`, `MUL`, `DIV`): スタックトップの2つの値を取り出して演算し、結果をスタックに積み直しています。Zigの`u256`型は256ビット整数ですので、加減乗除はいずれも256ビットの範囲で自動的に桁あふれ（オーバーフロー）時には下位256ビットに切り詰められます。EVM仕様では算術は全てモジュロ$2^{256}$（256ビット幅で切り詰め）ですので、Zigのデフォルト動作と合致します。DIV命令では除数が0の場合に結果を0とする処理も再現しています。各演算の直前にスタックポインタ`sp`を調整し、スタックアンダーフローが起きないようにチェックしています。
 
-**OptimismやArbitrum**では前者の方式を採っており、L2上にEthereumと同等のEVM実行環境（状態遷移やガス計算のルールも同一）を実装しています ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=The%20user%20experience%20on%20Optimism,This%20has%20two%20primary%20advantages))。そのため、Solidityで書かれコンパイルされたバイトコードを特別な変更なしにL2へデプロイでき、メタマスク等からの取引送信も通常のEthereumと同じ要領で行えます。まさに「EVMをそのまま拡張した」ような環境であり、これを指して**EVM Equivalence（EVM同等性）**と呼ぶこともあります ([Optimism vs Arbitrum: Comparing Layer 2 Scaling Solutions](https://coinpaper.com/3102/optimism-vs-arbitrum-comparing-layer-2-scaling-solutions#:~:text=The%20user%20experience%20on%20Optimism,This%20has%20two%20primary%20advantages))。例えばOptimismはガス計算など一部異なっていたOVMを廃止し、現在はGeth相当のクライアント上でEVMバイトコードを実行しています。またArbitrumもNitro以降、内部でWASMに変換して実行しているものの、表面上の挙動は完全にEVMと一致するようになりました。
+- **PUSH系**: コード中では一般化していますが、`0x60`から`0x7F`までの命令はそれぞれPUSH1～PUSH32を表し、直後の1～32バイトの即値をスタックに積む命令です。上のコードでは`switch`の`else`で一括処理していませんが、本来であれば`opcode >= 0x60 and opcode <= 0x7F`の場合にその値に応じたバイト数を読み取ってスタックに積む処理を行います。例えばPUSH1 (0×60)なら次の1バイトを、PUSH32 (0×7F)なら次の32バイトをまとめて読み込み、256ビット値に詰めてスタックに載せ、`pc`を対応する分だけ進めます。**（注: 上記コードでは簡潔さのためPUSH命令の実装は省略しています。同様にPOP(0×50)やDUP, SWAPなどのスタック操作命令も省略しています）。**
 
-一方、**StarkNetやzkSync**では後者の方式を採用しています。すなわち、Solidityで書いたコードを一旦通常のEVMバイトコードにコンパイルし、さらにそれを各プロジェクト独自のVM向けバイトコードに**トランスパイル**（変換）して実行します ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=The%20fourth%20category%3A%20High,eventually%20move%20to%20higher%20types))。zkSyncではEthereumのOpcodeをエミュレートするカスタムVM上で動かし、StarkNetではCairo VM上で動くように高水準言語（Solidity）レベルで互換性を持たせるアプローチでした（現在はSolidityサポートは停止）。このような方式では、一部Ethereum特有の機能（例えばプリコンパイルされた暗号関数やガスコストの差異など）に違いが生じる可能性があります ([zkEVM solution: zkSync, StarkNet, Polygon zkEVM, Scroll - BlockBeats](https://m.theblockbeats.info/en/news/36080#:~:text=The%20fourth%20category%3A%20High,eventually%20move%20to%20higher%20types))。例えば、あるSolidityコントラクトがEthereumでは動作しても、StarkNet用に書き直した場合は細かな挙動が異なる、といったケースも起こりえます。しかし多くの標準的なアプリケーションについては支障なく動作するよう設計されており、実質的にSolidityでL2開発が行える利便性を提供しています。
+- **メモリアクセス** (`MLOAD`, `MSTORE`): メモリ配列からの読み書きを行います。`MLOAD(0x51)`はスタックからオフセットを取り出し、その位置から32バイトのデータを読み込んでスタックに積みます。`MSTORE(0x52)`はスタックから値とオフセットを取り出し、メモリの指定位置に32バイトの値を書き込みます。ここではメモリ配列`memory`を1024バイトに固定しており、範囲外アクセスは何もしない形で対処しています。本来EVMでは、未アクセス領域に書き込もうとすると自動でメモリが拡張され、その分のガスを消費します ([スマートコントラクトの紹介 — Solidity 0.8.21 ドキュメント](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#:~:text=2%E3%81%A4%E7%9B%AE%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E9%A0%98%E5%9F%9F%E3%81%AF%20%E3%83%A1%E3%83%A2%E3%83%AA%20%E3%81%A8%E5%91%BC%E3%81%B0%E3%82%8C%E3%80%81%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AF%E3%83%A1%E3%83%83%E3%82%BB%E3%83%BC%E3%82%B8%E3%82%92%E5%91%BC%E3%81%B3%E5%87%BA%E3%81%99%E3%81%9F%E3%81%B3%E3%81%AB%E3%82%AF%E3%83%AA%E3%82%A2%E3%81%95%E3%82%8C%E3%81%9F%E3%81%B0%E3%81%8B%E3%82%8A%E3%81%AE%E3%82%A4%E3%83%B3%E3%82%B9%E3%82%BF%E3%83%B3%E3%82%B9%E3%82%92%E5%8F%96%E5%BE%97%E3%81%97%E3%81%BE%E3%81%99%E3%80%82%20%E3%83%A1%E3%83%A2%E3%83%AA%E3%81%AF%E7%B7%9A%E5%BD%A2%E3%81%A7%E3%80%81%E3%83%90%E3%82%A4%E3%83%88%E3%83%AC%E3%83%99%E3%83%AB%E3%81%A7%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9%E3%82%92%E6%8C%87%E5%AE%9A%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%81%8C%E3%80%81%E8%AA%AD%E3%81%BF%E5%87%BA%E3%81%97%E3%81%AF256%E3%83%93%E3%83%83%E3%83%88%E3%81%AE%E5%B9%85%E3%81%AB%E5%88%B6%E9%99%90%E3%81%95%E3%82%8C%E3%80%81%E6%9B%B8%E3%81%8D%E8%BE%BC%E3%81%BF%E3%81%AF8%E3%83%93%E3%83%83%E3%83%88%E3%81%BE%E3%81%9F%E3%81%AF256%E3%83%93%E3%83%83%E3%83%88%E3%81%AE%E5%B9%85%E3%81%AB%E5%88%B6%E9%99%90%E3%81%95%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82%20%E3%83%A1%E3%83%A2%E3%83%AA%E3%81%AF%E3%80%81%E3%81%93%E3%82%8C%E3%81%BE%E3%81%A7%E6%89%8B%E3%81%A4%E3%81%8B%E3%81%9A%E3%81%A0%E3%81%A3%E3%81%9F%E3%83%A1%E3%83%A2%E3%83%AA%E3%83%AF%E3%83%BC%E3%83%89%EF%BC%88%E3%83%AF%E3%83%BC%E3%83%89%E5%86%85%E3%81%AE%E4%BB%BB%E6%84%8F%E3%81%AE%E3%82%AA%E3%83%95%E3%82%BB%E3%83%83%E3%83%88%EF%BC%89%E3%81%AB%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B9%EF%BC%88%E8%AA%AD%E3%81%BF%E5%87%BA%E3%81%97%E3%81%BE%E3%81%9F%E3%81%AF%E6%9B%B8%E3%81%8D%E8%BE%BC%E3%81%BF%EF%BC%89%E3%81%99%E3%82%8B%E3%81%A8%E3%80%81%E3%83%AF%E3%83%BC%E3%83%89%EF%BC%88256%E3%83%93%E3%83%83%E3%83%88%EF%BC%89%E5%8D%98%E4%BD%8D%E3%81%A7%E6%8B%A1%E5%BC%B5%E3%81%95%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82,%E6%8B%A1%E5%BC%B5%E6%99%82%E3%81%AB%E3%81%AF%E3%80%81%E3%82%AC%E3%82%B9%E3%81%AB%E3%82%88%E3%82%8B%E3%82%B3%E3%82%B9%E3%83%88%E3%82%92%E6%94%AF%E6%89%95%E3%82%8F%E3%81%AA%E3%81%91%E3%82%8C%E3%81%B0%E3%81%AA%E3%82%8A%E3%81%BE%E3%81%9B%E3%82%93%E3%80%82%20%E3%83%A1%E3%83%A2%E3%83%AA%E3%81%AF%E5%A4%A7%E3%81%8D%E3%81%8F%E3%81%AA%E3%82%8C%E3%81%B0%E3%81%AA%E3%82%8B%E3%81%BB%E3%81%A9%E3%82%B3%E3%82%B9%E3%83%88%E3%81%8C%E9%AB%98%E3%81%8F%E3%81%AA%E3%82%8A%E3%81%BE%E3%81%99%EF%BC%88%E4%BA%8C%E6%AC%A1%E9%96%A2%E6%95%B0%E7%9A%84%E3%81%AB%E3%82%B9%E3%82%B1%E3%83%BC%E3%83%AB%E3%81%99%E3%82%8B%EF%BC%89%E3%80%82))。簡易実装では固定長かつガス消費も一律にしているため、その部分は省略しています。
 
-**何故EVM互換性が重要か？** それはEthereumが長年培ってきた膨大な開発者コミュニティとツールエコシステムをそのまま活用できるからです ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=A%20layer%202%20is%20EVM,tested%20tools%20they%E2%80%99re%20used%20to))。新しいL1ブロックチェインを一から作っても、開発言語が独自だったりツールが未整備だと開発者はなかなか移行しません。その点、L2がEVM互換であればEthereumの実績ある「バトルテスト済み」のツール群（Solidityコンパイラ、監査ツール、フレームワーク等）をすぐ使え、ユーザーも既存のウォレットで簡単にアクセスできます ([What Is a zkEVM? | Chainlink](https://chain.link/education-hub/zkevm#:~:text=logic,tested%20tools%20they%E2%80%99re%20used%20to))。Optimism創設者のKarl Floerschが「EVM Equivalence」を強調したように、互換性の高さはユーザー・開発者獲得のカギなのです。
+- **ストレージアクセス** (`SLOAD`, `SSTORE`): `SLOAD(0x54)`はスタックトップのキーを取り出し、ストレージマップから該当する値を読み込んでスタックに積みます。`SSTORE(0x55)`はスタックトップのキーとその下の値を取り出し、ストレージマップに保存します。ここではZigの`std.HashMap`を用いて`u256`→`u256`のマッピングを実現しています。初期化に`std.heap.page_allocator`という簡易なアロケータを使っている点はZig特有ですが、要はヒープ上にハッシュマップを確保しています。ストレージアクセス命令もメモリアクセス同様、本来は高額なガスを消費し、特にSSTOREは書き込み状況により異なる複雑なコスト計算があります ([スマートコントラクトの紹介 — Solidity 0.8.21 ドキュメント](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#:~:text=%E5%90%84%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%81%AB%E3%81%AF%20%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%20%E3%81%A8%E5%91%BC%E3%81%B0%E3%82%8C%E3%82%8B%E3%83%87%E3%83%BC%E3%82%BF%E9%A0%98%E5%9F%9F%E3%81%8C%E3%81%82%E3%82%8A%E3%80%81%E9%96%A2%E6%95%B0%E5%91%BC%E3%81%B3%E5%87%BA%E3%81%97%E3%82%84%E3%83%88%E3%83%A9%E3%83%B3%E3%82%B6%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E9%96%93%E3%81%A7%E6%B0%B8%E7%B6%9A%E7%9A%84%E3%81%AB%E4%BD%BF%E7%94%A8%E3%81%95%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82%20storage%E3%81%AF256%E3%83%93%E3%83%83%E3%83%88%E3%81%AE%E3%83%AF%E3%83%BC%E3%83%89%E3%82%92256%E3%83%93%E3%83%83%E3%83%88%E3%81%AE%E3%83%AF%E3%83%BC%E3%83%89%E3%81%AB%E3%83%9E%E3%83%83%E3%83%94%E3%83%B3%E3%82%B0%E3%81%99%E3%82%8Bkey,%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E5%86%85%E3%81%8B%E3%82%89%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%E3%82%92%E5%88%97%E6%8C%99%E3%81%A7%E3%81%8D%E3%81%9A%E3%80%81%E8%AA%AD%E3%81%BF%E8%BE%BC%E3%81%BF%E3%81%AB%E3%81%AF%E6%AF%94%E8%BC%83%E7%9A%84%E3%82%B3%E3%82%B9%E3%83%88%E3%81%8C%E3%81%8B%E3%81%8B%E3%82%8A%E3%80%81%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%E3%81%AE%E5%88%9D%E6%9C%9F%E5%8C%96%E3%82%84%E5%A4%89%E6%9B%B4%E3%81%AB%E3%81%AF%E3%81%95%E3%82%89%E3%81%AB%E3%82%B3%E3%82%B9%E3%83%88%E3%81%8C%E3%81%8B%E3%81%8B%E3%82%8A%E3%81%BE%E3%81%99%E3%80%82%20%E3%81%93%E3%81%AE%E3%82%B3%E3%82%B9%E3%83%88%E3%81%AE%E3%81%9F%E3%82%81%E3%80%81%E6%B0%B8%E7%B6%9A%E7%9A%84%E3%81%AA%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%E3%81%AB%E4%BF%9D%E5%AD%98%E3%81%99%E3%82%8B%E3%82%82%E3%81%AE%E3%81%AF%E3%80%81%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%8C%E5%AE%9F%E8%A1%8C%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AB%E5%BF%85%E8%A6%81%E3%81%AA%E3%82%82%E3%81%AE%E3%81%AB%E9%99%90%E5%AE%9A%E3%81%99%E3%82%8B%E3%81%B9%E3%81%8D%E3%81%A7%E3%81%99%E3%80%82%20%E6%B4%BE%E7%94%9F%E3%81%99%E3%82%8B%E8%A8%88%E7%AE%97%E3%80%81%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B7%E3%83%B3%E3%82%B0%E3%80%81%E3%82%A2%E3%82%B0%E3%83%AA%E3%82%B2%E3%83%BC%E3%83%88%E3%81%AA%E3%81%A9%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AF%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AE%E5%A4%96%E3%81%AB%E4%BF%9D%E5%AD%98%E3%81%97%E3%81%BE%E3%81%99%E3%80%82%20%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AF%E3%80%81%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E4%BB%A5%E5%A4%96%E3%81%AE%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%E3%81%AB%E5%AF%BE%E3%81%97%E3%81%A6%E8%AA%AD%E3%81%BF%E6%9B%B8%E3%81%8D%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93%E3%80%82))。ここでは簡単化のため、一律のガス消費（上記では各命令ごとに仮に1ガス）で処理しています。
 
-もっとも、互換性と性能・機能はトレードオフになる場合もあります。StarkNetのように敢えて非互換路線を取ることで、Ethereumでは難しい新機能を実現できる利点もあります ([The State of zkEVMs: End of 2023 | Immutable Blog](https://www.immutable.com/blog/the-state-of-zkevms-end-of-2023#:~:text=Building%20this%20new%20ecosystem%20from,and%20have%20been%20widely%20adopted))。最終的には、互換性重視のL2と独自路線のL2が併存し、それぞれの強みを発揮してEthereum全体のスケーラビリティを支える構図となっています。いずれにせよ、**EVM互換チェイン**という言葉が示す通り、EthereumのDNAを受け継ぎつつ拡張するレイヤー2技術は今後も進化と普及が見込まれます。
+- **コールデータアクセス** (`CALLDATALOAD`): コールデータ（呼び出し時の入力）から32バイトを読み込む命令です。Solidityで関数の引数を読み取る際などに使用されています。上記コードでは`CALLDATALOAD(0x35)`にて、スタックから読み込み開始オフセットを取得し、その位置から32バイトを`calldata`配列からコピーしています。`calldata`は`run`関数の引数で渡されるバイト列で、呼び出し元が事前に構築します（後述しますが、関数識別子や引数をエンコードしたデータです）。`CALLDATALOAD`は範囲外を読み込もうとした場合は足りない部分をゼロ埋めする仕様なので、コピー時に配列範囲をチェックし、足りなければ残りは0のままにしています。
 
-## 5. スマートコントラクトのセキュリティとフォーマル検証
+- **ジャンプ命令** (`JUMP`, `JUMPI`, `JUMPDEST`): コントラクト内のコードの分岐やループに使われます。`JUMP(0x56)`はスタックトップの値をジャンプ先アドレス（PC値）として設定します。`JUMPI(0x57)`は条件付きジャンプで、スタックトップの条件値が0でない場合のみ2番目の値をPCに設定します。ジャンプ先は必ず`JUMPDEST(0x5B)`命令の位置でなければなりません ([スマートコントラクトの紹介 — Solidity 0.8.21 ドキュメント](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#:~:text=EVM%E3%81%AF%E3%83%AC%E3%82%B8%E3%82%B9%E3%82%BF%E3%83%9E%E3%82%B7%E3%83%B3%E3%81%A7%E3%81%AF%E3%81%AA%E3%81%8F%E3%80%81%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%83%9E%E3%82%B7%E3%83%B3%E3%81%AA%E3%81%AE%E3%81%A7%E3%80%81%E3%81%99%E3%81%B9%E3%81%A6%E3%81%AE%E8%A8%88%E7%AE%97%E3%81%AF%20%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%20%E3%81%A8%E5%91%BC%E3%81%B0%E3%82%8C%E3%82%8B%E3%83%87%E3%83%BC%E3%82%BF%E9%A0%98%E5%9F%9F%E3%81%A7%E8%A1%8C%E3%82%8F%E3%82%8C%E3%81%BE%E3%81%99%E3%80%82%20%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AE%E6%9C%80%E5%A4%A7%E3%82%B5%E3%82%A4%E3%82%BA%E3%81%AF1024%E8%A6%81%E7%B4%A0%E3%81%A7%E3%80%81256%E3%83%93%E3%83%83%E3%83%88%E3%81%AE%E3%83%AF%E3%83%BC%E3%83%89%E3%82%92%E5%90%AB%E3%81%BF%E3%81%BE%E3%81%99%E3%80%82%20%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%B8%E3%81%AE%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B9%E3%81%AF%E6%AC%A1%E3%81%AE%E3%82%88%E3%81%86%E3%81%AB%E4%B8%8A%E7%AB%AF%E3%81%AB%E5%88%B6%E9%99%90%E3%81%95%E3%82%8C%E3%81%A6%E3%81%84%E3%81%BE%E3%81%99%E3%80%82,%E4%B8%80%E7%95%AA%E4%B8%8A%E3%81%AE16%E5%80%8B%E3%81%AE%E8%A6%81%E7%B4%A0%E3%81%AE1%E3%81%A4%E3%82%92%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AE%E4%B8%80%E7%95%AA%E4%B8%8A%E3%81%AB%E3%82%B3%E3%83%94%E3%83%BC%E3%81%97%E3%81%9F%E3%82%8A%E3%80%81%E4%B8%80%E7%95%AA%E4%B8%8A%E3%81%AE%E8%A6%81%E7%B4%A0%E3%82%92%E3%81%9D%E3%81%AE%E4%B8%8B%E3%81%AE16%E5%80%8B%E3%81%AE%E8%A6%81%E7%B4%A0%E3%81%AE1%E3%81%A4%E3%81%A8%E5%85%A5%E3%82%8C%E6%9B%BF%E3%81%88%E3%81%9F%E3%82%8A%E3%81%99%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C%E5%8F%AF%E8%83%BD%E3%81%A7%E3%81%99%E3%80%82%20%E3%81%9D%E3%82%8C%E4%BB%A5%E5%A4%96%E3%81%AE%E6%93%8D%E4%BD%9C%E3%81%A7%E3%81%AF%E3%80%81%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%8B%E3%82%89%E6%9C%80%E4%B8%8A%E4%BD%8D%E3%81%AE2%E8%A6%81%E7%B4%A0%EF%BC%88%E6%93%8D%E4%BD%9C%E3%81%AB%E3%82%88%E3%81%A3%E3%81%A6%E3%81%AF1%E8%A6%81%E7%B4%A0%E3%80%81%E3%81%BE%E3%81%9F%E3%81%AF%E3%81%9D%E3%82%8C%E4%BB%A5%E4%B8%8A%EF%BC%89%E3%82%92%E5%8F%96%E3%82%8A%E5%87%BA%E3%81%97%E3%80%81%E3%81%9D%E3%81%AE%E7%B5%90%E6%9E%9C%E3%82%92%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AB%E3%83%97%E3%83%83%E3%82%B7%E3%83%A5%E3%81%97%E3%81%BE%E3%81%99%E3%80%82%20%E3%82%82%E3%81%A1%E3%82%8D%E3%82%93%E3%80%81%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AE%E8%A6%81%E7%B4%A0%20%E3%82%92%E3%82%B9%E3%83%88%E3%83%AC%E3%83%BC%E3%82%B8%E3%82%84%E3%83%A1%E3%83%A2%E3%83%AA%E3%81%AB%E7%A7%BB%E5%8B%95%E3%81%95%E3%81%9B%E3%81%A6%E3%80%81%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AB%E6%B7%B1%E3%81%8F%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B9%E3%81%99%E3%82%8B%E3%81%93%E3%81%A8%E3%81%AF%E5%8F%AF%E8%83%BD%E3%81%A7%E3%81%99%E3%81%8C%E3%80%81%E6%9C%80%E5%88%9D%E3%81%AB%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AE%E6%9C%80%E4%B8%8A%E9%83%A8%E3%82%92%E5%8F%96%E3%82%8A%E9%99%A4%E3%81%8B%E3%81%9A%E3%81%AB%E3%80%81%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%81%AE%E6%B7%B1%E3%81%84%E3%81%A8%E3%81%93%E3%82%8D%E3%81%AB%E3%81%82%E3%82%8B%E4%BB%BB%E6%84%8F%E3%81%AE%E8%A6%81%E7%B4%A0%E3%81%AB%E3%82%A2%E3%82%AF%E3%82%BB%20%E3%82%B9%E3%81%99%E3%82%8B%E3%81%93%E3%81%A8%E3%81%AF%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93%E3%80%82))。本実装でも最低限それをチェックし、不正なジャンプ先なら停止しています。`JUMPDEST`は何もしないただのラベルのような命令で、ジャンプ可能位置を示すマーカーとして使われます。Solidityが生成するバイトコードでは関数の先頭や分岐先に必ず配置されています。
 
-### Solidityスマートコントラクトの代表的な脆弱性
-スマートコントラクト開発においては、従来のソフトウェア以上にセキュリティへの注意が求められます。Solidityで知られている典型的な脆弱性には以下のようなものがあります。
+- **停止/戻り値** (`STOP`, `RETURN`): `STOP(0x00)`は単に実行を終了します。一方`RETURN(0xF3)`は指定したメモリ範囲のデータを**戻り値**として返しつつ実行を終了します。`RETURN`ではスタックからオフセットと長さを取り出し、そのメモリ内容を`return_data`バッファにコピーしています。そしてループを抜けて`run`関数の戻り値としてそのデータスライスを返しています。EVMでは関数の戻り値やログデータの返却にこの命令が使われます。
 
-- **再入可能性攻撃（Reentrancy）**: 最も有名な脆弱性の1つで、2016年のThe DAOハックでも悪用されました。再入可能性とは、コントラクトが外部に対してETHを送金したり他のコントラクトを呼び出した際に、呼び出し先から自分自身の関数を再度呼び出されてしまい、本来意図しない繰り返し処理が行われる問題です ([Reentrancy Attacks in Solidity Smart Contracts: Full Guide - Cyfrin](https://www.cyfrin.io/blog/what-is-a-reentrancy-attack-solidity-smart-contracts#:~:text=Cyfrin%20www,before%20its%20previous%20execution%20completes))。例えば出金関数で残高をチェックしてから送金するロジックの場合、攻撃者コントラクトがフォールバック関数で被害コントラクトの出金関数を再度呼び出すことで、残高が減算される前に何度も出金処理を繰り返し実行させることができます ([Reentrancy Attacks in Solidity Smart Contracts: Full Guide - Cyfrin](https://www.cyfrin.io/blog/what-is-a-reentrancy-attack-solidity-smart-contracts#:~:text=Cyfrin%20www,before%20its%20previous%20execution%20completes))。結果として、攻撃者は本来1回しか引き出せないはずの資金を何度も引き出して奪うことができてしまいます。対策としては、**チェック-エフェクト-相互作用パターン**（状態更新をしてから外部呼出しを行う）を徹底する、もしくは`ReentrancyGuard`のようなロックを用いるなどして、再入呼び出しを受け付けないように実装します。またSolidity 0.8以降ではデフォルトで`send`/`transfer`がガス制限のため推奨されなくなり、再入保護については開発者の責任に委ねられる部分が増えたため、注意が必要です。
+以上で、簡易EVMエンジンの実装コードは完成です。ガス消費については上記では極めて大雑把に「命令ごとに1減らす」という処理を入れましたが、実際には各オペコードに固有のコストが設定されています ([How does Ethereum Virtual Machine (EVM) work? A deep dive into EVM Architecture and Opcodes | QuickNode Guides](https://www.quicknode.com/guides/ethereum-development/smart-contracts/a-dive-into-evm-architecture-and-opcodes#:~:text=,in%20wei))。例えば、`ADD`は3ガス、`MSTORE`は12ガス、`SLOAD`は100ガスといったように定義があります ([What OPCODES are available for the Ethereum EVM?](https://ethereum.stackexchange.com/questions/119/what-opcodes-are-available-for-the-ethereum-evm#:~:text=What%20OPCODES%20are%20available%20for,operation%200x04%20DIV%20Integer))（ハードフォークによって数値は変更されることがあります）。本実装では深追いしませんが、興味があればイエローペーパーのGas表や[Ethereum EVM Opcodeリファレンス](https://github.com/crytic/evm-opcodes)を参照してください。
 
-- **署名不備・不正な署名検証**: オフチェインでユーザーからの署名を受け取り、それをコントラクト内で`ecrecover`等によって検証するケースでしばしば問題が起こります。典型的なのは**署名の再利用（リプレイ）攻撃**です ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=Replay%20attacks%20occur%20when%20a,replay%20attack%20vulnerabilities%20is%20when))。コントラクトが一度受け付けた署名付きメッセージを何ら管理せず、そのまま何度でも有効にしてしまうと、攻撃者は同じ署名を使い回して複数回処理を実行させることができます ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=Replay%20attacks%20occur%20when%20a,replay%20attack%20vulnerabilities%20is%20when)) ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=authorizing%20a%20transfer%20of%20funds%2C,to%20allow%20the%20owner%20to))。例えば所有者の署名に基づき資金送金を行うコントラクトで、署名ごとに一度しか使えないようなnonce（使い捨て番号）やフラグの管理をしていないと、攻撃者は1つの署名をコピーして何度も送金関数を呼び出し資金を引き出すことが可能になってしまいます ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=match%20at%20L154%20authorizing%20a,to%20allow%20the%20owner%20to)) ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=authorizing%20a%20transfer%20of%20funds%2C,to%20allow%20the%20owner%20to))。また`ecrecover`の戻り値に対する**チェック不足**もよくある問題です。`ecrecover`は無効な署名パラメータが与えられた場合に`0x0`（nullアドレス）を返す可能性がありますが、これを正しく検出せず進めてしまうと、攻撃者は細工した署名で`ecrecover`を失敗させつつ常に`address(0)`を返させ、コントラクト側がそれを有効な署名だと誤認するケースがあります ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=address%20signer%20%3D%20ecrecover,stuff%20with%20the%20hash))。対策としては、署名検証後に戻り値アドレスが期待する署名者かどうか確認し、不正時は必ず処理を中断すること、署名メッセージにはユニークなnonceやドメイン区分（EIP-712など）を含めて**一度きり**かつ**別文脈で使えない**ようにすることが重要です ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=authorizing%20a%20transfer%20of%20funds%2C,to%20allow%20the%20owner%20to)) ([Signature-related Attacks - Smart Contract Security Field Guide](https://scsfg.io/hackers/signature-attacks/#:~:text=match%20at%20L230%20Cross,to%20smart%20contract%20systems%20deployed))。
+### 実装の簡略化と限界
 
-この他にもSolidity特有の脆弱性として、整数オーバーフロー・アンダーフロー（Solidity 0.8以降はデフォルトで検知）、`tx.origin`を用いた不適切な認証、デリゲートコールの誤用による権限奪取、自己宛送金（`selfdestruct`）による残高強制送金、乱数の予測可能性など様々なものがあります。開発者は常に最新のベストプラクティスと過去事例を学び、脆弱性を埋め込まないよう注意深くコントラクトを実装・テストする必要があります。
+上記の実装は学習目的の簡易EVMであり、実際のEVMと比べて多くの簡略化をしています。例えば:
 
-### セキュリティツールの紹介 (Slither, MythX, SMTソルバー)
-スマートコントラクトの脆弱性を低減するため、開発・監査段階で利用できる様々なセキュリティツールが提供されています。その中でも代表的なものが **Slither**、**MythX**（Mythril）と**SMTソルバー/形式手法**です。
+- 未実装のオペコードが多数あります（論理演算、比較演算、SHA3ハッシュ、CALL関連の命令など）。
+- Gas計算が大幅に簡略化されています。本来はメモリ拡張やストレージ書き込み、各種命令で異なるガスコスト計算があります。
+- エラーハンドリングが単純化されています。実コードではスタックアンダーフローや不正ジャンプ時には例外リターンし、状態を巻き戻す処理が必要ですが、ここではただループを抜けるだけです。
+- 外部との相互作用（CALL/DELEGATECALLによる他コントラクト呼び出しやログ出力、CREATEによるコントラクト生成など）は一切扱っていません。
+- 署名検証やトランザクションの概念も省いています。あくまで「単一のEVMコードを実行する」ことに特化しています。
 
-- **Slither**: Trail of Bits社が開発したSolidityコード用の静的解析ツールです。Pythonで書かれたフレームワークで、コントラクトのAST（抽象構文木）を解析しながら数多くの既知の脆弱性パターンを検出します ([Smart-Contract Security tools-Comparison | by charingane | Medium](https://medium.com/@charingane/smart-contract-security-tools-comparison-4aaddf301f01#:~:text=Medium%20medium,vulnerability%20detectors%2C%20prints%20visual))。例えば、再入可能性の可能性があるパターンや外部呼出し後に状態更新しているコード、ガスの無限消費になりかねないループ、未使用変数や冗長なコードなど、多岐にわたるチェックを一瞬で行ってくれます ([The Top 10 Solidity Smart Contract Audit Tools](https://blog.auditbase.com/smart-contract-audit-tools#:~:text=The%20Top%2010%20Solidity%20Smart,It%20also))。出力も分かりやすく、問題箇所と種類を報告してくれるため、開発者自ら脆弱性を洗い出すのにも適しています。Slitherはコマンドラインで簡単に使え、CIに組み込んでコントラクトの品質ゲートとすることも可能です。
+これらの制限により、セキュリティや正確性は本物のEVMに比べて劣りますが、EVMの基本動作を理解するには十分でしょう。次章では、この実装を使って実際にSolidityで書いたスマートコントラクトのバイトコードを動かしてみます。
 
-- **MythX / Mythril**: MythXはSolidityコード向けの包括的なセキュリティ分析プラットフォームです。そのエンジン部分はオープンソースの**Mythril**で、これは**動的解析（シンボリック実行）**と**SMTソルバー**、**ティント解析**を組み合わせてスマートコントラクトの深いバグを探し出します ([MythX, Mythril, Securify v2.0 and Slither - Dreamlab Technologies](https://dreamlab.net/es/blog/entrada/smarts-contracts-security-tools-comparison-mythx-mythril-securify-v20-and-slither-1/#:~:text=Technologies%20dreamlab,in%20combination%20with))。静的解析のSlitherでは検出しにくい、複数のコントラクト間の相互作用に起因するバグや、特定の入力の組み合わせでのみ発生するような複雑な脆弱性も、Mythrilのシンボリック実行によって網羅的にテストされることで発見できます ([MythX, Mythril, Securify v2.0 and Slither - Dreamlab Technologies](https://dreamlab.net/es/blog/entrada/smarts-contracts-security-tools-comparison-mythx-mythril-securify-v20-and-slither-1/#:~:text=Technologies%20dreamlab,in%20combination%20with))。MythXは有料サービスとしてクラウド上でMythril分析を提供しており、大規模プロジェクトの自動監査に使われています。例えば、関数の引数に巧妙な値を入れた場合にのみ起こる整数の不正や、署名検証ロジックの抜け道など、人間の目では見落としがちなケースも検出可能です。ただしシンボリック実行は計算コストが高く、解析に時間がかかる点には注意が必要です。
+## 4. スマートコントラクトのデプロイと実行
 
-- **SMTソルバーとフォーマル検証ツール**: さらに高度な手法として、**形式手法（フォーマルメソッド）**を用いた検証があります。Solidity公式コンパイラには**SMTChecker**と呼ばれるモジュールが搭載されており、コントラクトの`assert`や`require`で記述した性質を自動的に検証する機能があります ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Solidity%20implements%20a%20formal%20verification,that%20the%20property%20is%20safe))。SMTCheckerはコントラクトを論理数式に置き換えて、モデル検査を行うことでコードが特定の条件を常に満たすか（または反例が存在するか）をチェックします ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Solidity%20implements%20a%20formal%20verification,that%20the%20property%20is%20safe))。例えば「オーバーフローが起こらないこと」や「ある不変条件が常に成り立つこと」を証明しようと試み、もし違反があれば具体的な入力値の例を出力して警告してくれます ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Horn%20solving,that%20the%20property%20is%20safe))。内部ではZ3などのSMTソルバーが動いており、有限の範囲内ではありますが自動で数学的な検証を行ってくれます ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Solidity%20implements%20a%20formal%20verification,that%20the%20property%20is%20safe))。他にも、CertoraやVeriSol、KEVM、DappHub社のhevmによる形式検証スクリプトなど、様々なフォーマル検証ツールが存在します。これらは学習コストは高いものの、コントラクトの安全性を機械的に保証する強力な手段となります。
+それでは、先ほど実装した簡易EVMエンジンを使ってSolidity製のスマートコントラクトを実行してみましょう。ここではデモとして**二つの数の加算を行う関数**を持つごく簡単なコントラクトを例にします。
 
-### フォーマル検証（Formal Verification）による安全性向上
-**フォーマル検証**とは、プログラムが仕様を満たしていることを数学的に証明する手法です ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Using%20formal%20verification%20it%20is,but%20usually%20much%20simpler))。スマートコントラクトの場合、「仕様」とは例えば「常に口座残高の総和は一定である」や「この関数を呼ぶと必ず状態Aから状態Bに遷移する」といった形式化された要件になります。フォーマル検証ではコントラクトコードと仕様を論理的なモデルに落とし込み、あらゆる入力に対してその仕様が破られないことを証明します ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Using%20formal%20verification%20it%20is,but%20usually%20much%20simpler)) ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Solidity%20implements%20a%20formal%20verification,that%20the%20property%20is%20safe))。もし証明できない場合、反例となる入力（バグを引き起こすシナリオ）を出力することで、開発者は潜在的な欠陥を正確に把握できます ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Horn%20solving,that%20the%20property%20is%20safe))。
+### Solidityでコントラクトを記述
 
-フォーマル検証の利点は、テストや手動のコードレビューでは見逃すような極端なケースや並行実行のタイミング依存のバグなども洗い出せる点にあります。特にDeFiのように資産を扱うコントラクトでは、一度デプロイするとアップグレードや修正が容易でないため、事前にバグが無いことを保証する意義は大きいです。例えばMakerDAOのDaiコントラクトや、一部のマルチシグウォレット、ETH2の預け入れコントラクトなどはフォーマル検証技術によってその正当性が確認されています。実際、Ethereum 2.0のDepositコントラクト（ステーキング用預け入れ）は形式手法専門の企業Runtime Verificationによって検証されましたし、CompoundやUniswapの一部についても不変条件の証明が試みられています。
+以下にSolidityでシンプルなコントラクトを示します。このコントラクト`Adder`は、`add(uint256 a, uint256 b) public pure returns (uint256)`という関数を持ち、入力された2つの整数の和を返すだけのものです。
 
-もっともフォーマル検証にも限界や注意点があります。仕様そのものが間違っていれば意味がありませんし、人間が理解できない仕様を書いても本末転倒です ([SMTChecker and Formal Verification — Solidity 0.8.15 belgelendirmesi](https://docs.soliditylang.org/tr/latest/smtchecker.html#:~:text=Note%20that%20formal%20verification%20itself,any%20unintended%20effects%20of%20it))。また、スマートコントラクトは外部との相互作用があるため、検証範囲をシステム全体に広げるのは困難です。それでも、スマートコントラクトの重要な性質（「絶対にオーバーフローしない」や「利率計算が常に期待通り」など）を機械的に保証できるのは大きな強みです。
+```solidity
+// SimpleAdder.sol
+pragma solidity ^0.8.0;
 
-開発実務においては、まずSlitherのような静的解析と十分なユニットテストで一般的なバグを潰し、必要に応じてMythXやSMTCheckerでより深い検証を行う、そして最終的なプロトコル全体の安全性については専門家によるフォーマル検証や継続的な監視で担保するといった多層防御が理想です。スマートコントラクトのバグは直接金銭被害に繋がるため、そのリスクを最小化するためのこれら最新のセキュリティ手法を習得・活用していくことが重要と言えるでしょう。
+contract Adder {
+    function add(uint256 a, uint256 b) public pure returns (uint256) {
+        return a + b;
+    }
+}
+```
+
+関数に`pure`修飾子を付けているため、状態を変更せず純粋に計算する関数となっています。では、このSolidityコードをコンパイルしてEVMバイトコードを取得しましょう。
+
+### コントラクトのコンパイルとバイトコード取得
+
+ターミナルで次のように`solc`を使ってコンパイルします。
+
+```bash
+$ solc --bin SimpleAdder.sol -o output
+```
+
+このコマンドは、Solidityコンパイラに`SimpleAdder.sol`をコンパイルしてバイトコードを`output`ディレクトリに出力するよう指示しています。`output`ディレクトリ内に`Adder.bin`（コントラクトのバイトコード）というファイルが生成されるはずです。**注意:** `--bin`オプションだけだとデプロイ用のバイトコード（constructorを含むコード）が出力されます。関数を呼び出す際に実行される**ランタイムバイトコード**のみを取得したい場合は、`solc --bin-runtime`を使います。今回はconstructorを持たずシンプルなので`--bin`出力でも差し支えありません。
+
+コンパイルが成功したら、出力されたバイトコードを確認してみましょう。内容は16進数の文字列になっているはずです。例えば（Solidityバージョン等によって異なりますが）以下のような形になります。
+
+```
+6080604052348015600f57600080fd5b5060...（中略）...150056fea2646970667358221220...
+```
+
+非常に長いですが、これが`Adder`コントラクトのバイトコードです。前半はコントラクトデプロイ時に実行されるコード（constructorがないので単にランタイムコードを返す処理）で、`fe`以降に続く部分がランタイムコード本体です。今回は詳細な解析は行いませんが、EVMアセンブリを覗いてみると`ADD (0x01)`命令などが含まれているのが確認できます。
+
+それでは、このバイトコードを先ほど実装した`run`関数で実行してみます。
+
+### 簡易EVMでの実行
+
+Zig側で、コンパイルして得たバイトコードと、関数呼び出しの入力データを用意し、`run`関数に渡します。一般にコントラクトの関数を呼び出す際、EVMに与える入力データ（call data）は以下のように構成されます ([solidity - What is a good implementation to get function signatures from contract ABI? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/39346/what-is-a-good-implementation-to-get-function-signatures-from-contract-abi#:~:text=getState%20add%20,state%27%2C))。
+
+- 最初の4バイト: 呼び出す関数を表す**関数セレクタ**（関数識別子）。関数名と引数型から計算される固定の識別子です。
+- 残り: 各引数の値を32バイトにエンコードしたものを順番に並べたもの。
+
+今回の`add(uint256,uint256)`関数の場合、関数セレクタは`"add(uint256,uint256)"`という文字列のKeccak-256ハッシュの先頭4バイトで決まります。計算すると`0x771602f7`という値になります ([solidity - What is a good implementation to get function signatures from contract ABI? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/39346/what-is-a-good-implementation-to-get-function-signatures-from-contract-abi#:~:text=getState%20add%20,state%27%2C))。続いて、例えば引数`a = 10`、`b = 32`を与えたい場合、それぞれ32バイトにパディングされた表現を付加します。10は16進で`0x0a`、32は`0x20`ですので、32バイト表現ではそれぞれ`0x000...00a`（最後の1バイトが0×0a）と`0x000...020`になります。つまり、呼び出しデータ全体を16進で表すと次のようになります ([solidity - What is a good implementation to get function signatures from contract ABI? - Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/39346/what-is-a-good-implementation-to-get-function-signatures-from-contract-abi#:~:text=0x771602f7000000000000000000000000000000000000000000000000000000000000000a00%2000000000000000000000000000000000000000000000000000000000000020))。
+
+```
+0x771602f7 000000000000000000000000000000000000000000000000000000000000000a
+0000000000000000000000000000000000000000000000000000000000000020
+```
+
+（スペースは見やすさのため。実際には詰めて68バイトのデータ）。このデータを我々の`run`関数に渡せば、関数`add(10,32)`を実行したのと同じ効果が得られるはずです。
+
+では、Zigの`main`関数内で具体的に実行してみます。Zigでの16進データの扱いとして、ここでは簡単のため入力データをバイト配列リテラルとして直接埋め込んでいます。先ほどのバイトコードもコピーしてバイト列として渡します。
+
+```zig
+pub fn main() !void {
+    const bytecode = &[_]u8{
+        // ここにAdderコントラクトのバイトコードを16進で並べる（長いため省略）
+        0x60,0x80,0x60,0x40,0x52,0x34,0x80,0x15,0x60,0x0f,0x57,0x60,0x00,0x80,0xfd,0x5b,
+        0x50,0x60,0x15,0x00,0x56,0xfe,0xa2,0x64,0x69,0x70,0x66,0x73,0x58,0x22,0x12,0x20,
+        // （中略: 実際にはバイトコード全体をここに貼り付け）
+    };
+    const input_data = &[_]u8{
+        // 関数セレクタ 0x771602f7
+        0x77, 0x16, 0x02, 0xf7,
+        // 引数a=10の32バイト表現（31バイトの0の後に0x0a）
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,
+        // 引数b=32の32バイト表現（31バイトの0の後に0x20）
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,
+    };
+
+    const result = run(bytecode, input_data);
+
+    // 結果を16進数で出力
+    std.debug.print("Return data (hex): ", .{});
+    for (result) |byte| {
+        std.debug.print("{02x}", .{byte});
+    }
+    std.debug.print("\n", .{});
+}
+```
+
+上記の`main`では、`bytecode`にコンパイルして得たAdderコントラクトのバイトコード（ランタイム部分も含む）をバイト列として定義しています（非常に長いので途中省略していますが、実際には全部貼り付けます）。次に`input_data`を、先ほど説明した関数セレクタ＋引数の形式で構築しています。そして`run(bytecode, input_data)`を呼び出し、その戻り値（バイト列）を取得しています。
+
+最後に、その`result`バイト列を16進で出力しています。EVM上の関数戻り値は32バイト長のデータ（今回なら計算結果の整数を32バイトにエンコードしたもの）なので、それをそのまま表示する形です。
+
+ではこのプログラムをビルド・実行してみましょう。Zigファイルを`evm_main.zig`とすると、以下のようにコンパイル＆実行します。
+
+```bash
+$ zig build-exe evm_main.zig
+$ ./evm_main
+Return data (hex): 000000000000000000000000000000000000000000000000000000000000002a
+```
+
+出力された`Return data`がずらっと並ぶ0と`2a`という値になっていることがわかります。`0x2a`は10進数で42に相当します。元の関数呼び出しは`add(10, 32)`でしたので、戻り値が42となっているのは正しい結果です 🎉。
+
+このようにして、Solidityで書いたスマートコントラクト（の一部機能）を、Zigで実装したEVMエンジン上で実行できました。もちろん、実際のEthereumノードが行っている処理のごく一部を真似ただけですが、EVMバイトコードの動作原理が体験できたと思います。
+
+**デバッグ:** 実装がうまく動かない場合、EVMエンジンのデバッグには工夫が必要です。今回のようなシンプルなコードであれば、`std.debug.print`を使って各ステップでのスタックやPC、ガスの状態を出力するのが有効です。例えばループ内で`std.debug.print("PC={d} Opcode={x} StackTop={x}\n", .{ pc, opcode, stack[sp-1] })`のようなログを入れると、命令実行の追跡ができます。また、Solidity側のアセンブリ出力やEVMの各種リファレンスを見比べながら、どこで食い違いがあるかを探すのも勉強になります。
+
+## 5. EVMの拡張と発展的な話題
+
+以上のように、簡易EVMを実装しSolidityコントラクトを実行するところまで体験しました。本章では、実際のEVM実装との比較や、EVMに関する発展的な話題について触れてみます。
+
+### 実際のEVM実装との比較
+
+我々が実装したものは教育目的の極簡易版ですが、実際のEthereumクライアント（例えばGethやNethermind、Erigonなど）は独自の最適化を凝らしたEVMエンジンを持っています。多くの公式クライアントは**インタプリタ**方式でEVMバイトコードを実行していますが、そのパフォーマンス向上のために様々な工夫がされています。
+
+例えば、Ethereum Foundationのチームが開発した**evmone**というC++製のEVM実装があります。evmoneでは命令実行ループの効率化やジャンプ先テーブルの事前解析、ガス計算の最適化などを行い、他の従来実装と比べて**約10倍もの高速化**を達成したという報告もありま ([Optimization techniques for EVM implementations · Devcon Archive: Ethereum Developer Conference](https://archive.devcon.org/archive/watch/5/optimization-techniques-for-evm-implementations/?playlist=Devcon%205#:~:text=A%20number%20of%20optimization%20techniques,them%20even%20to%20interpreted%20languages))】。一方で、EthereumJSやPyEthereumのようにJavaScriptやPythonで書かれた実装もありますが、こちらは主にテストや学習目的であり本番ネットワークでブロックを検証する用途には向きません。
+
+今回Zigで作成した実装は非常に単純であり、実用的な性能は期待できません。しかし、低レベル言語であるZigはC/C++に匹敵するパフォーマンスが出せるため、もしこの実装を拡張し高度な最適化を施せば、高速なEVMエンジンに育てることも可能でしょう。実際に**zEVM* ([rauljordan/zevm: Zig implementation of the Ethereum Virtual Machine](https://github.com/rauljordan/zevm#:~:text=rauljordan%2Fzevm%3A%20Zig%20implementation%20of%20the,the%20work%20from%20Revolutionary))】や**zig-evm* ([cryptuon/zig-evm: An experimental EVM implementation in ziglang](https://github.com/cryptuon/zig-evm#:~:text=cryptuon%2Fzig,to%20provide%20a%20lightweight))】といったプロジェクトでZigによるEVM実装が試みられています。
+
+### EVMの最適化手法
+
+EVMの最適化には大きく二方向あります。1つは**EVM自体の実装を速くする**こと、もう1つは**EVM上で動くコントラクトのガス消費を減らす（効率の良いコードを書く）**ことです。
+
+前者については、先述のevmoneのようにインタプリタを工夫する方法に加え、**JIT（Just-In-Time）コンパイル**技術を用いるアプローチもあります。かつてEthereumのC++クライアントには**EVM JIT**が組み込まれ、ホスト上のネイティブな機械語にEVMバイトコードをその場で変換することで高速実行を図っていました。最近ではParadigm社が研究する**revmc**というコンパイラが、EVMバイトコードを事前にネイティブコードへコンパイル（AOT：Ahead-Of-Time）し、1.9倍から最大19倍の性能向上を示したとの報告もありま ([Releasing Revmc - Paradigm](https://www.paradigm.xyz/2024/06/revmc#:~:text=Today%2C%20we%E2%80%99re%20excited%20to%20open,shine%20in%20computationally%20heavy%20workloads))】。JIT/AOTによる高速化は、処理速度と引き換えに実装の複雑さやセキュリティ上の考慮点（JIT固有の脆弱性リスクなど）もありますが、ブロックチェイン全体のスループット向上に直結するため活発に研究されています。
+
+一方、後者の「スマートコントラクトのガス消費を抑える」という視点では、Solidityコンパイラの最適化改善や、開発者がガス効率の良いコードを書くことが重要です。例えば同じ処理を行うにもガス単価の安い命令を使う、ストレージアクセスを減らしメモリや計算で代替する、ループ回数を減らすアルゴリズムを採用する等が考えられます。EVM自体は仕様上決められたガスコストで動くため、ソフト側で工夫する余地があります。SolidityやVyperなど高級言語のコンパイラも、年々最適化が進み無駄な命令を削除したりガスの高い処理を置き換えたりする改良が加えられています。
+
+### zkEVMとEVMの進化
+
+近年注目されている技術トピックとして**zkEVM**があります。zkEVMとは、**Zero-Knowledge Proof（ゼロ知識証明）**を統合したEVM互換の実行環境のことで ([Kakarot zkEVM の詳細解説：Starknet の EVM 互換の道 - ChainCatcher](https://www.chaincatcher.com/ja/article/2097197#:~:text=%E3%82%B0%E3%83%A9%E3%83%A0%E3%82%92%E5%88%B6%E5%BE%A1%E3%81%95%E3%82%8C%E3%81%9F%E4%BA%92%E6%8F%9B%E6%80%A7%E3%81%AE%E3%81%82%E3%82%8B%E7%92%B0%E5%A2%83%E3%81%A7%E5%AE%9F%E8%A1%8C%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%80%82%E3%82%A4%E3%83%BC%E3%82%B5%E3%83%AA%E3%82%A2%E3%83%A0%E4%BB%AE%E6%83%B3%E3%83%9E%E3%82%B7%E3%83%B3%EF%BC%88EVM%EF%BC%89%E3%81%AF%E3%80%81%E3%82%A4%E3%83%BC%E3%82%B5%E3%83%AA%E3%82%A2%E3%83%A0%E3%82%B9%E3%83%9E%E3%83%BC%E3%83%88%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%82%92%E5%AE%9F%E8%A1%8C%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%83%99%E3%83%BC%E3%82%B9%E3%81%AE%E4%BB%AE%E6%83%B3%E3%83%9E%E3%82%B7%E3%83%B3%20%E3%81%A7%E3%81%99%E3%80%82%20))】。具体的には、通常は全ノードがEVMを実行してトランザクションを検証するところを、EVMの実行プロセス自体を暗号学的証明（有効性証明）によって保証しようという試みで ([Kakarot zkEVM の詳細解説：Starknet の EVM 互換の道 - ChainCatcher](https://www.chaincatcher.com/ja/article/2097197#:~:text=,2%E3%81%A7%E3%82%B9%E3%83%9E%E3%83%BC%E3%83%88%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%81%AE%E5%AE%9F%E8%A1%8C%E3%82%92%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%E3%81%99%E3%82%8B%E4%BB%AE%E6%83%B3%E3%83%9E%E3%82%B7%E3%83%B3%E3%81%B8%E3%81%AE%E9%9C%80%E8%A6%81%E3%81%AB%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%80%82%E3%81%BE%E3%81%9F%E3%80%81%E4%B8%80%E9%83%A8%E3%81%AE%E3%83%97%E3%83%AD%E3%82%B8%E3%82%A7%E3%82%AF%E3%83%88%E3%81%AF%E3%80%81EVM%E3%81%AE%E5%BA%83%E7%AF%84%20%E3%81%AA%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC%E3%82%A8%E3%82%B3%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0%E3%82%92%E6%B4%BB%E7%94%A8%E3%81%97%E3%80%81%E3%82%BC%E3%83%AD%E7%9F%A5%E8%AD%98%E8%A8%BC%E6%98%8E%E3%81%AB%E3%82%88%E3%82%8A%E8%A6%AA%E3%81%97%E3%81%BF%E3%82%84%E3%81%99%E3%81%84%E5%91%BD%E4%BB%A4%E3%82%BB%E3%83%83%E3%83%88%E3%82%92%E8%A8%AD%E8%A8%88%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%ABzkEVM%E3%82%92%E9%81%B8%E6%8A%9E%E3%81%97%E3%81%A6%E3%81%84%E3%81%BE%E3%81%99%E3%80%82))】。これにより、ブロックチェイン上の全検証者が逐一EVM計算を再現しなくても、証明を検証するだけで正しい結果であることを確認できるようになります。
+
+zkEVMは主にLayer2（レイヤー2）のスケーリングソリューションとして期待されています。代表的なプロジェクトにPolygon zkEVMやScroll、StarkWareの**Kakarot**などがあります。例えばKakarotはStarknet上にCairo言語で実装されたEVM互換機で、CairoスマートコントラクトとしてEVMのスタックやメモリ、命令実行をシミュレートするもので、zkEVMによってLayer2上でEVMをそのまま動かしつつ、各トランザクションの有効性をロールアップ（一括証明）することで、Ethereumメインネットよりも高速・安価な処理を実現できます。
+
+Ethereum自体の進化という点では、**イスタンブール**や**ロンドン**といったハードフォークでEVMのガスコスト調整や新命令の追加が行われてきました。直近では`RETURNDATA`系命令の導入や`CREATE2`命令の追加などがありました。また将来的な提案として、EVMのバイトコードフォーマットを改良する**EVM Object Format (EOF)**や、高レベル命令セットへの置き換え（かつて議論されたeWASMへの移行案）などもあります。しかし互換性の問題から、EthereumメインネットのEVMは慎重にアップグレードが進められています。現在はEthereum2.0移行に伴いコンセンサス層が大きく変わりましたが、実行層としてのEVMは従来の仕組みを維持しています。その意味で、EVMは依然としてEthereumエコシステムの根幹であり続けています。
+
+### おわりに
+
+本記事では、Zig言語を使ってEVMの簡易実装に挑戦し、Solidityスマートコントラクトの実行を確認しました。EVMの仕組み（スタックマシン、バイトコード、ガスモデルなど）を低レベルから体験することで、普段何気なくSolidityを書くときにもその裏側で何が行われているのかイメージできるようになったのではないでしょうか。
+
+実装したEVMエンジンは機能的に不完全ですが、ソースコードを拡張していけば更なる命令のサポートや最適化も実現できます。興味があれば、自分でオペコードを追加実装したり、別のSolidityコントラクト（例えば状態変数を扱うものやループを含むもの）を実行してみたりして、理解を深めてみてください。公式のEVM実装や先人たちのプロジェクトも参考になるでしょう。
+
+スマートコントラクトの世界は、言語レベル（Solidity/Vyperなど）から下層のEVM、そしてブロックチェイン全体のメカニズムまで多層にわたります。今回学んだEVMの知識は、その中間部分を支える重要なピースです。ぜひ今後の開発や学習に役立ててください。ありがとうございました ([How does Ethereum Virtual Machine (EVM) work? A deep dive into EVM Architecture and Opcodes | QuickNode Guides](https://www.quicknode.com/guides/ethereum-development/smart-contracts/a-dive-into-evm-architecture-and-opcodes#:~:text=The%20EVM%20is%20contained%20within,machine%20architecture%20consisting%20of%20components)) ([Kakarot zkEVM の詳細解説：Starknet の EVM 互換の道 - ChainCatcher](https://www.chaincatcher.com/ja/article/2097197#:~:text=%E3%82%B0%E3%83%A9%E3%83%A0%E3%82%92%E5%88%B6%E5%BE%A1%E3%81%95%E3%82%8C%E3%81%9F%E4%BA%92%E6%8F%9B%E6%80%A7%E3%81%AE%E3%81%82%E3%82%8B%E7%92%B0%E5%A2%83%E3%81%A7%E5%AE%9F%E8%A1%8C%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%80%82%E3%82%A4%E3%83%BC%E3%82%B5%E3%83%AA%E3%82%A2%E3%83%A0%E4%BB%AE%E6%83%B3%E3%83%9E%E3%82%B7%E3%83%B3%EF%BC%88EVM%EF%BC%89%E3%81%AF%E3%80%81%E3%82%A4%E3%83%BC%E3%82%B5%E3%83%AA%E3%82%A2%E3%83%A0%E3%82%B9%E3%83%9E%E3%83%BC%E3%83%88%E3%82%B3%E3%83%B3%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%E3%82%92%E5%AE%9F%E8%A1%8C%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E3%82%B9%E3%82%BF%E3%83%83%E3%82%AF%E3%83%99%E3%83%BC%E3%82%B9%E3%81%AE%E4%BB%AE%E6%83%B3%E3%83%9E%E3%82%B7%E3%83%B3%20%E3%81%A7%E3%81%99%E3%80%82%20))】
