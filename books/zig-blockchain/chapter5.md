@@ -1127,16 +1127,25 @@ zig build run -- --connect 127.0.0.1:8080
 コンソールが表示されたら、適当な文字列を入力して送信。サーバ側には[Received]<文字列> のログが出る。
 
 ブロック送信テスト
-クライアントのコンソールからメッセージを送ってみます。
+クライアントのコンソールから```BLOCK:{"index":2,"nonce":777}```のメッセージを送ってみます。
 
 ```bash
-BLOCK:{"index":2,"nonce":777}
+❯ zig build run -- --connect 127.0.0.1:8080
+info: Initialized chain with genesis block index=0
+info: Connecting to 127.0.0.1:8080...
+info: Connected to peer 127.0.0.1:8080
+Type message (Ctrl+D to quit): BLOCK:{"index":2,"nonce":777}
 ```
 
 サーバコンソールで以下のように表示されれば成功です。
 
 ```bash
-Added new block index=2, nonce=777, hash=...
+❯ zig build run -- --listen 8080
+info: Initialized chain with genesis block index=0
+info: Listening on 0.0.0.0:8080
+info: Accepted: 127.0.0.1:54931
+info: [Received] BLOCK:{"index":2,"nonce":777}
+info: Added new block index=2, nonce=555, hash={ 6, e1, 2b, 4e, 7d, 43, c, 20, f9, 15, b4, b0, 48, 4e, 27, 34, 2d, 4e, 7, dc, 8e, 9a, 2e, d1, 82, c0, 28, d9, 63, a, 57, 4a }
 ```
 
 ### まとめ
