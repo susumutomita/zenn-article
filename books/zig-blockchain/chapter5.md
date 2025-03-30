@@ -781,12 +781,12 @@ fn serializeTransactions(transactions: std.ArrayList(Transaction), allocator: st
     try list.appendSlice("]");
     return list.toOwnedSlice();
 }
-
 fn serializeBlock(block: Block) ![]const u8 {
     const allocator = std.heap.page_allocator;
     const hash_str = hexEncode(block.hash[0..], allocator) catch unreachable;
     const prev_hash_str = hexEncode(block.prev_hash[0..], allocator) catch unreachable;
     const tx_str = try serializeTransactions(block.transactions, allocator);
+    // JSON全体を出力するため、外側の中括弧をダブルにする
     const json = try std.fmt.allocPrintZ(allocator, "{{\"index\":{d},\"timestamp\":{d},\"nonce\":{d},\"data\":\"{s}\",\"prev_hash\":\"{s}\",\"hash\":\"{s}\",\"transactions\":{s}}}", .{ block.index, block.timestamp, block.nonce, block.data, prev_hash_str, hash_str, tx_str });
     allocator.free(hash_str);
     allocator.free(prev_hash_str);
@@ -813,11 +813,11 @@ fn createBlock(input: []const u8, prevBlock: Block) Block {
 //------------------------------------------------------------------------------
 // mempoolからブロック生成（RPC用）
 //------------------------------------------------------------------------------
-fn createBlockFromMempool(prevBlock: Block, mempool: *std.ArrayList(Transaction), allocator: std.mem.Allocator) !Block {
+fn createBlockFromMempool(prevBlock: *Block, mempool: *std.ArrayList(Transaction), allocator: std.mem.Allocator) !Block {
     var new_block = Block{
-        .index = prevBlock.index + 1,
+        .index = prevBlock.*.index + 1,
         .timestamp = @intCast(std.time.timestamp()),
-        .prev_hash = prevBlock.hash,
+        .prev_hash = prevBlock.*.hash,
         .transactions = std.ArrayList(Transaction).init(allocator),
         .nonce = 0,
         .data = "Mined via RPC",
@@ -829,7 +829,7 @@ fn createBlockFromMempool(prevBlock: Block, mempool: *std.ArrayList(Transaction)
     }
     mineBlock(&new_block, DIFFICULTY);
     // mempoolクリア（全取引をブロックに取り込んだため）
-    mempool.clear();
+    mempool.*.items = mempool.*.items[0..0];
     return new_block;
 }
 
@@ -945,10 +945,74 @@ const SendHandler = struct {
     }
 };
 
+//------------------------------------------------------------------------------
+// RPCハンドラ (JSON-RPCでトランザクションとマイニングを処理)
+//------------------------------------------------------------------------------
+fn rpcHandler(conn: std.net.Server.Connection, mempool: *std.ArrayList(Transaction), lastBlock: *Block) !void {
+    defer conn.stream.close();
+    var reader = conn.stream.reader();
+    var buf: [1024]u8 = undefined;
+    const maybe_line = try reader.readUntilDelimiterOrEof(buf[0..], '\n');
+    if (maybe_line == null) return;
+    const req_line = std.mem.trim(u8, maybe_line.?, "\n");
+    const allocator = std.heap.page_allocator;
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, req_line, .{});
+    defer parsed.deinit();
+    const root = parsed.value;
+    const obj = switch (root) {
+        .object => |o| o,
+        else => return ChainError.InvalidFormat,
+    };
+    const method_val = obj.get("method") orelse return ChainError.InvalidFormat;
+    const method = switch (method_val) {
+        .string => method_val.string,
+        else => return ChainError.InvalidFormat,
+    };
+    if (std.mem.eql(u8, method, "sendTransaction")) {
+        const params_val = obj.get("params") orelse return ChainError.InvalidFormat;
+        const params = switch (params_val) {
+            .array => params_val.array.items,
+            else => return ChainError.InvalidFormat,
+        };
+        if (params.len != 3) return ChainError.InvalidFormat;
+        const sender = switch (params[0]) {
+            .string => params[0].string,
+            else => return ChainError.InvalidFormat,
+        };
+        const receiver = switch (params[1]) {
+            .string => params[1].string,
+            else => return ChainError.InvalidFormat,
+        };
+        const amount = switch (params[2]) {
+            .integer => params[2].integer,
+            .float => @as(i64, @intFromFloat(params[2].float)),
+            else => return ChainError.InvalidFormat,
+        };
+        const tx = Transaction{
+            .sender = sender,
+            .receiver = receiver,
+            .amount = @intCast(amount),
+        };
+        try mempool.append(tx);
+        const response = "{\"jsonrpc\":\"2.0\",\"result\":\"Transaction added\",\"id\":1}";
+        try conn.stream.writer().writeAll(response);
+    } else if (std.mem.eql(u8, method, "mine")) {
+        var new_block = try createBlockFromMempool(lastBlock, mempool, allocator);
+        chain_store.append(new_block) catch {};
+        lastBlock.* = new_block;
+        const hash_str = try hexEncode(new_block.hash[0..], allocator);
+        const response = try std.fmt.allocPrintZ(allocator, "{{\"jsonrpc\":\"2.0\",\"result\":\"Block mined: {s}\",\"id\":1}}", .{hash_str});
+        allocator.free(hash_str);
+        try conn.stream.writer().writeAll(response);
+    } else {
+        const response = "{\"jsonrpc\":\"2.0\",\"error\":\"Unknown method\",\"id\":1}";
+        try conn.stream.writer().writeAll(response);
+    }
+}
+
 //--------------------------------------
 // ブロックJSONパース (簡易実装例)
 //--------------------------------------
-
 /// hexDecode: 16進文字列をバイナリへ (返り値: 実際に変換できたバイト数)
 fn hexDecode(src: []const u8, dst: *[256]u8) !usize {
     if (src.len % 2 != 0) return ChainError.InvalidHexLength;
@@ -971,8 +1035,11 @@ fn parseHexDigit(c: u8) !u8 {
 }
 
 fn parseBlockJson(json_slice: []const u8) !Block {
+    std.log.debug("parseBlockJson start", .{});
     const block_allocator = std.heap.page_allocator;
+    std.log.debug("parseBlockJson start parsed", .{});
     const parsed = try std.json.parseFromSlice(std.json.Value, block_allocator, json_slice, .{});
+    std.log.debug("parseBlockJson end parsed", .{});
     defer parsed.deinit();
     const root_value = parsed.value;
 
@@ -990,7 +1057,7 @@ fn parseBlockJson(json_slice: []const u8) !Block {
         .data = "P2P Received Block",
         .hash = [_]u8{0} ** 32,
     };
-
+    std.log.debug("parseBlockJson start parser", .{});
     // index の読み込み
     if (obj.get("index")) |idx_val| {
         const idx_num: i64 = switch (idx_val) {
@@ -1067,13 +1134,13 @@ fn parseBlockJson(json_slice: []const u8) !Block {
             .string => data_val.string,
             else => return error.InvalidFormat,
         };
-        b.data = data_str;
+        b.data = try block_allocator.dupe(u8, data_str);
     }
 
     if (obj.get("transactions")) |tx_val| {
         switch (tx_val) {
             .array => {
-                std.log.info("Transactions field is directly an array. {any}", .{tx_val});
+                std.log.debug("Transactions field is directly an array. ", .{});
                 const tx_items = tx_val.array.items;
                 if (tx_items.len > 0) {
                     std.log.info("tx_items.len = {d}", .{tx_items.len});
@@ -1129,9 +1196,9 @@ fn parseBlockJson(json_slice: []const u8) !Block {
                             .amount = amount,
                         });
                     }
-                    std.log.info("Transactions field is directly an array. end", .{});
+                    std.log.debug("Transactions field is directly an array. end", .{});
                 }
-                std.log.info("565 Transactions field is directly an array. end", .{});
+                std.log.debug("Transactions field is directly an array. end transactions={any}", .{b.transactions});
             },
             .string => {
                 std.log.info("Transactions field is a string. Value: {s}", .{tx_val.string});
@@ -1151,15 +1218,14 @@ fn parseBlockJson(json_slice: []const u8) !Block {
             else => return error.InvalidFormat,
         }
     }
-    std.log.info("Block info: index={d}, timestamp={d}, prev_hash={any}, transactions={any} nonce={d}, data={s}, hash={any} ", .{ b.index, b.timestamp, b.prev_hash, b.transactions, b.nonce, b.data, b.hash });
-    std.log.info("parseBlockJson end", .{});
+    std.log.debug("Block info: index={d}, timestamp={d}, prev_hash={any}, transactions={any} nonce={d}, data={s}, hash={any} ", .{ b.index, b.timestamp, b.prev_hash, b.transactions, b.nonce, b.data, b.hash });
+    std.log.debug("parseBlockJson end", .{});
     return b;
 }
 
-//
-// --------------- クライアント側処理 ---------------
-// クライアントはユーザー入力から新規ブロックを生成し、採掘後にサーバーへ送信します。
-//
+//------------------------------------------------------------------------------
+// クライアント送信用スレッド (P2P用)
+//------------------------------------------------------------------------------
 fn clientSendLoop(peer: Peer, lastBlock: *Block) !void {
     var stdin = std.io.getStdIn();
     var reader = stdin.reader();
@@ -1173,18 +1239,13 @@ fn clientSendLoop(peer: Peer, lastBlock: *Block) !void {
         mineBlock(&new_block, DIFFICULTY);
         var writer = peer.stream.writer();
         const block_json = serializeBlock(new_block) catch unreachable;
-        // 必要なサイズのバッファを用意して "BLOCK:" と block_json を連結する
         const prefix = "BLOCK:";
         const prefix_len = prefix.len;
         var buf = try std.heap.page_allocator.alloc(u8, prefix_len + block_json.len + 1);
         defer std.heap.page_allocator.free(buf);
-
-        // "BLOCK:" をコピー。buf[0..prefix_len] は長さ prefix_len のスライス
         @memcpy(buf[0..prefix_len].ptr, prefix);
-        // block_json をコピー。buf[prefix_len .. prefix_len + block_json.len] は block_json.len バイトのスライス
         @memcpy(buf[prefix_len .. prefix_len + block_json.len].ptr, block_json);
         buf[prefix_len + block_json.len] = '\n';
-
         try writer.writeAll(buf);
         lastBlock.* = new_block;
     }
@@ -1221,12 +1282,11 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
     if (args.len < 3) {
-        std.log.info("Usage:\n {s} --listen <port>\n or\n {s} --connect <host:port>\n", .{ args[0], args[0] });
+        std.log.info("Usage:\n {s} --listen <port>\n or\n {s} --connect <host:port>\n or\n {s} --rpcListen <port>\n", .{ args[0], args[0], args[0] });
         return;
     }
     const mode = args[1];
     if (std.mem.eql(u8, mode, "--listen")) {
-        // サーバーモード
         const port_str = args[2];
         const port_num = try std.fmt.parseInt(u16, port_str, 10);
         var address = try std.net.Address.resolveIp("0.0.0.0", port_num);
@@ -1238,7 +1298,6 @@ pub fn main() !void {
             _ = try std.Thread.spawn(.{}, ConnHandler.run, .{conn});
         }
     } else if (std.mem.eql(u8, mode, "--connect")) {
-        // クライアントモード
         const hostport = args[2];
         var tokenizer = std.mem.tokenizeScalar(u8, hostport, ':');
         const host_str = tokenizer.next() orelse {
@@ -1279,6 +1338,21 @@ pub fn main() !void {
             } else {
                 std.log.info("Unknown msg: {s}", .{msg_slice});
             }
+        }
+    } else if (std.mem.eql(u8, mode, "--rpcListen")) {
+        const port_str = args[2];
+        const port_num = try std.fmt.parseInt(u16, port_str, 10);
+        var address = try std.net.Address.resolveIp("0.0.0.0", port_num);
+        var listener = try address.listen(.{});
+        defer listener.deinit();
+        std.log.info("RPC Listening on 0.0.0.0:{d}", .{port_num});
+        // Initialize mempool for RPC
+        var mempool = std.ArrayList(Transaction).init(gpa);
+        // Initialize lastBlock for RPC from genesis block
+        var lastBlock = try createTestGenesisBlock(gpa);
+        while (true) {
+            const conn = try listener.accept();
+            _ = try std.Thread.spawn(.{}, rpcHandler, .{ conn, &mempool, &lastBlock });
         }
     } else {
         std.log.err("Invalid mode: {s}", .{mode});
@@ -1446,19 +1520,25 @@ zig build run -- --connect 127.0.0.1:8080
 
 ```bash
 ❯ zig build run -- --connect 127.0.0.1:8080
-info: Initialized chain with genesis block index=0
-info: Connecting to 127.0.0.1:8080...
-info: Connected to peer 127.0.0.1:8080
-Type message (Ctrl+D to quit): BLOCK:{"index":2,"nonce":777}。
+info: Connecting to 127.0.0.1:8081...
+Enter message for new block: hi
 ```
 
 ```bash
 ❯ zig build run -- --listen 8080
-info: Initialized chain with genesis block index=0
-info: Listening on 0.0.0.0:8080
-info: Accepted: 127.0.0.1:54931
-info: [Received] BLOCK:{"index":2,"nonce":777}
-info: Added new block index=2, nonce=555, hash={ 6, e1, 2b, 4e, 7d, 43, c, 20, f9, 15, b4, b0, 48, 4e, 27, 34, 2d, 4e, 7, dc, 8e, 9a, 2e, d1, 82, c0, 28, d9, 63, a, 57, 4a }
+❯ zig build run -- --listen 8081
+info: Listening on 0.0.0.0:8081
+info: Accepted: 127.0.0.1:60237
+info: [Received complete message] BLOCK:{"index":1,"timestamp":1743378871,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
+debug: parseBlockJson start
+debug: parseBlockJson start parsed
+debug: parseBlockJson end parsed
+debug: parseBlockJson start parser
+debug: Transactions field is directly an array.
+debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(main.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1023f7dd4, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1023f832c, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1023f8604, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1023f8658 } } }
+debug: Block info: index=1, timestamp=1743378871, prev_hash={ 0, 0, 87, 226, 136, 167, 214, 117, 46, 42, 58, 200, 29, 42, 78, 154, 224, 70, 48, 34, 78, 150, 13, 178, 54, 177, 229, 64, 100, 30, 74, 29 }, transactions=array_list.ArrayListAligned(main.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1023f7dd4, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1023f832c, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1023f8604, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1023f8658 } } } nonce=1924, data=hi, hash={ 0, 0, 160, 198, 25, 46, 132, 111, 184, 183, 73, 156, 103, 198, 126, 207, 112, 48, 69, 37, 87, 149, 69, 113, 48, 167, 181, 123, 68, 144, 86, 126 }
+debug: parseBlockJson end
+info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, b8, b7, 49, 9c, 67, c6, 7e, cf, 70, 30, 45, 25, 57, 95, 45, 71, 30, a7, b5, 7b, 44, 90, 56, 7e }
 ```
 
 ### まとめ
