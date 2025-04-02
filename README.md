@@ -1,3 +1,12 @@
+<!-- textlint-enable ja-technical-writing/sentence-length -->
+![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/susumutomita/zenn-article)
+![GitHub top language](https://img.shields.io/github/languages/top/susumutomita/zenn-article)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/susumutomita/zenn-article)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/susumutomita/zenn-article)
+![GitHub repo size](https://img.shields.io/github/repo-size/susumutomita/zenn-article)
+[![lint](https://github.com/susumutomita/zenn-article/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/susumutomita/zenn-article/actions/workflows/lint.yml)
+<!-- textlint-enable ja-technical-writing/sentence-length -->
+
 # zenn-article
 
 技術記事とブックコンテンツを管理するZennのリポジトリです。
