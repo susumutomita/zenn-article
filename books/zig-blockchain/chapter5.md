@@ -381,6 +381,44 @@ Data       : Hello, Zig Blockchain!
 Hash       : 01fc976b652c64979aa83734fc577e64b2afa48d92bb0d3fec7bd76c2f8db
 ```
 
+もしくはdocker composeで実行できます。
+
+```bash
+❯ docker compose up
+[+] Running 4/4
+ ✔ Network chapter5_default  Created                                                     0.0s
+ ✔ Container node2           Created                                                     0.1s
+ ✔ Container node3           Created                                                     0.1s
+ ✔ Container node1           Created                                                     0.1s
+Attaching to node1, node2, node3
+node3  | Block index: 0
+node3  | Timestamp  : 1672531200
+node3  | Nonce      : 96
+node3  | Data       : Hello, Zig Blockchain!
+node3  | - Tx: Alice -> Bob : 100
+node3  | - Tx: Charlie -> Dave : 50
+node3  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node1  | Block index: 0
+node1  | Timestamp  : 1672531200
+node1  | Nonce      : 96
+node1  | Data       : Hello, Zig Blockchain!
+node1  | - Tx: Alice -> Bob : 100
+node1  | - Tx: Charlie -> Dave : 50
+node1  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node2  | Block index: 0
+node2  | Timestamp  : 1672531200
+node2  | Nonce      : 96
+node2  | Data       : Hello, Zig Blockchain!
+node2  | - Tx: Alice -> Bob : 100
+node2  | - Tx: Charlie -> Dave : 50
+node2  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node3 exited with code 0
+node1 exited with code 0
+node2 exited with code 0
+```
+
+また、テストも分割後のコードで実行できるか確認します。
+
 ```bash
 ❯ zig build test
 ```
