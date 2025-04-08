@@ -3,7 +3,7 @@ title: "リファクタリングとファイル分割"
 free: true
 ---
 
-本章では、前章までに作成してきたPoW付きブロックチェインのコードをリファクタリングし、複数ファイルへと分割します。1つのmain.zigにすべての処理が詰め込まれていると、コード量が増えるにつれ可読性が落ち、保守も難しくなります。そこで**「ブロックチェインの中核ロジック」と「メイン関数・アプリケーションのエントリポイント」**を分離して、今後の拡張を見据えたコード構成にしていきます。
+本章では、前章までに作成してきたPoW付きブロックチェインのコードをリファクタリングし、複数ファイルへと分割します。1つのmain.zigにすべての処理を詰め込んでいると、コード量が増えるにつれ可読性が落ち、保守も難しくなっていきます。そこで**「ブロックチェインの中核ロジック」と「メイン関数(アプリの入り口)」**を分離し、今後の拡張を見据えたコード構成に整えておきます。
 
 ### 分割の方針
 
@@ -21,8 +21,6 @@ free: true
 6. エントリポイント
    1. すべてのファイルを @import(...) して組み合わせ、アプリ起動
    2. コマンドライン処理（--listen 8080等）や、ブロック生成・出力などの「全体の流れ」を書く
-7. ルート設定
-   1. Zigプロジェクトの場合、「どうビルドするか」を書くbuild.zigファイルを使うことが多いです。
 
 #### ファイル分割
 
@@ -30,13 +28,12 @@ free: true
 
 ```tree
 src/
-├── main.zig       # 起動部: main関数のみ。あとは @import("...") で呼び出す
-├── root.zig       # (もしZigのモジュール探索用に使うなら)
-├── types.zig      # Transaction, Blockなど、基本データ型
-├── errors.zig     # ChainError, InvalidHexLengthなど共通エラー
-├── logger.zig     # debugLog, logErrorなど
-├── utils.zig      # toBytesXX, debugLog, hexエンコード等ユーティリティ
-└── blockchain.zig # ブロックチェインロジック
+├── main.zig          # アプリの入り口 (pub fn main() !void)
+├── types.zig         # Transaction, Blockなど基本構造体
+├── errors.zig        # ChainError など共通エラー
+├── utils.zig         # truncateU64ToU8, debugLog などユーティリティ
+├── logger.zig        # (必要に応じて) debugLog などのログ専用
+└── blockchain.zig    # PoWロジック、calculateHash, mineBlock, etc.
 ```
 
 ## データ型定義の実装
@@ -251,9 +248,10 @@ pub fn mineBlock(block: *types.Block, difficulty: u8) void {
 const std = @import("std");
 const types = @import("types.zig");
 const blockchain = @import("blockchain.zig");
+const mem = std.testing.allocator;
 
 //------------------------------------------------------------------------------
-// メイン処理およびテスト実行
+// メイン処理
 //------------------------------------------------------------------------------
 //
 // main 関数では、以下の手順を実行しています：
@@ -309,11 +307,64 @@ pub fn main() !void {
     }
     try stdout.print("\n", .{});
 }
+
+//------------------------------------------------------------------------------
+// テスト
+//------------------------------------------------------------------------------
+test "トランザクションの初期化テスト" {
+    const tx = types.Transaction{
+        .sender = "Alice",
+        .receiver = "Bob",
+        .amount = 42,
+    };
+    try std.testing.expectEqualStrings("Alice", tx.sender);
+    try std.testing.expectEqualStrings("Bob", tx.receiver);
+    try std.testing.expectEqual(@as(u64, 42), tx.amount);
+}
+
+test "ブロックにトランザクションを追加" {
+    var block = types.Block{
+        .index = 0,
+        .timestamp = 1234567890,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(types.Transaction).init(mem),
+        .nonce = 0,
+        .data = "Test block",
+        .hash = [_]u8{0} ** 32,
+    };
+    defer block.transactions.deinit();
+
+    try block.transactions.append(types.Transaction{
+        .sender = "Taro",
+        .receiver = "Hanako",
+        .amount = 100,
+    });
+    try std.testing.expectEqual(@as(usize, 1), block.transactions.items.len);
+}
+
+test "マイニングが先頭1バイト0のハッシュを生成できる" {
+    var block = types.Block{
+        .index = 0,
+        .timestamp = 1672531200,
+        .prev_hash = [_]u8{0} ** 32,
+        .transactions = std.ArrayList(types.Transaction).init(mem),
+        .nonce = 0,
+        .data = "For Mining test",
+        .hash = [_]u8{0} ** 32,
+    };
+    defer block.transactions.deinit();
+
+    // 適当にトランザクションを追加
+    try block.transactions.append(types.Transaction{ .sender = "A", .receiver = "B", .amount = 100 });
+
+    // 初期ハッシュ
+    block.hash = blockchain.calculateHash(&block);
+
+    // 難易度1(先頭1バイトが0)を満たすまでマイニング
+    blockchain.mineBlock(&block, 1);
+    try std.testing.expectEqual(@as(u8, 0), block.hash[0]);
+}
 ```
-
-## ルート設定
-
-変更なし。
 
 ## 動作確認
 
@@ -330,6 +381,12 @@ Data       : Hello, Zig Blockchain!
 Hash       : 01fc976b652c64979aa83734fc577e64b2afa48d92bb0d3fec7bd76c2f8db
 ```
 
+```bash
+❯ zig build test
+```
+
 ## まとめと今後の拡張について
 
-このようにファイル構造を整えることで、ブロックチェインの機能拡大や他モジュールとの連携がやりやすくなります。
+ファイル分割によって責務が明確化され、可読性・保守性が向上し、今後の拡張（ピアツーピア通信やウォレット機能など）を追加するときも、ファイル単位でレイヤー分けしやすくなります。
+また、ビルドやテストの単位もファイル単位で行えるようになります。
+これでPoWブロックチェインの基本コードを分割したリファクタリングが完了です。次章では、この分割された構造を活かしてP2P通信を導入し、複数ノード間でブロックをやりとりする仕組みを実装していきましょう。
