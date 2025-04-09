@@ -1227,13 +1227,12 @@ zig build run -- --connect 127.0.0.1:8080
 クライアントのコンソールから```BLOCK:{"index":2,"nonce":777}```のメッセージを送ってみます。
 
 ```bash
-❯ zig build run -- --connect 127.0.0.1:8080
+❯ zig build run -- --connect 127.0.0.1:8081
 info: Connecting to 127.0.0.1:8081...
 Enter message for new block: hi
 ```
 
 ```bash
-❯ zig build run -- --listen 8080
 ❯ zig build run -- --listen 8081
 info: Listening on 0.0.0.0:8081
 info: Accepted: 127.0.0.1:60237
