@@ -51,8 +51,9 @@ free: true
 ## ネットワーク接続相手に関する構造体を定義
 
 まず、ネットワーク接続相手(ピア)に関する情報を扱う構造体を用意します。IPアドレスやTCPストリームを保持し、送受信で使い回します。
+types.zigに次のような構造体を追加します。
 
-```zig
+```types.zig
 const Peer = struct {
     address: std.net.Address,
     stream: std.net.Stream,
