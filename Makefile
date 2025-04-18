@@ -1,14 +1,14 @@
 .PHONY: install
 install:
-	pip install -r requirements.txt && pre-commit install && npm install
+	pip install -r requirements.txt && pre-commit install && pnpm install
 
 .PHONY: lint
 lint:
-	npm run lint
+	pnpm run lint
 
 .PHONY: lint_fix
 lint_fix:
-	npm run lint:fix
+	pnpm run lint:fix
 
 .PHONY: new_article
 new_article:
@@ -16,7 +16,7 @@ new_article:
 
 .PHONY: preview
 preview:
-	npm run preview
+	pnpm run preview
 
 .PHONY: before_commit
 before_commit: lint
