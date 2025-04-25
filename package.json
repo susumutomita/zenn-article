@@ -6,7 +6,9 @@
   "scripts": {
     "lint": "npx textlint ./**/*.md ./books/**/chapter1.md ./books/**/chapter2.md ./books/**/chapter3.md  ./books/**/chapter4.md  ./books/**/chapter5.md ./books/**/chapter6.md ./books/**/chapter7.md ./books/**/chapter8.md",
     "lint:fix": "npx textlint --fix ./**/*.md ./books/**/chapter1.md ./books/**/chapter2.md ./books/**/chapter3.md  ./books/**/chapter4.md  ./books/**/chapter5.md ./books/**/chapter6.md ./books/**/chapter7.md ./books/**/chapter8.md",
-    "preview": "npx zenn preview"
+    "preview": "npx zenn preview",
+    "lint-staged": "lint-staged",
+    "husky": "husky"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
     "zenn-cli": "^0.1.158"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "textlint": "^14.6.0",
     "textlint-rule-no-mixed-zenkaku-and-hankaku-alphabet": "^1.0.1",
     "textlint-rule-no-mixed-zenkaku-and-hankaku-number": "^1.0.0",

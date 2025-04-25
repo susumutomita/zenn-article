@@ -12,6 +12,9 @@ importers:
         specifier: ^0.1.158
         version: 0.1.158
     devDependencies:
+      husky:
+        specifier: ^9.1.7
+        version: 9.1.7
       textlint:
         specifier: ^14.6.0
         version: 14.6.0
@@ -588,6 +591,11 @@ packages:
 
   hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
+
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -2311,6 +2319,8 @@ snapshots:
   hookified@1.8.2: {}
 
   hosted-git-info@2.8.9: {}
+
+  husky@9.1.7: {}
 
   ieee754@1.2.1: {}
 
