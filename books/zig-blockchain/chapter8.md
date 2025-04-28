@@ -41,6 +41,19 @@ pub fn printChainState() void {
 
 ここからP2P通信に必要な機能を追加していきます。
 
+### P2P通信設計の全体像
+
+本章で組み立てるネットワーク層は **“シンプルさ > 完全性”** を最優先にしています。
+
+- **伝送単位**は `TEXT(JSON) + 改行` —— *Wireshark で即読可能*
+- **RPC** は2種のみ
+  - `BLOCK:<json>` : 新規ブロックのゴシップ
+  - `GET_CHAIN`    : レイジー同期要求
+- ピア検出は **静的リスト + 再接続ループ**。「数十〜百ノード規模」であれば十分という割り切りです。
+- ハードエラーより **“失敗してもリトライ”** を優先。学習用ツールとして *落ちにくい* 体験を重視しました。
+
+これらを踏まえて、以下で各関数の内部ロジックを詳しく追っていきましょう。
+
 ## ピアとの通信処理とブロックの再伝播
 
 それでは、実際にピア間でブロックやメッセージをやり取りする通信処理を実装しましょう。まずp2p.zigを作り、P2Pに関するコードをまとめていきます。
@@ -101,6 +114,28 @@ pub fn listenLoop(port: u16) !void {
         _ = try std.Thread.spawn(.{}, peerCommunicationLoop, .{peer});
     }
 }
+```
+
+着信接続を受け入れるまでの流れは以下の通りです。
+
+1. `std.net.Address.resolveIp` で **0.0.0.0:port** をバインドし全インタフェースで待ち受け。
+2. `addr.listen().accept()` は *ブロッキング*。OSカーネルに制御が移ります。
+3. 新規接続を `types.Peer` にラップし `peer_list.append`。
+   - **目的**: 全スレッド共有の *接続テーブル* を維持
+4. 受け入れと同時に `std.Thread.spawn` で **専用スレッド**を生成。
+5. 親スレッドは次の `accept()` へ戻り、*無限ループ* でリッスン継続。
+
+```mermaid
+sequenceDiagram
+    participant L as listenLoop
+    participant K as OS Kernel
+    participant P as peerCommunicationLoop
+    L->>K: accept()
+    K-->>L: new socket
+    L->>L: peer_list.append()
+    L->>P: spawn thread<br/>peerCommunicationLoop(peer)
+    note right of P: 専用スレッドで通信処理
+    L->>K: accept() (loop)
 ```
 
 ピアを管理するのに必要な関数を追加します。
@@ -226,6 +261,32 @@ fn removePeerFromList(target: types.Peer) void {
     }
 }
 ```
+
+### connectToPeer — アウトバウンド接続と再接続
+
+1. `while (true)` で永続的に接続を試行。失敗時は `std.time.sleep(5秒)`（指数バックオフへ置換可能）。
+2. 成功したら `types.Peer` を生成し `peer_list` へ登録。
+3. 直後に `requestChain(peer)` を送信し **最新チェインの取得** をリクエスト。
+4. 続けて **同じスレッド**で `peerCommunicationLoop` を呼び出し、通信ループへ。
+
+```mermaid
+flowchart LR
+    Start -->|tcpConnect| Connected
+    Connected --> send[requestChain]
+    send --> comm[peerCommunicationLoop]
+    comm -->|disconnect| Retry
+    Retry -->|sleep 5s| Start
+```
+
+### broadcastBlock — ゴシップのコア
+
+- シリアル化は `parser.serializeBlock` に集約し **I/O と計算を分離**。
+- `from_peer` で送信元を除外し **エコーループ** を防止。
+- 書き込み失敗時はログのみ残してループ継続 —— *ネットワーク全断* を回避します。
+
+### sendFullChain — 遅延同期のためのワンショット RPC
+
+新規ノードが合流した際に **“全ブロック”** を送る簡易実装です。
 
 受信したメッセージを処理する関数を追加します。
 
@@ -393,6 +454,16 @@ fn peerCommunicationLoop(peer: types.Peer) !void {
     std.log.info("Peer {any} disconnected.", .{peer.address});
 }
 ```
+
+peerCommunicationLoop関数は受信・整形・デコードの三段階で構成してあります。
+
+| ステップ | 処理内容 | 役割 |
+|---------|----------|------|
+| (1) **read**  | `reader.read(buf[n..])` | ソケットから *生バイト列* を取得 |
+| (2) **frame** | バッファ内を `\n` でスキャン | **メッセージ境界** を検出 |
+| (3) **handle**| `handleMessage(msg, peer)` | コマンド種別で振り分け |
+
+改行デリミタのみを規約にした **最小限の状態機械** なので、高速かつバグが少ない構造になっています。
 
 出来上がったp2p.zigモジュール全体のコードは以下になります。
 
