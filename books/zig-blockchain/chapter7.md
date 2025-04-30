@@ -599,6 +599,7 @@ const std = @import("std");
 const blockchain = @import("blockchain.zig");
 const types = @import("types.zig");
 const parser = @import("parser.zig");
+const net = std.net;
 
 //------------------------------------------------------------------------------
 // メイン処理およびテスト実行
@@ -646,8 +647,26 @@ pub fn main() !void {
         }
         const port_num = try std.fmt.parseInt(u16, port_str, 10);
         std.log.info("Connecting to {s}:{d}...", .{ host_str, port_num });
-        const remote_addr = try std.net.Address.resolveIp(host_str, port_num);
-        var socket = try std.net.tcpConnectToAddress(remote_addr);
+
+        // ホスト名を解決する (IPアドレスまたはホスト名の両方に対応)
+        var remote_addr: net.Address = undefined;
+        if (std.mem.indexOf(u8, host_str, ".") != null) {
+            // IPアドレスと思われる場合は直接解決
+            remote_addr = try net.Address.resolveIp(host_str, port_num);
+        } else {
+            // ホスト名の場合はDNS解決を使用
+            var list = try net.getAddressList(gpa, host_str, port_num);
+            defer list.deinit();
+
+            if (list.addrs.len == 0) {
+                std.log.err("Could not resolve hostname: {s}", .{host_str});
+                return error.HostNotFound;
+            }
+
+            remote_addr = list.addrs[0];
+        }
+
+        var socket = try net.tcpConnectToAddress(remote_addr);
         const peer = types.Peer{
             .address = remote_addr,
             .stream = socket,
@@ -736,6 +755,104 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 
 以上で、サーバー・クライアント両モードの動作がmain関数に組み込まれました。アプリケーションとして、起動時の引数によってP2Pノードとしての役割を変えられるようになっています。
 
+## Dockerfileの修正
+
+Dockerfileを修正して、サーバーモードとクライアントモードの両方を実行できるようにします。以下のように修正します。
+
+```dockerfile
+# ベースイメージに Alpine Linux を使用
+FROM alpine:latest
+
+# zig の公式バイナリをダウンロードするために必要なツールをインストール
+# xz パッケージを追加して tar が .tar.xz を解凍できるようにする
+RUN apk add --no-cache curl tar xz
+
+# Zig のバージョンを指定可能にするビルド引数（デフォルトは 0.14.0）
+ARG ZIG_VERSION=0.14.0
+# ここでは x86_64 用のバイナリを使用する例です
+ENV ZIG_DIST=zig-linux-x86_64-${ZIG_VERSION}
+ENV ZIG_VERSION=${ZIG_VERSION}
+
+# 指定された Zig のバージョンを公式サイトからダウンロードして解凍し、PATH に追加
+RUN curl -LO https://ziglang.org/download/${ZIG_VERSION}/${ZIG_DIST}.tar.xz && \
+  tar -xf ${ZIG_DIST}.tar.xz && \
+  rm ${ZIG_DIST}.tar.xz
+ENV PATH="/${ZIG_DIST}:${PATH}"
+
+# 一般ユーザー appuser を作成し、作業用ディレクトリを設定
+RUN addgroup -S appgroup && \
+  adduser -S appuser -G appgroup && \
+  mkdir -p /app && chown -R appuser:appgroup /app
+
+# 作業ディレクトリを /app に設定
+WORKDIR /app
+
+# ホスト側のファイルをコンテナ内にコピーし、所有者を appuser に設定
+COPY --chown=appuser:appgroup . .
+
+# 一般ユーザーに切り替え
+USER appuser
+
+# コンテナ起動時に Zig ビルドシステムを使って run を実行
+CMD ["zig", "build"]
+```
+
+## Dcoekr composeの修正
+
+docker-compose.ymlを修正して、サーバーノードとクライアントノードの両方を起動できるようにします。以下のように修正します。
+
+```yaml
+# Docker Compose構成ファイル - ブロックチェーンノードネットワーク
+#
+# 使い方:
+# 1. 起動: docker compose up -d
+# 2. コンテナでコマンド実行: docker exec -it <container_name> <command>
+#    例: docker exec -it node2 sh -c "./zig-out/bin/block_client node1 3000 'Hello'"
+#
+# 注意: 新しいコンテナを起動するには docker compose run ではなく docker exec を使用してください
+
+# 共通設定
+x-common-config: &common-config
+  platform: linux/amd64
+  volumes:
+    - ./:/app
+  build: .
+
+services:
+  node1:
+    <<: *common-config
+    container_name: node1
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ID=1
+    command: sh -c "./zig-out/bin/chapter7 --listen 3000"
+
+  node2:
+    <<: *common-config
+    container_name: node2
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ID=2
+    tty: true
+    stdin_open: true
+    # 長時間実行するコマンドを追加してコンテナを停止させない
+    command: sh -c "tail -f /dev/null"
+
+  node3:
+    <<: *common-config
+    container_name: node3
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ID=3
+    tty: true
+    stdin_open: true
+    # 長時間実行するコマンドを追加してコンテナを停止させない
+    command: sh -c "tail -f /dev/null"
+```
+
 ## 動作確認
 
 サーバノードを起動させる。
@@ -785,6 +902,42 @@ info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, 
 - ブロックが共有されたことの確認: サーバーノードがブロックを受け取ってチェインに追加できたので、同じブロックがネットワークで共有されたことになります。必要に応じてサーバー側でチェインの状態を出力する関数（例: dumpChain()など）を作成し、ブロックが確かに追加されているか確認しても良いでしょう。
 
 また、応用として手動でブロックメッセージを送信できます。例えばクライアントのコンソールで、```BLOCK:{"index":2,"nonce":777,"data":"manual",...}```のようにJSON文字列を入力します。そうすると、プログラムはそれをサーバーに送信します。サーバー側はプレフィックスによりブロックJSONだと判断してパースを試みます。実際の運用ではプログラム側が自動でブロックメッセージを生成しますが、開発・テスト中は色々なケースを試すこともできます。
+
+Docker Composeを使って、複数のノードを立ち上げてみます。例えば、node1とnode2を起動し、node1からnode2に接続することで、P2Pネットワークの動作を確認できます。
+
+```bash
+docker compose up
+[+] Running 3/3
+ ✔ Container node1  Recreated                                                                                 0.0s
+ ✔ Container node3  Recreated                                                                                 0.1s
+ ✔ Container node2  Recreated                                                                                 0.1s
+Attaching to node1, node2, node3
+node1  | info: Listening on 0.0.0.0:3000
+```
+
+Node2に接続して、メッセージを送ります。
+
+```bash
+docker exec -it node2 sh -c "./zig-out/bin/chapter7 --connect node1:3000"
+info: Connecting to node1:3000...
+Enter message for new block: hi
+```
+
+すると、node1側に以下のようなログが出力されます。
+
+```bash
+node1  | info: Accepted: 172.18.0.4:46888
+node1  | info: [Received] BLOCK:{"index":1,"timestamp":1746057682,"nonce":73344,"data":"hi","prev_hash":"0000d00f99225cd2adb3085631456a8ea362d233aa965cb48c0d8f8b488a9022","hash":"0000a3b631a2a32add03bb973470e24a85f2ff94601121d940d4be720176872f","transactions":[]}
+node1  | debug: parseBlockJson start
+node1  | debug: parseBlockJson start parsed
+node1  | debug: parseBlockJson end parsed
+node1  | debug: parseBlockJson start parser
+node1  | debug: Transactions field is directly an array.
+node1  | debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1164a00, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1164fd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1165200, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1165250 } } }
+node1  | debug: Block info: index=1, timestamp=1746057682, prev_hash={ 0, 0, 208, 15, 153, 34, 92, 210, 173, 179, 8, 86, 49, 69, 106, 142, 163, 98, 210, 51, 170, 150, 92, 180, 140, 13, 143, 139, 72, 138, 144, 34 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1164a00, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1164fd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1165200, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1165250 } } } nonce=73344, data=hi, hash={ 0, 0, 163, 182, 49, 162, 163, 42, 221, 3, 187, 151, 52, 112, 226, 74, 133, 242, 255, 148, 96, 17, 33, 217, 64, 212, 190, 114, 1, 118, 135, 47 }
+node1  | debug: parseBlockJson end
+node1  | info: Added new block index=1, nonce=73344, hash={ 0, 0, a3, b6, 31, a2, a3, 2a, dd, 3, bb, 97, 34, 70, e2, 4a, 85, f2, ff, 94, 60, 11, 21, d9, 40, d4, be, 72, 1, 76, 87, 2f }
+```
 
 ### まとめ
 
