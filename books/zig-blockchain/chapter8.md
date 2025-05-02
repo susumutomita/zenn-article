@@ -20,20 +20,65 @@ blockchain.zigに現在のチェインの状態を表示する機能を加えま
 ```blockchain.zig
 pub var chain_store = std.ArrayList(types.Block).init(std.heap.page_allocator);
 
-
-/// デバッグ用に現在のブロックチェイン状態を出力する
+/// 検証済みブロックをブロックチェーンに追加する
 ///
-/// チェインの高さと最新ブロックに関する情報をログに記録します
+/// チェーンに追加する前にブロックのプルーフオブワークを検証します。
+/// 検証に失敗したブロックは拒否されます。
+///
+/// 引数:
+///     new_block: チェーンに追加するBlock構造体
+///
+/// 注意:
+///     この関数は成功または失敗のメッセージをログに記録します
+pub fn addBlock(new_block: types.Block) void {
+    if (!verifyBlockPow(&new_block)) {
+        std.log.err("Received block fails PoW check. Rejecting it.", .{});
+        return;
+    }
+    chain_store.append(new_block) catch {};
+    std.log.info("Added new block index={d}, nonce={d}, hash={x}", .{ new_block.index, new_block.nonce, new_block.hash });
+
+    // 新しいブロックを追加した後にチェーン全体を表示
+    printChainState();
+}
+
+/// デバッグ用に現在のブロックチェーン状態を出力する
+///
+/// チェーンの高さと各ブロックの詳細情報を見やすい形式で表示します
 pub fn printChainState() void {
     std.log.info("Current chain state:", .{});
     std.log.info("- Height: {d} blocks", .{chain_store.items.len});
 
-    if (chain_store.items.len > 0) {
-        const latest = chain_store.items[chain_store.items.len - 1];
-        std.log.info("- Latest block: index={d}, hash={x}", .{ latest.index, latest.hash });
-    } else {
+    if (chain_store.items.len == 0) {
         std.log.info("- No blocks in chain", .{});
+        return;
     }
+
+    // 各ブロックを詳細に表示
+    for (chain_store.items) |block| {
+        const hash_str = std.fmt.bytesToHex(block.hash, .lower);
+        // 区切り線を表示
+        std.debug.print("\n{s}\n", .{"---------------------------"});
+        // ブロック情報を見やすく表示
+        std.debug.print("Block index: {d}\n", .{block.index});
+        std.debug.print("Timestamp  : {d}\n", .{block.timestamp});
+        std.debug.print("Nonce      : {d}\n", .{block.nonce});
+        std.debug.print("Data       : {s}\n", .{block.data});
+
+        // トランザクション情報を表示
+        std.debug.print("Transactions:\n", .{});
+        if (block.transactions.items.len == 0) {
+            std.debug.print("  (no transactions)\n", .{});
+        } else {
+            for (block.transactions.items) |tx| {
+                std.debug.print("  {s} -> {s} : {d}\n", .{ tx.sender, tx.receiver, tx.amount });
+            }
+        }
+
+        // ハッシュを表示
+        std.debug.print("Hash       : {s}\n", .{hash_str[0..64]});
+    }
+    std.debug.print("\n{s}\n", .{"---------------------------"});
 }
 ```
 
@@ -984,6 +1029,20 @@ info: Connected to peer: 127.0.0.1:8080
 info: Requested chain from 127.0.0.1:8080
 hi
 info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, b8, b7, 49, 9c, 67, c6, 7e, cf, 70, 30, 45, 25, 57, 95, 45, 71, 30, a7, b5, 7b, 44, 90, 56, 7e }
+info: Current chain state:
+info: - Height: 1 blocks
+
+---------------------------
+Block index: 1
+Timestamp  : 1746151143
+Nonce      : 1924
+Data       : hi
+Transactions:
+  (no transactions)
+Hash       : 0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e
+
+---------------------------
+msg>
 ```
 
 するとブロックが追加された旨のメッセージが表示されます。
@@ -996,18 +1055,31 @@ info: Current chain state:
 info: - Height: 0 blocks
 info: - No blocks in chain
 msg> info: listen 0.0.0.0:8080
-info: Accepted connection from: 127.0.0.1:51505
-info: Received GET_CHAIN from 127.0.0.1:51505
-info: Sending full chain (height=0) to 127.0.0.1:51505
+info: Accepted connection from: 127.0.0.1:52325
+info: Received GET_CHAIN from 127.0.0.1:52325
+info: Sending full chain (height=0) to 127.0.0.1:52325
 debug: parseBlockJson start
 debug: parseBlockJson start parsed
 debug: parseBlockJson end parsed
 debug: parseBlockJson start parser
 debug: Transactions field is directly an array.
-debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@102ed16e8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@102ed1c40, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@102ed1f18, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@102ed1f6c } } }
-debug: Block info: index=1, timestamp=1746149705, prev_hash={ 0, 0, 87, 226, 136, 167, 214, 117, 46, 42, 58, 200, 29, 42, 78, 154, 224, 70, 48, 34, 78, 150, 13, 178, 54, 177, 229, 64, 100, 30, 74, 29 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@102ed16e8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@102ed1c40, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@102ed1f18, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@102ed1f6c } } } nonce=1924, data=hi, hash={ 0, 0, 160, 198, 25, 46, 132, 111, 184, 183, 73, 156, 103, 198, 126, 207, 112, 48, 69, 37, 87, 149, 69, 113, 48, 167, 181, 123, 68, 144, 86, 126 }
+debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1009e7cf8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1009e8250, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1009e8528, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1009e857c } } }
+debug: Block info: index=1, timestamp=1746151143, prev_hash={ 0, 0, 87, 226, 136, 167, 214, 117, 46, 42, 58, 200, 29, 42, 78, 154, 224, 70, 48, 34, 78, 150, 13, 178, 54, 177, 229, 64, 100, 30, 74, 29 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@1009e7cf8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1009e8250, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1009e8528, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1009e857c } } } nonce=1924, data=hi, hash={ 0, 0, 160, 198, 25, 46, 132, 111, 184, 183, 73, 156, 103, 198, 126, 207, 112, 48, 69, 37, 87, 149, 69, 113, 48, 167, 181, 123, 68, 144, 86, 126 }
 debug: parseBlockJson end
 info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, b8, b7, 49, 9c, 67, c6, 7e, cf, 70, 30, 45, 25, 57, 95, 45, 71, 30, a7, b5, 7b, 44, 90, 56, 7e }
+info: Current chain state:
+info: - Height: 1 blocks
+
+---------------------------
+Block index: 1
+Timestamp  : 1746151143
+Nonce      : 1924
+Data       : hi
+Transactions:
+  (no transactions)
+Hash       : 0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e
+
+---------------------------
 ```
 
 確かにブロックが追加された旨のメッセージが表示されていることがわかります。
@@ -1016,14 +1088,14 @@ info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, 
 
 ```bash
 printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8081
-BLOCK:{"index":1,"timestamp":1746149705,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
+BLOCK:{"index":1,"timestamp":1746151143,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
 ```
 
 一方NodeA側にも同様にGET_CHAINメッセージを送信してみます。
 
 ```bash
 printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8080
-BLOCK:{"index":1,"timestamp":1746149705,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
+BLOCK:{"index":1,"timestamp":1746151143,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
 ```
 
 同じブロックが共有されていることがわかります。
