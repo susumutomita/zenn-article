@@ -192,24 +192,28 @@ GitHub上でホストされたLinux/Windows/macOSのランナー（仮想マシ�
 ```yaml
 name: Zig CI
 
+permissions:
+  contents: read
+
 on:
   push: {}
+  pull_request: {}
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.14.0
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.14.0
+          cache: false
 
-    - name: Run tests
-      run: zig build test
+      - name: Run tests
+        run: zig build test
 ```
 
-上記のYAMLでは、`main`ブランチへのプッシュやプルリクエストをトリガーとしてワークフローが走ります。ジョブはUbuntu環境で実行され、まずリポジトリのコードをチェックアウトします。次にコミュニティ提供の`goto-bus-stop/setup-zig`アクションを使ってZigコンパイラをインストールしています。`with:`セクションでZigのバージョン（0.13.0）を指定して利用するZigのバージョンを固定しています。最後に`zig build test`を実行し、プロジェクトのビルドおよびテスト（Zigのビルトインテストを利用）を行います。
+上記のYAMLでは、`main`ブランチへのプッシュやプルリクエストをトリガーとしてワークフローが走ります。ジョブはUbuntu環境で実行され、まずリポジトリのコードをチェックアウトします。次にコミュニティ提供の`goto-bus-stop/setup-zig`アクションを使ってZigコンパイラをインストールしています。`with:`セクションでZigのバージョンを指定して利用するZigのバージョンを固定しています。最後に`zig build test`を実行し、プロジェクトのビルドおよびテスト（Zigのビルトインテストを利用）を行います。
 このCI設定により、GitHub上でコード変更があるたびに自動でコンテナ内と同じ環境でビルド・テストが行われ、その結果がGitHub上で確認できます。仮にテストが失敗した場合は開発者に通知されるため、問題を早期に発見して修正できます。GitHub Actionsの設定はリポジトリと一緒にバージョン管理されるため、プロジェクトに参加した他の開発者も同じCIパイプラインを共有できます。また、ActionsはGitHubに組み込まれているので、追加のサービス契約なしに利用開始でき、オープンソースであれば無料枠内で相当数の実行が可能です。
