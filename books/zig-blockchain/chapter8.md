@@ -423,9 +423,30 @@ pub fn resolveHostPort(spec: []const u8) !std.net.Address {
     const host = it.next() orelse return error.Invalid;
     const port_s = it.next() orelse return error.Invalid;
     const port = try std.fmt.parseInt(u16, port_s, 10);
-    return std.net.Address.resolveIp(host, port);
-}
 
+    // 特別なケース: localhostが指定された場合は直接127.0.0.1を使用
+    if (std.mem.eql(u8, host, "localhost")) {
+        return std.net.Address.parseIp("127.0.0.1", port) catch unreachable;
+    }
+
+    // まずIPアドレスとしてパースを試みる
+    return std.net.Address.parseIp(host, port) catch |err| {
+        if (err == error.InvalidIPAddressFormat) {
+            // IPアドレスとして無効な場合は、ホスト名解決を試みる
+            const list = try std.net.getAddressList(std.heap.page_allocator, host, port);
+            defer list.deinit();
+
+            // アドレスが見つからない場合はエラー
+            if (list.addrs.len == 0) {
+                return error.UnknownHostName;
+            }
+
+            // 最初のアドレスを返す
+            return list.addrs[0];
+        }
+        return err;
+    };
+}
 ```
 
 次にピアとの通信を処理する関数を実装します。
@@ -515,9 +536,9 @@ peerCommunicationLoop関数は受信・整形・デコードの三段階で構�
 ```p2p.zig
 //! ピアツーピアネットワーキングモジュール
 //!
-//! このモジュールはブロックチェインアプリケーションのピアツーピアネットワーク層を実装します。
+//! このモジュールはブロックチェーンアプリケーションのピアツーピアネットワーク層を実装します。
 //! 他のノードとの接続確立、着信接続の待ち受け、ノード間の通信プロトコルの
-//! 処理機能を提供します。このモジュールはネットワーク全体にブロックチェインデータを
+//! 処理機能を提供します。このモジュールはネットワーク全体にブロックチェーンデータを
 //! ブロードキャストし、同期することを可能にします。
 
 const std = @import("std");
@@ -561,7 +582,7 @@ pub fn listenLoop(port: u16) !void {
 ///
 /// 指定されたアドレスで別のノードとの接続を確立しようとします。
 /// 接続に失敗した場合、遅延後に再試行します。接続が確立されると、
-/// チェイン同期をリクエストします。
+/// チェーン同期をリクエストします。
 ///
 /// 引数:
 ///     addr: 接続するピアのネットワークアドレス
@@ -580,7 +601,7 @@ pub fn connectToPeer(addr: std.net.Address) !void {
         const peer = types.Peer{ .address = addr, .stream = sock };
         try peer_list.append(peer);
 
-        // 新しく接続されたピアからチェイン同期をリクエスト
+        // 新しく接続されたピアからチェーン同期をリクエスト
         try requestChain(peer);
 
         // ピアとの通信ループを開始
@@ -590,12 +611,12 @@ pub fn connectToPeer(addr: std.net.Address) !void {
     }
 }
 
-/// ピアからブロックチェインデータをリクエストする
+/// ピアからブロックチェーンデータをリクエストする
 ///
-/// ピアのブロックチェインデータをリクエストするためにGET_CHAINメッセージを送信します。
+/// ピアのブロックチェーンデータをリクエストするためにGET_CHAINメッセージを送信します。
 ///
 /// 引数:
-///     peer: チェインをリクエストするピア
+///     peer: チェーンをリクエストするピア
 ///
 /// エラー:
 ///     ストリーム書き込みエラー
@@ -637,13 +658,13 @@ pub fn broadcastBlock(blk: types.Block, from_peer: ?types.Peer) void {
     }
 }
 
-/// 完全なブロックチェインをピアに送信する
+/// 完全なブロックチェーンをピアに送信する
 ///
-/// ローカルチェイン内のすべてのブロックをシリアル化し、
+/// ローカルチェーン内のすべてのブロックをシリアル化し、
 /// 適切なメッセージフレーミングで1つずつ指定されたピアに送信します。
 ///
 /// 引数:
-///     peer: チェインを送信するピア
+///     peer: チェーンを送信するピア
 ///
 /// エラー:
 ///     シリアル化またはネットワークエラー
@@ -695,7 +716,7 @@ fn handleMessage(msg: []const u8, from_peer: types.Peer) !void {
             return;
         };
 
-        // チェインにブロックを追加
+        // チェーンにブロックを追加
         blockchain.addBlock(blk);
 
         // 他のピアにブロックをブロードキャスト
@@ -726,7 +747,7 @@ pub fn textInputLoop() !void {
         const maybe_line = reader.readUntilDelimiterOrEof(buf[0..], '\n') catch null;
 
         if (maybe_line) |line| {
-            // チェインが空の場合は最新のブロックを取得するか、ジェネシスを作成
+            // チェーンが空の場合は最新のブロックを取得するか、ジェネシスを作成
             const last_block = if (blockchain.chain_store.items.len == 0)
                 try blockchain.createTestGenesisBlock(std.heap.page_allocator)
             else
@@ -762,7 +783,29 @@ pub fn resolveHostPort(spec: []const u8) !std.net.Address {
     const host = it.next() orelse return error.Invalid;
     const port_s = it.next() orelse return error.Invalid;
     const port = try std.fmt.parseInt(u16, port_s, 10);
-    return std.net.Address.resolveIp(host, port);
+
+    // 特別なケース: localhostが指定された場合は直接127.0.0.1を使用
+    if (std.mem.eql(u8, host, "localhost")) {
+        return std.net.Address.parseIp("127.0.0.1", port) catch unreachable;
+    }
+
+    // まずIPアドレスとしてパースを試みる
+    return std.net.Address.parseIp(host, port) catch |err| {
+        if (err == error.InvalidIPAddressFormat) {
+            // IPアドレスとして無効な場合は、ホスト名解決を試みる
+            const list = try std.net.getAddressList(std.heap.page_allocator, host, port);
+            defer list.deinit();
+
+            // アドレスが見つからない場合はエラー
+            if (list.addrs.len == 0) {
+                return error.UnknownHostName;
+            }
+
+            // 最初のアドレスを返す
+            return list.addrs[0];
+        }
+        return err;
+    };
 }
 
 /// ピアとの通信を処理する
@@ -1001,13 +1044,71 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 }
 ```
 
-### Node A を起動
+## Dcoekr composeの修正
+
+docker-compose.ymlを修正して、サーバーノードとクライアントノードの両方を起動できるようにします。以下のように修正します。
+
+```yaml
+# Docker Compose構成ファイル - ブロックチェーンノードネットワーク
+#
+# 使い方:
+# 1. 起動: docker compose up -d
+# 2. コンテナでコマンド実行: docker exec -it <container_name> <command>
+#    例: docker compose exec -it node2 sh -c "./zig-out/bin/chapter8 --listen 3000 --connect node1:3000"
+#
+# 注意: 新しいコンテナを起動するには docker compose run ではなく docker exec を使用してください
+
+# 共通設定
+x-common-config: &common-config
+  platform: linux/amd64
+  volumes:
+    - ./:/app
+  build: .
+
+services:
+  node1:
+    <<: *common-config
+    container_name: node1
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ID=1
+    command: ./zig-out/bin/chapter8 --listen 3000
+
+  node2:
+    <<: *common-config
+    container_name: node2
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ID=2
+    tty: true
+    stdin_open: true
+    # 長時間実行するコマンドを追加してコンテナを停止させない
+    command: sh -c "tail -f /dev/null"
+
+  node3:
+    <<: *common-config
+    container_name: node3
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ID=3
+    tty: true
+    stdin_open: true
+    # 長時間実行するコマンドを追加してコンテナを停止させない
+    command: sh -c "tail -f /dev/null"
+```
+
+## 動作確認
+
+NodeAを起動させる。
 
 ```bash
 zig build run -- --listen 8080
 ```
 
-### Node B を起動（Node Aを既知ピアとして指定）
+NodeBを起動させる。
 
 ```bash
 zig build run -- --listen 8081 --connect 127.0.0.1:8080
@@ -1099,6 +1200,83 @@ BLOCK:{"index":1,"timestamp":1746151143,"nonce":1924,"data":"hi","prev_hash":"00
 ```
 
 同じブロックが共有されていることがわかります。
+
+### Docker Composeでの起動
+
+Docker Composeを使って、複数のノードを立ち上げてみます。例えば、node1とnode2を起動し、node1からnode2に接続することで、P2Pネットワークの動作を確認できます。
+
+```bash
+docker compose up
+```
+
+Node2に接続して、メッセージを送ります。
+
+```bash
+docker compose exec -it node2 sh -c "./zig-out/bin/chapter8 --listen 3000 --connect node1:3000"
+info: Current chain state:
+info: - Height: 0 blocks
+info: - No blocks in chain
+info: listen 0.0.0.0:3000
+msg> info: Connected to peer: 172.18.0.3:3000
+info: Requested chain from 172.18.0.3:3000
+hello
+info: Added new block index=1, nonce=20697, hash={ 0, 0, d, 8e, c7, 7d, 80, 8b, d, 3c, 96, 33, 59, f, 12, e6, 10, 9, 87, 2, 9e, bd, 90, c2, 9, d9, 89, 65, 92, ea, ba, 42 }
+info: Current chain state:
+info: - Height: 1 blocks
+
+---------------------------
+Block index: 1
+Timestamp  : 1746225832
+Nonce      : 20697
+Data       : hello
+Transactions:
+  (no transactions)
+Hash       : 00000d8ec77d808b0d3c9633590f12e6100987029ebd90c209d9896592eaba42
+
+---------------------------
+msg>
+```
+
+すると、node1側に以下のようなログが出力されます。
+
+```bash
+docker compose up
+[+] Running 4/4
+ ✔ Network chapter8_default  Created               0.0s
+ ✔ Container node3           Created               0.0s
+ ✔ Container node2           Created               0.0s
+ ✔ Container node1           Created               0.0s
+Attaching to node1, node2, node3
+node1  | info: Current chain state:
+node1  | info: - Height: 0 blocks
+node1  | info: - No blocks in chain
+node1  | msg> info: listen 0.0.0.0:3000
+node1  | info: Accepted connection from: 172.18.0.2:38450
+node1  | info: Received GET_CHAIN from 172.18.0.2:38450
+node1  | info: Sending full chain (height=0) to 172.18.0.2:38450
+node1  | debug: parseBlockJson start
+node1  | debug: parseBlockJson start parsed
+node1  | debug: parseBlockJson end parsed
+node1  | debug: parseBlockJson start parser
+node1  | debug: Transactions field is directly an array.
+node1  | debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11714c0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1171a90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1171cc0, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1171d10 } } }
+node1  | debug: Block info: index=1, timestamp=1746225832, prev_hash={ 0, 0, 208, 15, 153, 34, 92, 210, 173, 179, 8, 86, 49, 69, 106, 142, 163, 98, 210, 51, 170, 150, 92, 180, 140, 13, 143, 139, 72, 138, 144, 34 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11714c0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1171a90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1171cc0, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1171d10 } } } nonce=20697, data=hello, hash={ 0, 0, 13, 142, 199, 125, 128, 139, 13, 60, 150, 51, 89, 15, 18, 230, 16, 9, 135, 2, 158, 189, 144, 194, 9, 217, 137, 101, 146, 234, 186, 66 }
+node1  | debug: parseBlockJson end
+node1  | info: Added new block index=1, nonce=20697, hash={ 0, 0, d, 8e, c7, 7d, 80, 8b, d, 3c, 96, 33, 59, f, 12, e6, 10, 9, 87, 2, 9e, bd, 90, c2, 9, d9, 89, 65, 92, ea, ba, 42 }
+node1  | info: Current chain state:
+node1  | info: - Height: 1 blocks
+node1  |
+node1  | ---------------------------
+node1  | Block index: 1
+node1  | Timestamp  : 1746225832
+node1  | Nonce      : 20697
+node1  | Data       : hello
+node1  | Transactions:
+node1  |   (no transactions)
+node1  | Hash       : 00000d8ec77d808b0d3c9633590f12e6100987029ebd90c209d9896592eaba42
+node1  |
+node1  | ---------------------------
+```
 
 ## まとめ
 
