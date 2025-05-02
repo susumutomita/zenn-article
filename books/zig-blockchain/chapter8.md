@@ -796,10 +796,10 @@ fn peerCommunicationLoop(peer: types.Peer) !void {
 本実装では、プログラムの引数や設定に既知ピアのアドレス一覧を渡し、起動時に順次接続を試みるようにします。main.zigを修正します。
 
 ```main.zig
-//! ブロックチェインアプリケーション エントリーポイント
+//! ブロックチェーンアプリケーション エントリーポイント
 //!
-//! このファイルはブロックチェインアプリケーションのメインエントリーポイントです。
-//! コマンドライン引数の処理、ブロックチェインの初期化、
+//! このファイルはブロックチェーンアプリケーションのメインエントリーポイントです。
+//! コマンドライン引数の処理、ブロックチェーンの初期化、
 //! ネットワーキングとユーザー操作用のスレッドの起動を行います。
 //! また、適合性テストを実行するためのサポートも提供します。
 
@@ -813,16 +813,19 @@ const p2p = @import("p2p.zig");
 ///
 /// コマンドライン引数を解析し、P2Pネットワークをセットアップし、
 /// リスナーとユーザー操作用のバックグラウンドスレッドを起動して
-/// ブロックチェインアプリケーションを初期化します。
+/// ブロックチェーンアプリケーションを初期化します。
 /// また、適合性テストの実行もサポートします。
 ///
 /// コマンドライン形式:
 ///   実行ファイル <ポート> [ピアアドレス...]
+///   実行ファイル --listen <ポート> [--connect <ホスト:ポート>...]
 ///   実行ファイル --conformance <テスト名> [--update]
 ///
 /// 引数:
 ///     <ポート>: このノードが待ち受けるポート番号
 ///     [ピア...]: オプションの既知ピアアドレスのリスト（"ホスト:ポート"形式）
+///     --listen <ポート>: このノードが待ち受けるポート番号
+///     --connect <ホスト:ポート>: オプションの既知ピアアドレス
 ///     --conformance <テスト名>: 指定された適合性テストを実行
 ///     --update: 適合性テスト実行時にゴールデンファイルを更新
 ///
@@ -835,23 +838,55 @@ pub fn main() !void {
     defer std.process.argsFree(gpa, args);
 
     if (args.len < 2) {
-        std.log.err("使用法: {s} <ポート> [ピア...]", .{args[0]});
+        std.log.err("使用法: {s} <ポート> [ピアアドレス...]", .{args[0]});
+        std.log.err("または: {s} --listen <ポート> [--connect <ホスト:ポート>...]", .{args[0]});
         std.log.err("       {s} --conformance <テスト名> [--update]", .{args[0]});
         return;
     }
 
-    // ポートとピアのためのコマンドライン引数の解析
-    const self_port = try std.fmt.parseInt(u16, args[1], 10);
-    const known_peers = args[2..];
+    var self_port: u16 = 0;
+    var known_peers = std.ArrayList([]const u8).init(gpa);
+    defer known_peers.deinit();
 
-    // 初期ブロックチェイン状態の表示
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--listen")) {
+            i += 1;
+            if (i >= args.len) {
+                std.log.err("--listen フラグの後にポート番号が必要です", .{});
+                return;
+            }
+            self_port = try std.fmt.parseInt(u16, args[i], 10);
+        } else if (std.mem.eql(u8, arg, "--connect")) {
+            i += 1;
+            if (i >= args.len) {
+                std.log.err("--connect フラグの後にホスト:ポートが必要です", .{});
+                return;
+            }
+            try known_peers.append(args[i]);
+        } else if (self_port == 0) {
+            // 従来の方式（最初の引数はポート番号）
+            self_port = try std.fmt.parseInt(u16, arg, 10);
+        } else {
+            // 従来の方式（追加の引数はピアアドレス）
+            try known_peers.append(arg);
+        }
+    }
+
+    if (self_port == 0) {
+        std.log.err("ポート番号が指定されていません。--listen フラグまたは最初の引数として指定してください。", .{});
+        return;
+    }
+
+    // 初期ブロックチェーン状態の表示
     blockchain.printChainState();
 
     // 着信接続用のリスナースレッドを開始
     _ = try std.Thread.spawn(.{}, p2p.listenLoop, .{self_port});
 
     // すべての既知のピアに接続
-    for (known_peers) |spec| {
+    for (known_peers.items) |spec| {
         const peer_addr = try p2p.resolveHostPort(spec);
         _ = try std.Thread.spawn(.{}, p2p.connectToPeer, .{peer_addr});
     }
@@ -921,22 +956,16 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 }
 ```
 
-### Node A（ポート8000）を起動
+### Node A を起動
 
 ```bash
-zig build run -- 8000
+zig build run -- --listen 8080
 ```
 
-### Node B（ポート8001）を起動（Node Aを既知ピアとして指定）
+### Node B を起動（Node Aを既知ピアとして指定）
 
 ```bash
-zig build run -- 8001 127.0.0.1:8000
-```
-
-### Node C（ポート8002）を起動（Node AとBを既知ピアとして指定）
-
-```bash
-zig build run -- 8002 127.0.0.1:8000
+zig build run -- --listen 8081 --connect 127.0.0.1:8080
 ```
 
 それぞれのノードで起動メッセージが表示されたら、どれか1つのノードでブロックメッセージを入力してみてください。例えばNode CのコンソールでHello P2Pと入力すると、マイニングが行われた後、他のNode AやNode Bのログにも新しいブロックを受信・追加した旨が表示されるはずです。これがピアツーピア同期の効果です。
@@ -946,13 +975,13 @@ zig build run -- 8002 127.0.0.1:8000
 NodeB側のコンソールでhiと入力しています。
 
 ```bash
-zig build run -- 8002 127.0.0.1:8000
+zig build run -- --listen 8081 --connect 127.0.0.1:8080
 info: Current chain state:
 info: - Height: 0 blocks
 info: - No blocks in chain
-msg> info: listen 0.0.0.0:8002
-info: Connected to peer: 127.0.0.1:8000
-info: Requested chain from 127.0.0.1:8000
+msg> info: listen 0.0.0.0:8081
+info: Connected to peer: 127.0.0.1:8080
+info: Requested chain from 127.0.0.1:8080
 hi
 info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, b8, b7, 49, 9c, 67, c6, 7e, cf, 70, 30, 45, 25, 57, 95, 45, 71, 30, a7, b5, 7b, 44, 90, 56, 7e }
 ```
@@ -962,21 +991,21 @@ info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, 
 この状態でNodeAのコンソールに戻ると、以下のように表示されます。
 
 ```bash
-zig build run -- 8000
+zig build run -- --listen 8080
 info: Current chain state:
 info: - Height: 0 blocks
 info: - No blocks in chain
-msg> info: listen 0.0.0.0:8000
-info: Accepted connection from: 127.0.0.1:50940
-info: Received GET_CHAIN from 127.0.0.1:50940
-info: Sending full chain (height=0) to 127.0.0.1:50940
+msg> info: listen 0.0.0.0:8080
+info: Accepted connection from: 127.0.0.1:51505
+info: Received GET_CHAIN from 127.0.0.1:51505
+info: Sending full chain (height=0) to 127.0.0.1:51505
 debug: parseBlockJson start
 debug: parseBlockJson start parsed
 debug: parseBlockJson end parsed
 debug: parseBlockJson start parser
 debug: Transactions field is directly an array.
-debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@10078ed74, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@10078f2cc, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@10078f5a4, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@10078f5f8 } } }
-debug: Block info: index=1, timestamp=1745800246, prev_hash={ 0, 0, 87, 226, 136, 167, 214, 117, 46, 42, 58, 200, 29, 42, 78, 154, 224, 70, 48, 34, 78, 150, 13, 178, 54, 177, 229, 64, 100, 30, 74, 29 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@10078ed74, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@10078f2cc, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@10078f5a4, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@10078f5f8 } } } nonce=1924, data=hi, hash={ 0, 0, 160, 198, 25, 46, 132, 111, 184, 183, 73, 156, 103, 198, 126, 207, 112, 48, 69, 37, 87, 149, 69, 113, 48, 167, 181, 123, 68, 144, 86, 126 }
+debug: Transactions field is directly an array. end transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@102ed16e8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@102ed1c40, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@102ed1f18, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@102ed1f6c } } }
+debug: Block info: index=1, timestamp=1746149705, prev_hash={ 0, 0, 87, 226, 136, 167, 214, 117, 46, 42, 58, 200, 29, 42, 78, 154, 224, 70, 48, 34, 78, 150, 13, 178, 54, 177, 229, 64, 100, 30, 74, 29 }, transactions=array_list.ArrayListAligned(types.Transaction,null){ .items = {  }, .capacity = 0, .allocator = mem.Allocator{ .ptr = anyopaque@0, .vtable = mem.Allocator.VTable{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@102ed16e8, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@102ed1c40, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@102ed1f18, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@102ed1f6c } } } nonce=1924, data=hi, hash={ 0, 0, 160, 198, 25, 46, 132, 111, 184, 183, 73, 156, 103, 198, 126, 207, 112, 48, 69, 37, 87, 149, 69, 113, 48, 167, 181, 123, 68, 144, 86, 126 }
 debug: parseBlockJson end
 info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, b8, b7, 49, 9c, 67, c6, 7e, cf, 70, 30, 45, 25, 57, 95, 45, 71, 30, a7, b5, 7b, 44, 90, 56, 7e }
 ```
@@ -986,15 +1015,15 @@ info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, 
 現在のチェインの状態を表示するにはGET_CHAINメッセージを送ります。
 
 ```bash
- printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8002
-BLOCK:{"index":1,"timestamp":1745800246,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
+printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8081
+BLOCK:{"index":1,"timestamp":1746149705,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
 ```
 
 一方NodeA側にも同様にGET_CHAINメッセージを送信してみます。
 
 ```bash
-printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8000
-BLOCK:{"index":1,"timestamp":1745800246,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
+printf 'GET_CHAIN\n' | nc -G 0 127.0.0.1 8080
+BLOCK:{"index":1,"timestamp":1746149705,"nonce":1924,"data":"hi","prev_hash":"000057e288a7d6752e2a3ac81d2a4e9ae04630224e960db236b1e540641e4a1d","hash":"0000a0c6192e846fb8b7499c67c67ecf703045255795457130a7b57b4490567e","transactions":[]}
 ```
 
 同じブロックが共有されていることがわかります。
