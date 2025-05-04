@@ -4,8 +4,8 @@
   "description": "Zenn article repository",
   "main": "index.js",
   "scripts": {
-    "lint": "npx textlint ./**/*.md ./books/**/chapter1.md ./books/**/chapter2.md ./books/**/chapter3.md  ./books/**/chapter4.md  ./books/**/chapter5.md ./books/**/chapter6.md ./books/**/chapter7.md ./books/**/chapter8.md ./books/**/chapter9.md",
-    "lint:fix": "npx textlint --fix ./**/*.md ./books/**/chapter1.md ./books/**/chapter2.md ./books/**/chapter3.md  ./books/**/chapter4.md  ./books/**/chapter5.md ./books/**/chapter6.md ./books/**/chapter7.md ./books/**/chapter8.md ./books/**/chapter9.md",
+    "lint": "npx textlint ./**/*.md ./books/**/*.md",
+    "lint:fix": "npx textlint --fix ./**/*.md ./books/**/*.md",
     "preview": "npx zenn preview",
     "lint-staged": "lint-staged",
     "husky": "husky"
