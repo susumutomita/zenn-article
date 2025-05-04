@@ -8,7 +8,9 @@
     "Keccak",
     "MLOAD",
     "MSTORE",
+    "Nethermind",
     "SLOAD",
-    "SSTORE"
+    "SSTORE",
+    "usize"
   ]
 }
