@@ -20,7 +20,7 @@ Ethereumブロックチェイン上でスマートコントラクトを実行す
 
 EVMには、実行時に使用されるいくつかの主要なデータ領域があります。[Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)。
 
-- **ストレージ (Storage)**: 各コントラクト（アカウント）に紐づく永続的な**キー値ストア**です。256ビットのキーと値のマッピングで表現され、トランザクション間で保存されます ([スマートコントラクトの紹介 — Solidity 0.8.21 ドキュメント](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#))。コントラクトの状態変数はこのストレージに格納され、ブロックチェイン上の状態の一部として永続化されます。ストレージへの書き込み・読み出しはガスコストが高く、他のコントラクトのストレージには直接アクセスできません。
+- **ストレージ (Storage)**: 各コントラクト（アカウント）に紐づく永続的な**キー値ストア**です。256ビットのキーと値のマッピングで表現され、トランザクション間で保存されます ([スマートコントラクトの紹介](https://docs.soliditylang.org/ja/latest/introduction-to-smart-contracts.html#))。コントラクトの状態変数はこのストレージに格納され、ブロックチェイン上の状態の一部として永続化されます。ストレージへの書き込み・読み出しはガスコストが高く、他のコントラクトのストレージには直接アクセスできません。
 
 - **メモリ (Memory)**: コントラクト実行中のみ有効な一時的なメモリ空間です。呼び出しごとにリセットされ、バイトアドレスでアクセス可能な1次元の配列として扱われます。読み書きは基本的に32バイト幅単位で行われ、必要に応じて末尾に向かって拡張されます（拡張にはガスコストが伴います）。計算中の一時データや後述する戻り値の一時格納に利用されます。
 
@@ -42,13 +42,431 @@ EVMの命令（オペコード）は1バイト長で表現され、例えば`0x0
 
 Solidityコンパイラ`solc`を使うと、Solidityコードから各種出力を得ることができます ([Using the Compiler](https://docs.soliditylang.org/en/latest/using-the-compiler.html))。バイトコード（EVMが実行するバイナリ）を取得するには、以下のように`--bin`オプションを指定します。
 
-```bash
-solc --bin MyContract.sol
+まず、コンパイルするSolidityコードを用意します。以下のような簡単なコントラクトを`contract/SimpleAdder.sol`というファイル名で保存します。
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Adder {
+    function add(uint256 a, uint256 b) public pure returns (uint256) {
+        return a + b;
+    }
+}
 ```
 
-上記コマンドを実行すると、標準出力にバイトコードの16進数表現が表示されます。`-o`オプションで出力先ディレクトリを指定すれば、コンパイル結果をファイルとして保存も可能です。今回は簡単のためコンパイル結果を直接コピー&ペーストしてZigコード内に埋め込んで使用します。
+次に、コントラクトをコンパイルしてバイトコードを取得します。以下のコマンドを実行してください。
 
-**補足:** `solc --asm`オプションを使うとSolidityが生成したEVMアセンブリ（オペコードの一覧）を見ることができます。興味があれば確認してみると良いでしょう。また、`--optimize`を付けるとバイトコードが最適化されますが、チュートリアルでは動作をわかりやすくするため最適化なしで進めます。
+```bash
+solc --bin --asm --abi contract/SimpleAdder.sol
+```
+
+それぞれのオプションの意味は以下の通りです。
+
+- `--bin`: バイトコードを出力します。
+- `--asm`: EVMアセンブリコードを出力します。
+- `--abi`: コントラクトのABI（Application Binary Interface）を出力します。ABIはコントラクトの関数やイベントのインタフェースを定義したものです。
+
+上記コマンドを実行すると、コンパイル結果としてバイトコードとABI（Application Binary Interface）が表示されます。バイトコードは`0x`で始まる16進数の文字列で、EVMが実行する命令列です。
+ABIは、コントラクトの関数やイベントのインタフェースを定義したものです。ABIは、コントラクトの関数を呼び出す際に必要な情報を提供します。具体的には、関数名、引数の型、戻り値の型などが含まれます。
+EVMアセンブリコードは、EVMが実行する命令の一覧を示しています。これにより、EVMがどのようにバイトコードを解釈しているかを理解する手助けになります。
+
+```bash
+solc --bin --asm --abi contract/SimpleAdder.sol
+
+======= contract/SimpleAdder.sol:Adder =======
+EVM assembly:
+    /* "contract/SimpleAdder.sol":57:174  contract Adder {... */
+  mstore(0x40, 0x80)
+  callvalue
+  dup1
+  iszero
+  tag_1
+  jumpi
+  0x00
+  dup1
+  revert
+tag_1:
+  pop
+  dataSize(sub_0)
+  dup1
+  dataOffset(sub_0)
+  0x00
+  codecopy
+  0x00
+  return
+stop
+
+sub_0: assembly {
+        /* "contract/SimpleAdder.sol":57:174  contract Adder {... */
+      mstore(0x40, 0x80)
+      callvalue
+      dup1
+      iszero
+      tag_1
+      jumpi
+      0x00
+      dup1
+      revert
+    tag_1:
+      pop
+      jumpi(tag_2, lt(calldatasize, 0x04))
+      shr(0xe0, calldataload(0x00))
+      dup1
+      0x771602f7
+      eq
+      tag_3
+      jumpi
+    tag_2:
+      0x00
+      dup1
+      revert
+        /* "contract/SimpleAdder.sol":78:172  function add(uint256 a, uint256 b) public pure returns (uint256) {... */
+    tag_3:
+      tag_4
+      0x04
+      dup1
+      calldatasize
+      sub
+      dup2
+      add
+      swap1
+      tag_5
+      swap2
+      swap1
+      tag_6
+      jump      // in
+    tag_5:
+      tag_7
+      jump      // in
+    tag_4:
+      mload(0x40)
+      tag_8
+      swap2
+      swap1
+      tag_9
+      jump      // in
+    tag_8:
+      mload(0x40)
+      dup1
+      swap2
+      sub
+      swap1
+      return
+    tag_7:
+        /* "contract/SimpleAdder.sol":134:141  uint256 */
+      0x00
+        /* "contract/SimpleAdder.sol":164:165  b */
+      dup2
+        /* "contract/SimpleAdder.sol":160:161  a */
+      dup4
+        /* "contract/SimpleAdder.sol":160:165  a + b */
+      tag_11
+      swap2
+      swap1
+      tag_12
+      jump      // in
+    tag_11:
+        /* "contract/SimpleAdder.sol":153:165  return a + b */
+      swap1
+      pop
+        /* "contract/SimpleAdder.sol":78:172  function add(uint256 a, uint256 b) public pure returns (uint256) {... */
+      swap3
+      swap2
+      pop
+      pop
+      jump      // out
+        /* "#utility.yul":88:205   */
+    tag_14:
+        /* "#utility.yul":197:198   */
+      0x00
+        /* "#utility.yul":194:195   */
+      dup1
+        /* "#utility.yul":187:199   */
+      revert
+        /* "#utility.yul":334:411   */
+    tag_16:
+        /* "#utility.yul":371:378   */
+      0x00
+        /* "#utility.yul":400:405   */
+      dup2
+        /* "#utility.yul":389:405   */
+      swap1
+      pop
+        /* "#utility.yul":334:411   */
+      swap2
+      swap1
+      pop
+      jump      // out
+        /* "#utility.yul":417:539   */
+    tag_17:
+        /* "#utility.yul":490:514   */
+      tag_27
+        /* "#utility.yul":508:513   */
+      dup2
+        /* "#utility.yul":490:514   */
+      tag_16
+      jump      // in
+    tag_27:
+        /* "#utility.yul":483:488   */
+      dup2
+        /* "#utility.yul":480:515   */
+      eq
+        /* "#utility.yul":470:533   */
+      tag_28
+      jumpi
+        /* "#utility.yul":529:530   */
+      0x00
+        /* "#utility.yul":526:527   */
+      dup1
+        /* "#utility.yul":519:531   */
+      revert
+        /* "#utility.yul":470:533   */
+    tag_28:
+        /* "#utility.yul":417:539   */
+      pop
+      jump      // out
+        /* "#utility.yul":545:684   */
+    tag_18:
+        /* "#utility.yul":591:596   */
+      0x00
+        /* "#utility.yul":629:635   */
+      dup2
+        /* "#utility.yul":616:636   */
+      calldataload
+        /* "#utility.yul":607:636   */
+      swap1
+      pop
+        /* "#utility.yul":645:678   */
+      tag_30
+        /* "#utility.yul":672:677   */
+      dup2
+        /* "#utility.yul":645:678   */
+      tag_17
+      jump      // in
+    tag_30:
+        /* "#utility.yul":545:684   */
+      swap3
+      swap2
+      pop
+      pop
+      jump      // out
+        /* "#utility.yul":690:1164   */
+    tag_6:
+        /* "#utility.yul":758:764   */
+      0x00
+        /* "#utility.yul":766:772   */
+      dup1
+        /* "#utility.yul":815:817   */
+      0x40
+        /* "#utility.yul":803:812   */
+      dup4
+        /* "#utility.yul":794:801   */
+      dup6
+        /* "#utility.yul":790:813   */
+      sub
+        /* "#utility.yul":786:818   */
+      slt
+        /* "#utility.yul":783:902   */
+      iszero
+      tag_32
+      jumpi
+        /* "#utility.yul":821:900   */
+      tag_33
+      tag_14
+      jump      // in
+    tag_33:
+        /* "#utility.yul":783:902   */
+    tag_32:
+        /* "#utility.yul":941:942   */
+      0x00
+        /* "#utility.yul":966:1019   */
+      tag_34
+        /* "#utility.yul":1011:1018   */
+      dup6
+        /* "#utility.yul":1002:1008   */
+      dup3
+        /* "#utility.yul":991:1000   */
+      dup7
+        /* "#utility.yul":987:1009   */
+      add
+        /* "#utility.yul":966:1019   */
+      tag_18
+      jump      // in
+    tag_34:
+        /* "#utility.yul":956:1019   */
+      swap3
+      pop
+        /* "#utility.yul":912:1029   */
+      pop
+        /* "#utility.yul":1068:1070   */
+      0x20
+        /* "#utility.yul":1094:1147   */
+      tag_35
+        /* "#utility.yul":1139:1146   */
+      dup6
+        /* "#utility.yul":1130:1136   */
+      dup3
+        /* "#utility.yul":1119:1128   */
+      dup7
+        /* "#utility.yul":1115:1137   */
+      add
+        /* "#utility.yul":1094:1147   */
+      tag_18
+      jump      // in
+    tag_35:
+        /* "#utility.yul":1084:1147   */
+      swap2
+      pop
+        /* "#utility.yul":1039:1157   */
+      pop
+        /* "#utility.yul":690:1164   */
+      swap3
+      pop
+      swap3
+      swap1
+      pop
+      jump      // out
+        /* "#utility.yul":1170:1288   */
+    tag_19:
+        /* "#utility.yul":1257:1281   */
+      tag_37
+        /* "#utility.yul":1275:1280   */
+      dup2
+        /* "#utility.yul":1257:1281   */
+      tag_16
+      jump      // in
+    tag_37:
+        /* "#utility.yul":1252:1255   */
+      dup3
+        /* "#utility.yul":1245:1282   */
+      mstore
+        /* "#utility.yul":1170:1288   */
+      pop
+      pop
+      jump      // out
+        /* "#utility.yul":1294:1516   */
+    tag_9:
+        /* "#utility.yul":1387:1391   */
+      0x00
+        /* "#utility.yul":1425:1427   */
+      0x20
+        /* "#utility.yul":1414:1423   */
+      dup3
+        /* "#utility.yul":1410:1428   */
+      add
+        /* "#utility.yul":1402:1428   */
+      swap1
+      pop
+        /* "#utility.yul":1438:1509   */
+      tag_39
+        /* "#utility.yul":1506:1507   */
+      0x00
+        /* "#utility.yul":1495:1504   */
+      dup4
+        /* "#utility.yul":1491:1508   */
+      add
+        /* "#utility.yul":1482:1488   */
+      dup5
+        /* "#utility.yul":1438:1509   */
+      tag_19
+      jump      // in
+    tag_39:
+        /* "#utility.yul":1294:1516   */
+      swap3
+      swap2
+      pop
+      pop
+      jump      // out
+        /* "#utility.yul":1522:1702   */
+    tag_20:
+        /* "#utility.yul":1570:1647   */
+      0x4e487b7100000000000000000000000000000000000000000000000000000000
+        /* "#utility.yul":1567:1568   */
+      0x00
+        /* "#utility.yul":1560:1648   */
+      mstore
+        /* "#utility.yul":1667:1671   */
+      0x11
+        /* "#utility.yul":1664:1665   */
+      0x04
+        /* "#utility.yul":1657:1672   */
+      mstore
+        /* "#utility.yul":1691:1695   */
+      0x24
+        /* "#utility.yul":1688:1689   */
+      0x00
+        /* "#utility.yul":1681:1696   */
+      revert
+        /* "#utility.yul":1708:1899   */
+    tag_12:
+        /* "#utility.yul":1748:1751   */
+      0x00
+        /* "#utility.yul":1767:1787   */
+      tag_42
+        /* "#utility.yul":1785:1786   */
+      dup3
+        /* "#utility.yul":1767:1787   */
+      tag_16
+      jump      // in
+    tag_42:
+        /* "#utility.yul":1762:1787   */
+      swap2
+      pop
+        /* "#utility.yul":1801:1821   */
+      tag_43
+        /* "#utility.yul":1819:1820   */
+      dup4
+        /* "#utility.yul":1801:1821   */
+      tag_16
+      jump      // in
+    tag_43:
+        /* "#utility.yul":1796:1821   */
+      swap3
+      pop
+        /* "#utility.yul":1844:1845   */
+      dup3
+        /* "#utility.yul":1841:1842   */
+      dup3
+        /* "#utility.yul":1837:1846   */
+      add
+        /* "#utility.yul":1830:1846   */
+      swap1
+      pop
+        /* "#utility.yul":1865:1868   */
+      dup1
+        /* "#utility.yul":1862:1863   */
+      dup3
+        /* "#utility.yul":1859:1869   */
+      gt
+        /* "#utility.yul":1856:1892   */
+      iszero
+      tag_44
+      jumpi
+        /* "#utility.yul":1872:1890   */
+      tag_45
+      tag_20
+      jump      // in
+    tag_45:
+        /* "#utility.yul":1856:1892   */
+    tag_44:
+        /* "#utility.yul":1708:1899   */
+      swap3
+      swap2
+      pop
+      pop
+      jump      // out
+
+    auxdata: 0xa2646970667358221220e478f9e62b837b6d95fa3abbc3c7eb6c02d17eb28b14607d07eb892ef9992db964736f6c63430008180033
+}
+
+Binary:
+608060405234801561000f575f80fd5b506101a58061001d5f395ff3fe608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063771602f71461002d575b5f80fd5b610047600480360381019061004291906100a9565b61005d565b60405161005491906100f6565b60405180910390f35b5f818361006a919061013c565b905092915050565b5f80fd5b5f819050919050565b61008881610076565b8114610092575f80fd5b50565b5f813590506100a38161007f565b92915050565b5f80604083850312156100bf576100be610072565b5b5f6100cc85828601610095565b92505060206100dd85828601610095565b9150509250929050565b6100f081610076565b82525050565b5f6020820190506101095f8301846100e7565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f61014682610076565b915061015183610076565b92508282019050808211156101695761016861010f565b5b9291505056fea2646970667358221220e478f9e62b837b6d95fa3abbc3c7eb6c02d17eb28b14607d07eb892ef9992db964736f6c63430008180033
+Contract JSON ABI
+[{"inputs":[{"internalType":"uint256","name":"a","type":"uint256"},{"internalType":"uint256","name":"b","type":"uint256"}],"name":"add","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"}]
+```
+
+`-o`オプションで出力先ディレクトリを指定すれば、コンパイル結果をファイルとして保存も可能です。
 
 ## 簡易EVMの実装
 
