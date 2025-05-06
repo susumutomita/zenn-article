@@ -501,55 +501,59 @@ const std = @import("std");
 
 /// 256ビット整数型（EVMの基本データ型）
 /// 現在はu128の2つの要素で256ビットを表現
-pub const u256 = struct {
+pub const EVMu256 = struct {
     // 256ビットを2つのu128値で表現（上位ビットと下位ビット）
     hi: u128, // 上位128ビット
     lo: u128, // 下位128ビット
 
     /// ゼロ値の作成
-    pub fn zero() u256 {
-        return u256{ .hi = 0, .lo = 0 };
+    pub fn zero() EVMu256 {
+        return EVMu256{ .hi = 0, .lo = 0 };
     }
 
-    /// u64値からu256を作成
-    pub fn fromU64(value: u64) u256 {
-        return u256{ .hi = 0, .lo = value };
+    /// u64値からEVMu256を作成
+    pub fn fromU64(value: u64) EVMu256 {
+        return EVMu256{ .hi = 0, .lo = value };
     }
 
     /// 加算演算
-    pub fn add(self: u256, other: u256) u256 {
-        var result = u256{ .hi = self.hi, .lo = self.lo };
-        const overflow = @addWithOverflow(result.lo, other.lo, &result.lo);
+    pub fn add(self: EVMu256, other: EVMu256) EVMu256 {
+        var result = EVMu256{ .hi = self.hi, .lo = self.lo };
+        // 修正: Zigの最新バージョンに合わせて@addWithOverflow呼び出しを変更
+        var overflow: u1 = 0;
+        result.lo, overflow = @addWithOverflow(result.lo, other.lo);
         // オーバーフローした場合は上位ビットに1を加算
-        result.hi = result.hi + other.hi + @intFromBool(overflow);
+        result.hi = result.hi + other.hi + overflow;
         return result;
     }
 
     /// 減算演算
-    pub fn sub(self: u256, other: u256) u256 {
-        var result = u256{ .hi = self.hi, .lo = self.lo };
-        const underflow = @subWithOverflow(result.lo, other.lo, &result.lo);
+    pub fn sub(self: EVMu256, other: EVMu256) EVMu256 {
+        var result = EVMu256{ .hi = self.hi, .lo = self.lo };
+        // 修正: Zigの最新バージョンに合わせて@subWithOverflow呼び出しを変更
+        var underflow: u1 = 0;
+        result.lo, underflow = @subWithOverflow(result.lo, other.lo);
         // アンダーフローした場合は上位ビットから1を引く
-        result.hi = result.hi - other.hi - @intFromBool(underflow);
+        result.hi = result.hi - other.hi - underflow;
         return result;
     }
 
     /// 乗算演算（シンプル実装 - 実際には最適化が必要）
-    pub fn mul(self: u256, other: u256) u256 {
+    pub fn mul(self: EVMu256, other: EVMu256) EVMu256 {
         // 簡易実装: 下位ビットのみの乗算
         // 注：完全な256ビット乗算は複雑なため、ここでは省略
         if (self.hi == 0 and other.hi == 0) {
-            const result_lo = @as(u128, @truncate(self.lo * other.lo));
+            const result_lo = self.lo * other.lo;
             const result_hi = @as(u128, @truncate((self.lo * other.lo) >> 128));
-            return u256{ .hi = result_hi, .lo = result_lo };
+            return EVMu256{ .hi = result_hi, .lo = result_lo };
         } else {
             // 簡易実装のため、上位ビットがある場合は詳細計算を省略
-            return u256{ .hi = 0, .lo = 0 };
+            return EVMu256{ .hi = 0, .lo = 0 };
         }
     }
 
     /// 等価比較
-    pub fn eql(self: u256, other: u256) bool {
+    pub fn eql(self: EVMu256, other: EVMu256) bool {
         return self.hi == other.hi and self.lo == other.lo;
     }
 };
@@ -557,7 +561,7 @@ pub const u256 = struct {
 /// EVMスタック（1024要素まで格納可能）
 pub const EvmStack = struct {
     /// スタックデータ（最大1024要素）
-    data: [1024]u256,
+    data: [1024]EVMu256,
     /// スタックポインタ（次に積むインデックス）
     sp: usize,
 
@@ -570,7 +574,7 @@ pub const EvmStack = struct {
     }
 
     /// スタックに値をプッシュ
-    pub fn push(self: *EvmStack, value: u256) !void {
+    pub fn push(self: *EvmStack, value: EVMu256) !void {
         if (self.sp >= 1024) {
             return error.StackOverflow;
         }
@@ -579,7 +583,7 @@ pub const EvmStack = struct {
     }
 
     /// スタックから値をポップ
-    pub fn pop(self: *EvmStack) !u256 {
+    pub fn pop(self: *EvmStack) !EVMu256 {
         if (self.sp == 0) {
             return error.StackUnderflow;
         }
@@ -600,7 +604,8 @@ pub const EvmMemory = struct {
 
     /// 新しいEVMメモリを初期化
     pub fn init(allocator: std.mem.Allocator) EvmMemory {
-        var memory = std.ArrayList(u8).init(allocator);
+        // メモリリークを避けるためにconst修飾子を使用
+        const memory = std.ArrayList(u8).init(allocator);
         return EvmMemory{
             .data = memory,
         };
@@ -621,22 +626,22 @@ pub const EvmMemory = struct {
     }
 
     /// メモリから32バイト（256ビット）読み込み
-    pub fn load32(self: *EvmMemory, offset: usize) !u256 {
+    pub fn load32(self: *EvmMemory, offset: usize) !EVMu256 {
         try self.ensureSize(offset + 32);
-        var result = u256.zero();
+        var result = EVMu256.zero();
 
         // 下位128ビット
         var lo: u128 = 0;
         for (0..16) |i| {
             const byte_val = self.data.items[offset + i];
-            lo |= @as(u128, byte_val) << @intCast((15 - i) * 8);
+            lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
         }
 
         // 上位128ビット
         var hi: u128 = 0;
         for (0..16) |i| {
             const byte_val = self.data.items[offset + 16 + i];
-            hi |= @as(u128, byte_val) << @intCast((15 - i) * 8);
+            hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
         }
 
         result.lo = lo;
@@ -645,22 +650,24 @@ pub const EvmMemory = struct {
     }
 
     /// メモリに32バイト（256ビット）書き込み
-    pub fn store32(self: *EvmMemory, offset: usize, value: u256) !void {
+    pub fn store32(self: *EvmMemory, offset: usize, value: EVMu256) !void {
         try self.ensureSize(offset + 32);
 
         // 上位128ビットをバイト単位で書き込み
-        var hi = value.hi;
+        const hi = value.hi;
         var i: usize = 0;
         while (i < 16) : (i += 1) {
-            const byte_val = @truncate(u8, hi >> @intCast((15 - i) * 8));
+            // truncateの修正: 型キャストのみを行う
+            const byte_val = @as(u8, @truncate(hi >> @as(u7, @intCast((15 - i) * 8))));
             self.data.items[offset + i] = byte_val;
         }
 
         // 下位128ビットをバイト単位で書き込み
-        var lo = value.lo;
+        const lo = value.lo;
         i = 0;
         while (i < 16) : (i += 1) {
-            const byte_val = @truncate(u8, lo >> @intCast((15 - i) * 8));
+            // truncateの修正: 型キャストのみを行う
+            const byte_val = @as(u8, @truncate(lo >> @as(u7, @intCast((15 - i) * 8))));
             self.data.items[offset + 16 + i] = byte_val;
         }
     }
@@ -673,23 +680,23 @@ pub const EvmMemory = struct {
 
 /// EVMストレージ（永続的なキー/バリューストア）
 pub const EvmStorage = struct {
-    /// ストレージデータ（キー: u256, 値: u256のマップ）
-    data: std.AutoHashMap(u256, u256),
+    /// ストレージデータ（キー: EVMu256, 値: EVMu256のマップ）
+    data: std.AutoHashMap(EVMu256, EVMu256),
 
     /// 新しいストレージを初期化
     pub fn init(allocator: std.mem.Allocator) EvmStorage {
         return EvmStorage{
-            .data = std.AutoHashMap(u256, u256).init(allocator),
+            .data = std.AutoHashMap(EVMu256, EVMu256).init(allocator),
         };
     }
 
     /// ストレージから値を読み込み
-    pub fn load(self: *EvmStorage, key: u256) u256 {
-        return self.data.get(key) orelse u256.zero();
+    pub fn load(self: *EvmStorage, key: EVMu256) EVMu256 {
+        return self.data.get(key) orelse EVMu256.zero();
     }
 
     /// ストレージに値を書き込み
-    pub fn store(self: *EvmStorage, key: u256, value: u256) !void {
+    pub fn store(self: *EvmStorage, key: EVMu256, value: EVMu256) !void {
         try self.data.put(key, value);
     }
 
@@ -772,7 +779,8 @@ evm.zigを新規に作成し、以下のように記述します。
 const std = @import("std");
 const logger = @import("logger.zig");
 const evm_types = @import("evm_types.zig");
-const u256 = evm_types.u256;
+// u256型を別名で使用して衝突を回避
+const EVMu256 = evm_types.EVMu256;
 const EvmContext = evm_types.EvmContext;
 
 /// EVMオペコード定義
@@ -927,15 +935,15 @@ fn executeStep(context: *EvmContext) !void {
             const b = try context.stack.pop();
             // 0除算の場合は0を返す
             if (b.hi == 0 and b.lo == 0) {
-                try context.stack.push(u256.zero());
+                try context.stack.push(EVMu256.zero());
             } else {
                 // 簡易版ではu64の範囲のみサポート
                 if (a.hi == 0 and b.hi == 0) {
-                    const result = u256.fromU64(@intCast(a.lo / b.lo));
+                    const result = EVMu256.fromU64(@intCast(a.lo / b.lo));
                     try context.stack.push(result);
                 } else {
                     // 本来はより複雑な処理が必要
-                    try context.stack.push(u256.zero());
+                    try context.stack.push(EVMu256.zero());
                 }
             }
             context.pc += 1;
@@ -944,7 +952,7 @@ fn executeStep(context: *EvmContext) !void {
         // PUSH1: 1バイトをスタックにプッシュ
         Opcode.PUSH1 => {
             if (context.pc + 1 >= context.code.len) return EVMError.InvalidOpcode;
-            const value = u256.fromU64(context.code[context.pc + 1]);
+            const value = EVMu256.fromU64(context.code[context.pc + 1]);
             try context.stack.push(value);
             context.pc += 2; // オペコード＋データで2バイト進む
         },
@@ -1008,7 +1016,7 @@ fn executeStep(context: *EvmContext) !void {
             const offset = try context.stack.pop();
             if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
 
-            var result = u256.zero();
+            var result = EVMu256.zero();
             const off = @as(usize, @intCast(offset.lo));
 
             // calldataから32バイトをロード（範囲外は0埋め）
