@@ -14,7 +14,7 @@
   "author": "",
   "license": "GNU AGPLv3",
   "dependencies": {
-    "zenn-cli": "^0.1.159"
+    "zenn-cli": "^0.1.161"
   },
   "devDependencies": {
     "husky": "^9.1.7",
