@@ -1,4 +1,4 @@
-.PHONY: install lint lint_fix setup_husky new_article preview before_commit help
+.PHONY: install lint lint_fix setup_husky new_article preview update-claude-secrets before_commit help
 
 PNPM_RUN_TARGETS = lint preview
 
@@ -19,6 +19,10 @@ setup_husky:
 .PHONY: new_article
 new_article:
 	npx zenn new:article --slug $(slug) --title "$(title)"
+
+.PHONY: update-claude-secrets
+update-claude-secrets:
+	./set_claude_code_secrets.sh
 
 .PHONY: before_commit
 before_commit: lint
