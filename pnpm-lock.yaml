@@ -12,6 +12,9 @@ importers:
         specifier: ^0.1.162
         version: 0.1.162
     devDependencies:
+      '@textlint-ja/textlint-rule-preset-ai-writing':
+        specifier: ^1.4.0
+        version: 1.4.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -24,6 +27,9 @@ importers:
       textlint-rule-no-mixed-zenkaku-and-hankaku-number:
         specifier: ^1.0.0
         version: 1.0.0
+      textlint-rule-preset-ai-writing:
+        specifier: ^1.1.0
+        version: 1.1.0
       textlint-rule-preset-ja-spacing:
         specifier: ^2.4.3
         version: 2.4.3
@@ -96,6 +102,9 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@textlint-ja/textlint-rule-preset-ai-writing@1.4.0':
+    resolution: {integrity: sha512-ymx/q7TleYOguDFyI99E/s3gjTAaqglZUHeeAgrOCaKAbdGnyR0LQ1TR8JwnZlDNMBIabbnlIqPTBMS06Gaz4w==}
 
   '@textlint-rule/textlint-rule-no-invalid-control-character@2.1.0':
     resolution: {integrity: sha512-Bi/mOIbCOeQMKGgk+hTR4Q8CASkDPi2IQkDaNDkvP3zdrlvHoKbosBu4tQ55bE8jPpT+Q78Km59ZVin5xiogxw==}
@@ -1517,6 +1526,9 @@ packages:
   textlint-rule-no-zero-width-spaces@1.0.1:
     resolution: {integrity: sha512-AkxpzBILGB4YsXddzHx2xqpXmqMv5Yd+PQm4anUV+ADSJuwLP1Jd6yHf/LOtu9j3ps8K3XM9vQrXRK73z0bU3A==}
 
+  textlint-rule-preset-ai-writing@1.1.0:
+    resolution: {integrity: sha512-bZEIdShA7RI0U1PkTA5K8PkDsh7LGs24nLQpnKgkfvcGfXEXZNRNGfS/b3oZQd4A4xydNCMKgk5M1+JKDKWFCQ==}
+
   textlint-rule-preset-ja-spacing@2.4.3:
     resolution: {integrity: sha512-WAiWY9TOE8/bRdl14XJdjkPQcV0hLS4O+PCUYU1yxXmJhZ8V3ciw2GYqpA9GL73qAxL25UD6mkf1yfz6aJ4qSA==}
 
@@ -1820,6 +1832,11 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@textlint-ja/textlint-rule-preset-ai-writing@1.4.0':
+    dependencies:
+      '@textlint/regexp-string-matcher': 2.0.2
+      textlint-util-to-string: 3.3.4
 
   '@textlint-rule/textlint-rule-no-invalid-control-character@2.1.0':
     dependencies:
@@ -3669,6 +3686,11 @@ snapshots:
       textlint-rule-helper: 2.3.1
 
   textlint-rule-no-zero-width-spaces@1.0.1: {}
+
+  textlint-rule-preset-ai-writing@1.1.0:
+    dependencies:
+      '@textlint/regexp-string-matcher': 2.0.2
+      textlint-util-to-string: 3.3.4
 
   textlint-rule-preset-ja-spacing@2.4.3:
     dependencies:

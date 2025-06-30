@@ -3,6 +3,11 @@
   "rules": {
     "preset-ja-spacing": true,
     "preset-ja-technical-writing": true,
+    "preset-ai-writing": {
+      "ai-tech-writing-guideline": {
+        "severity": "info"
+      }
+    },
     "spellcheck-tech-word": true,
     "no-mixed-zenkaku-and-hankaku-alphabet": true,
     "no-mixed-zenkaku-and-hankaku-number": true
