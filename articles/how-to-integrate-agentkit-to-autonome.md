@@ -110,11 +110,11 @@ Coinbase公式ドキュメントの解説ページも参考にしてください
 公式ドキュメント([Deploy AI Agent](https://docs.altlayer.io/altlayer-documentation/autonome/deploy-ai-agent#:~:text=1))に沿って
 ログインしてください。
 
-1. **Autonomeにログイン**
+1. Autonomeにログイン
    ブラウザで`https://apps.autono.meme/`にアクセスし、
    Googleアカウントでログインします。
-   初回ログイン時に組織名の作成を求められますので、適切な名称で作成してください。
-2. **エージェントの新規作成**
+   初回ログイン時に組織名の作成を求められます。
+2. エージェントの新規作成
    ダッシュボードの「+」ボタンをクリックすると、
    新しいAIエージェントのデプロイ画面が表示されます。
    ここでは後ほどDockerイメージのアップロードや設定をします。
@@ -520,28 +520,28 @@ DOCKER_IMAGE = $(DOCKER_USERNAME)/$(IMAGE_NAME):$(TAG)
 
 .PHONY: build
 build:
-	docker build --platform linux/amd64 -t $(DOCKER_IMAGE) .
+  docker build --platform linux/amd64 -t $(DOCKER_IMAGE) .
 
 .PHONY: push
 push:
-	@if ! docker images | grep -q $(DOCKER_IMAGE); then \
-		$(MAKE) build; \
-	fi
-	docker push $(DOCKER_IMAGE)
+  @if ! docker images | grep -q $(DOCKER_IMAGE); then \
+    $(MAKE) build; \
+  fi
+  docker push $(DOCKER_IMAGE)
 
 .PHONY: all
 all: build push
 
 .PHONY: help
 help:
-	@echo "Available commands:"
-	@echo "  make build    - Build the Docker image (targeting linux/amd64)"
-	@echo "  make push     - Push the image to DockerHub (build automatically if image is not found)"
-	@echo "  make all      - Build and push the image"
-	@echo ""
-	@echo "Environment variable settings:"
-	@echo "  DOCKER_USERNAME    - Your DockerHub username (do not hardcode sensitive information)"
-	@echo "  TAG                - Image tag (default: latest)"
+  @echo "Available commands:"
+  @echo "  make build    - Build the Docker image (targeting linux/amd64)"
+  @echo "  make push     - Push the image to DockerHub (build automatically if image is not found)"
+  @echo "  make all      - Build and push the image"
+  @echo ""
+  @echo "Environment variable settings:"
+  @echo "  DOCKER_USERNAME    - Your DockerHub username (do not hardcode sensitive information)"
+  @echo "  TAG                - Image tag (default: latest)"
 ```
 
 `make all`を実行することでlinux/amd64用のイメージのビルドとDocker Hubへのプッシュが行えるようになります。
@@ -615,7 +615,7 @@ SPECIFY ENVIRONMENT VARIABLES: 以下の環境変数を設定
 
 ## Deploy
 
-https://dev.autonome.fun/autonome/new
+[新規作成画面](https://dev.autonome.fun/autonome/new)
 に移動して
 Select a template -> UPLOADをクリックして今回作成したフレームワークを選択します。
 AGENT PREFIX NAME: 任意の名前

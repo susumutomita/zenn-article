@@ -26,7 +26,7 @@ graph TD
 
 特定の条件(例えば「ハッシュ値の先頭nビットが0になる」など)を満たす`nonce`を見つけるまで、試行錯誤でハッシュ計算を繰り返す作業がPoWです。 ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=difficult%20to%20solve%20but%20straightforward,000000abc))。
 
-この条件を満たすハッシュ値を見つけるには運試し的に大量の計算をする必要がありますが、**一度条件を満たしたブロックが見つかればその検証(ハッシュを再計算して条件を満たすか確認)は非常に容易**です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
+この条件を満たすハッシュ値を見つけるには大量の計算が必要ですが、一度条件を満たしたブロックが見つかればその検証(ハッシュを再計算して条件を満たすか確認)は非常に容易です。つまり、「解くのは難しいが答え合わせは簡単」なパズルを各ブロックに課しているわけです。
 
 **難易度 (difficulty)**: 条件の厳しさは「ハッシュ値の先頭に何個の0が並ぶか」などで表現され、必要な先頭の0が多いほど計算量(難易度)が指数関数的に増大します。
  ([Understanding Proof of Work in Blockchain - DEV Community](https://dev.to/blessedtechnologist/understanding-proof-of-work-in-blockchain-l2k#:~:text=Difficulty%20is%20quantified%20by%20the,increases%20the%20computational%20effort%20needed))。

@@ -12,6 +12,9 @@ importers:
         specifier: ^0.1.162
         version: 0.1.162
     devDependencies:
+      '@textlint-ja/textlint-rule-preset-ai-writing':
+        specifier: ^1.4.0
+        version: 1.4.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -96,6 +99,9 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@textlint-ja/textlint-rule-preset-ai-writing@1.4.0':
+    resolution: {integrity: sha512-ymx/q7TleYOguDFyI99E/s3gjTAaqglZUHeeAgrOCaKAbdGnyR0LQ1TR8JwnZlDNMBIabbnlIqPTBMS06Gaz4w==}
 
   '@textlint-rule/textlint-rule-no-invalid-control-character@2.1.0':
     resolution: {integrity: sha512-Bi/mOIbCOeQMKGgk+hTR4Q8CASkDPi2IQkDaNDkvP3zdrlvHoKbosBu4tQ55bE8jPpT+Q78Km59ZVin5xiogxw==}
@@ -1820,6 +1826,11 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@textlint-ja/textlint-rule-preset-ai-writing@1.4.0':
+    dependencies:
+      '@textlint/regexp-string-matcher': 2.0.2
+      textlint-util-to-string: 3.3.4
 
   '@textlint-rule/textlint-rule-no-invalid-control-character@2.1.0':
     dependencies:
