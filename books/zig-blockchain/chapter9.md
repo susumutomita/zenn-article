@@ -112,6 +112,12 @@ Contract JSON ABI
 [{"inputs":[{"internalType":"uint256","name":"a","type":"uint256"},{"internalType":"uint256","name":"b","type":"uint256"}],"name":"add","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"}]
 ```
 
+上記の出力例では、`Binary:` の下に表示されている16進数の文字列がEVMバイトコード（バイナリ）です。これはEVM上で実行されるスマートコントラクト本体となります。
+
+`Contract JSON ABI` の部分は、コントラクトの関数や引数・戻り値の型情報をJSON形式で表現したものです。ABI（Application Binary Interface）は、外部からコントラクトの関数を呼び出す際に必要なインタフェース情報を提供します。
+
+このバイナリとABIを使うことで、コントラクトのデプロイや関数呼び出しが可能になります。
+
 `-o`オプションで出力先ディレクトリを指定すれば、コンパイル結果をファイルとして保存も可能です。
 
 ## 簡易EVMの実装
