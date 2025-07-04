@@ -165,7 +165,7 @@ LIFO（Last In First Out）の動作原理は以下のとおりです。
    - バイトコードサイズの削減
 
 3. **決定的な実行**
-   - 同じバイトコードは常に同じ結果
+   - 同じバイトコードは常に同じ結果（EVMは決定的な仮想マシンとして設計されています。詳しくは [Ethereum公式ドキュメント](https://ethereum.org/en/developers/docs/evm/) や [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf) を参照）
    - ブロックチェインに適した性質
 
 ### EVMスタックマシンの動作例
