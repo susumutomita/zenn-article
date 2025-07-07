@@ -17,7 +17,7 @@
     "zenn-cli": "^0.2.1"
   },
   "devDependencies": {
-    "@textlint-ja/textlint-rule-preset-ai-writing": "^1.4.0",
+    "@textlint-ja/textlint-rule-preset-ai-writing": "^1.5.0",
     "husky": "^9.1.7",
     "textlint": "^15.1.1",
     "textlint-rule-no-mixed-zenkaku-and-hankaku-alphabet": "^1.0.1",
