@@ -130,19 +130,50 @@ Contract JSON ABI
 
 ### スタックマシンの基本概念
 
-スタックマシンは、レジスタベースのマシンとは異なり、すべての演算をスタック上で行います。
+コンピュータの実行モデルには主に以下の種類があります。
+
+1. **レジスタマシン（レジスタベースのマシン）**
+   - 複数のレジスタ（高速な一時記憶領域）を持ち、演算はレジスタ間で行われる
+   - 例：x86、ARM、RISC-Vなどの多くの物理CPU
+   - 命令例：`ADD R3, R1, R2`（レジスタ1とレジスタ2を加算し、結果をレジスタ3に格納）
+
+2. **スタックマシン**
+   - スタック（LIFO: Last In First Out）構造を使用して演算する
+   - レジスタの代わりにスタックのトップから値を取り出して計算
+   - 例：JVM（Java仮想マシン）、EVM、Forth言語
+
+3. **アキュムレータマシン**
+   - 単一のアキュムレータ（累算器）レジスタを中心に演算する
+   - 例：初期のマイクロプロセッサ（8080、6502）
+   - 命令例：`LOAD 10`（アキュムレータに10をロード）、`ADD 20`（アキュムレータに20を加算）
+
+EVMがスタックマシンを採用した理由は、実装がシンプルで、ブロックチェインの分散環境に適しているためです。レジスタの割り当てを考慮する必要がなく、決定的な実行が保証されます。
 
 ```mermaid
 graph LR
     subgraph "レジスタマシン"
-        R1[レジスタ1] --> ALU[演算装置]
-        R2[レジスタ2] --> ALU
-        ALU --> R3[レジスタ3]
+        R1[レジスタ1<br/>値: 10] --> ALU[演算装置]
+        R2[レジスタ2<br/>値: 20] --> ALU
+        ALU --> R3[レジスタ3<br/>結果: 30]
+        style R1 fill:#ffd,stroke:#333,stroke-width:1px
+        style R2 fill:#ffd,stroke:#333,stroke-width:1px
+        style R3 fill:#dfd,stroke:#333,stroke-width:1px
     end
 
     subgraph "スタックマシン"
-        S1[スタック] --> |POP| OP[演算]
-        OP --> |PUSH| S2[スタック]
+        S1[スタック<br/>[20, 10]] --> |POP 2回| OP[演算<br/>10 + 20]
+        OP --> |PUSH| S2[スタック<br/>[30]]
+        style S1 fill:#fdf,stroke:#333,stroke-width:1px
+        style S2 fill:#dfd,stroke:#333,stroke-width:1px
+    end
+
+    subgraph "アキュムレータマシン"
+        ACC1[アキュムレータ<br/>値: 10] --> ADD_OP[演算<br/>ACC + 20]
+        MEM[メモリ<br/>値: 20] --> ADD_OP
+        ADD_OP --> ACC2[アキュムレータ<br/>結果: 30]
+        style ACC1 fill:#dff,stroke:#333,stroke-width:1px
+        style ACC2 fill:#dfd,stroke:#333,stroke-width:1px
+        style MEM fill:#ffd,stroke:#333,stroke-width:1px
     end
 ```
 
