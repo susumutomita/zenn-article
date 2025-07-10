@@ -149,6 +149,10 @@ Contract JSON ABI
 
 EVMがスタックマシンを採用した理由は、実装がシンプルで、ブロックチェインの分散環境に適しているためです。レジスタの割り当てを考慮する必要がなく、決定的な実行が保証されます。
 
+### 3つの実行モデルの比較
+
+スタックマシンの特徴を理解するために、コンピュータの主要な実行モデルを比較してみましょう。それぞれのモデルで同じ計算（10 + 20 = 30）を実行する様子を図示します。
+
 ```mermaid
 graph LR
     subgraph "レジスタマシン"
@@ -161,14 +165,14 @@ graph LR
     end
 
     subgraph "スタックマシン"
-        S1[スタック<br/>[20, 10]] --> |POP 2回| OP[演算<br/>10 + 20]
-        OP --> |PUSH| S2[スタック<br/>[30]]
+        S1[スタック20 10] --> |POP 2回| OP[演算<br/>10 + 20]
+        OP --> |PUSH| S2[スタック30]
         style S1 fill:#fdf,stroke:#333,stroke-width:1px
         style S2 fill:#dfd,stroke:#333,stroke-width:1px
     end
 
     subgraph "アキュムレータマシン"
-        ACC1[アキュムレータ<br/>値: 10] --> ADD_OP[演算<br/>ACC + 20]
+        ACC1[アキュムレータ値 10] --> ADD_OP[演算<br/>ACC + 20]
         MEM[メモリ<br/>値: 20] --> ADD_OP
         ADD_OP --> ACC2[アキュムレータ<br/>結果: 30]
         style ACC1 fill:#dff,stroke:#333,stroke-width:1px
@@ -176,6 +180,10 @@ graph LR
         style MEM fill:#ffd,stroke:#333,stroke-width:1px
     end
 ```
+
+### スタックマシンの動作原理：LIFO
+
+上記の図で見たように、スタックマシンは値の出し入れにスタック構造を使用します。スタックは**LIFO（Last In First Out：後入れ先出し）**という原理で動作します。
 
 LIFO（Last In First Out）の動作原理は以下のとおりです。
 
