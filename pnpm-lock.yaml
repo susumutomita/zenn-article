@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       zenn-cli:
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.2.7
+        version: 0.2.7
     devDependencies:
       '@textlint-ja/textlint-rule-preset-ai-writing':
         specifier: ^1.5.0
@@ -1726,9 +1726,9 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
-  zenn-cli@0.2.1:
-    resolution: {integrity: sha512-8ipbiIHOGIK1Gp1ifNi4rKY3+YohcXCrQCuz6w78OQ532WoU2xMiV0hFWRR/obmuPYwbiGWd/Xt/A4tYCaOHTA==}
-    engines: {node: '>=14.0.0'}
+  zenn-cli@0.2.7:
+    resolution: {integrity: sha512-IUR1RSUHOPpVoT5IBmINZQrbzpHwHYmmlnCnOjsqFt6tUpgNJFxMc91iUpeqrIbhvHQ5AAsy+TqXEEsMhs3dlA==}
+    engines: {node: '>=22.0.0'}
     hasBin: true
 
   zlibjs@0.3.1:
@@ -4050,7 +4050,7 @@ snapshots:
 
   xtend@4.0.2: {}
 
-  zenn-cli@0.2.1: {}
+  zenn-cli@0.2.7: {}
 
   zlibjs@0.3.1: {}
 
