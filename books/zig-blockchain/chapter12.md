@@ -1,400 +1,1066 @@
 ---
-title: "PoS（Proof of Stake）の導入"
+title: "EVM実行エンジンを実装する"
 free: true
 ---
 
-これまでの実装では、PoW（Proof of Work）を利用してブロックを生成し、競合を解決してきました。しかしPoWには高い計算コストが必要、環境負荷が大きい、といった課題があります。そこで本章では、より省電力なPoS（Proof of Stake）の概念を導入し、PoWと切り替えながら実行できるようにします。
+この章では引き続き、**Zig**プログラミング言語を用いてEthereum Virtual Machine (EVM)を実装します。
 
-## 1. コンセンサスアルゴリズムとは
+### EVM実行エンジンの実装
 
-ブロックチェインなどの分散型ネットワークでは、中央管理者が不在でも全ノードが取引の正当性に合意し、一貫した台帳を維持します。そのために各ノードが相互に取引を検証し合意してブロックをチェインに追加していく仕組みが **コンセンサスアルゴリズム** と呼ばれます。このメカニズムにより、不正な取引が記録されないようにネットワーク全体で信頼性を確保しています。 ([PoWとPoSの仕組みの違いは？ 採用する代表的な暗号資産も紹介 | CoinDesk JAPAN（コインデスク・ジャパン）](https://www.coindeskjapan.com/learn/pow-pos/))
+EVMの実行エンジン部分は、オペコードの読み取り、解釈、実行を担当します。主な機能は以下の通りです。
 
-現在代表的なコンセンサスアルゴリズムとして **PoW（Proof of Work）** と **PoS（Proof of Stake）** の2つが広く知られています。**PoW** は「仕事量の証明」という名の通り、**計算作業（ハッシュ計算）による証明**で合意を取る方式です。ビットコインを始め多くの初期ブロックチェインで採用されており、マイナー（採掘者）たちが **暗号学的パズル**（ハッシュ計算問題）の解答を競争します。一方で **PoS** は「保有量の証明」の名の通り、**暗号資産の保有量（ステーク）による証明**で合意を取る方式です。ブロック生成の権利を、各ノードが保有するコインの数量に比例した確率で割り当てる仕組みになっており、計算資源ではなく経済的な利害関係によってネットワークの合意形成を行います。
-簡単に言えば、**PoWは計算力による競争、PoSはコイン保有量による抽選**でブロック提案者を決定します。以下では、Zig言語を用いてそれぞれのアルゴリズムを簡易実装し、動作の違いを確認してみます。
+- オペコード定数の定義: EVMで使用される命令コードを定数として定義します（STOP, ADD, MULなど）
+- 実行ループ: バイトコードを1命令ずつ処理し、コンテキストを更新していきます
+- 命令処理: 各オペコードに対応する処理をswitch文で実装します
 
-### セキュリティと消費電力の違い
+下記は実行エンジンの核となる部分です。
 
-PoWは非常に高いセキュリティを誇ります。理由はシンプルで、「ブロックチェインを書き換えるにはネットワーク全体の圧倒的な計算能力を支配する必要がある」ためです。攻撃者が仮に不正なブロックを作ろうとしても、正直なマイナー全員の合計よりも速くナンスを見つけ続けなければ追いつけません。つまり**ネットワークの計算力の過半数（51％以上）を支配**しなければ改ざんは極めて困難です。 ([PoWとPoSの違い - 国内最大手の暗号資産マイニング、ビットコイン、およびブロックチェインに関する情報提供メディアです](https://www.bfmedia.jp/proof-of-work-vs-proof-of-stake))。この性質によりPoWは**ビザンチン耐性**（一部のノードが不正でも全体の合意は崩れない性質）を実現し、ビットコインなどで10年以上に渡り堅牢性が実証されています。一方でデメリットとして**莫大な計算資源（電力）を消費**する点が挙げられます。これはブロックを生成するために世界中のマイナーが同じ計算を競争で繰り返すためです。
-また、計算競争により取引処理速度（スループット）にも制限があります（ビットコインは約10分/block、数トランザクション/秒程度）。
-
-PoSは**エネルギー効率に優れ、スループットの向上**も見込める方式です。ブロック生成においてハードウェア競争が無いため、消費電力は僅かで済みます。実際、EthereumがPoWからPoSに移行した際にはエネルギー消費が**99.95％削減**されたと報告されており、その差は非常に大きいです。また、ブロック提案者が即座に決まるため**ブロックタイムの短縮**や**トランザクション処理量の増加**が比較的容易です。
-一方でセキュリティ面では「計算力」ではなく「経済力」に基づくため、異なる懸念も指摘されています。例えば、大量のコインを保有する資産家や取引所が検証者の多くを占めると権限の集中が起こりうる点です。PoSネットワークでは富の偏在がそのまま影響力の偏在につながる可能性があり、少数の大口保有者が意思決定を左右してしまうリスクがあります。ただしこの点については、後述するように経済的インセンティブ設計によって大口保有者が不正を働く動機を抑制する工夫がされています。
-
-### 51％攻撃のリスクと対策
-
-PoW,PoSどちらの方式でも理論上は「ネットワークの過半数を掌握した場合」に不正が可能になります。これを**51％攻撃**（多数派攻撃）と呼びます。PoWにおける51％攻撃は、ネットワーク全体の51％以上の計算能力（ハッシュレート）を単独で握ることで、不正なブロックを連続して生成しチェインを書き換える攻撃です。攻撃者は自分に都合の良い取引だけを承認し、過去の取引を改ざん（二重支払いなど）できてしまう可能性があります。もっとも、実際にこれを達成するのは非常に困難であり、ビットコインなどでは現実的ではないとされています。それでも歴史上、小規模なPoWネットワーク（例: ビットコインゴールドなど）が51％攻撃を受けた事例もあります。
-PoSにおける51％攻撃は、ネットワーク上の51％以上のステーク(コイン)**を保有することを意味します。こちらも現実には容易ではありません。膨大な資金が必要である上、それだけの通貨を買い占めれば価格が高騰し、更に攻撃が発覚すれば通貨の信用失墜で価値暴落を招くため、攻撃者にはほとんどメリットがありません。また、PoSプロトコルでは悪意ある行為が検知された場合にステークを没収するペナルティ(例: スラッシング)を用意し、不正行為そのものを経済的に割に合わないように設計しています。
-
-### 実際のブロックチェインでの採用例
-
-現在の主要なブロックチェインプロジェクトにおけるPoWとPoSの採用状況を見てみます。
-
-- ビットコイン (BTC) – 2009年に登場した暗号資産で、**コンセンサスアルゴリズムにPoWを採用**しています。大量のマイナーが世界中でハッシュ計算競争に参加することでそのセキュリティを維持しており、極めて分散化されたネットワークを構築しています。ただし前述のとおりエネルギー消費の大きさから環境への影響も指摘されています。
-- イーサリアム (ETH) – ビットコインに次ぐ時価総額を持つブロックチェインプラットフォームです。当初はPoWベースでしたが、2022年9月の大型アップグレード「The Merge（マージ）」によって**PoSベースのコンセンサスアルゴリズム（Gasper）に移行**しました。これによりエネルギー消費を劇的に削減しつつ、将来的なスケーラビリティ向上（シャーディング等）に道を開いたとされています。Ethereumの移行はPoS方式が大規模ネットワークでも機能することを示す大きな事例となりました。
-- カルダノ (ADA) – 代表的なPoS採用プロジェクトの1つです。学術的アプローチで開発されており、**Ouroboros**と呼ばれるPoSコンセンサスプロトコルを採用しています。Ouroborosは厳密なセキュリティ検証に基づくPoSプロトコルであり、高い安全性と持続可能性を両立することを目指しています。カルダノでは多数のステークプールにより分散運用が行われ、PoSならではの省電力性とスループットの高さを活かしています。
-
-この他にも、**Litecoin**や**Monero**などビットコインの派生やプライバシー重視通貨はPoW方式を踏襲しています。一方で**Polkadot**（NPoSと呼ばれるPoS変種）や**Solana**、**Avalanche**、**Tezos**など新興のスマートコントラクトプラットフォームは軒並みPoS系のアルゴリズムを採用しています。以前は主流だったPoWですが、近年は環境負荷やスケーラビリティの理由から**コンセンサスアルゴリズムの主流はPoSに移行しつつある**と言えるでようか。
-
-## PoSへの第一歩
-
-Ethereumなど多くのプロジェクトが採用しているPoSでは、「トークンをステーク（預ける）している量に比例した確率」でブロック提案者（Validator）が選ばれる仕組みを持ちます。本章では以下のようなシンプルなPoSを実装します。
-
-### ステーク（Stake）の記録
-
-各ユーザが「どれだけのステークを持っているか」をチェインの状態として保持します（簡易版ではCLI操作で変更）。将来的にはスマートコントラクト上でステークを管理し、Validator登録や報酬計算、スラッシングなどもコントラクト内で完結させる予定です。
-
-### 重み付き抽選でブロック提案者を選定
-
-PoSモード時は、ネットワーク参加ノードの中で「所持ステークの合計に比例した確率」でランダムに1名が次のブロック提案権を得る仕組みを実装します。具体的には、全ノードのステーク量を合計し、その合計に基づいて確率ルーレットを作成、ランダムに1名を選定します。
-選定されたノードがブロックを生成し、報酬として固定量を上乗せします。
-この際、全ノードが同時にブロック生成を試みるため、選定されたノードだけがブロックを生成し、他のノードは待機状態を保つ仕組みです。
-このように、PoSでは「計算リソースを使わずにブロック提案者を選ぶ」ことが可能です。これにより、PoWと比較してマイニングの計算負荷を軽減し、環境負荷を低減できます。
-
-### スラッシング（Slashing）
-
-PoSでは、悪意のある行動（ダブルサインや不正提案）を防ぐために「スラッシング」という仕組みがあります。スラッシングは、悪意のある行動をしたノードのステークを没収することで、ネットワークの安全性を確保します。今回は簡易版として、ダブルサイン時に全ステーク没収する形で実装します。
-将来的には、EVM上のスマートコントラクトでスラッシングロジックを実装し、より高度なセキュリティを提供する予定です。
-
-### 報酬分配
-
-PoSでは、ブロック提案者に報酬を分配する仕組みがあります。今回はシンプル版として、成功裏にブロックを生成できた提案者に「固定報酬」を与える形で実装します。将来的には、報酬分配のロジックを高度化し、ネットワーク参加報酬やデポジット返却、インアクティブ時のペナルティなどを考慮した報酬分配を実装する予定です。
-
-### PoWとの併用
-
-PoWとPoSを併用することで、両者のメリットを享受しつつ、デメリットを軽減できます。具体的には、起動時にコマンドラインオプションでPoWかPoSかを選択できるようにし、切り替えられるようにします。
-これにより、PoW、PoS両方の違いを理解できます。
-具体的には、起動時のコマンドラインオプション（例：--posか--pow）でどちらを使うか指定できるようにします。
-
-本章ではまずPoSを試験的に動かすところまでを実装しましょう。
-
-⸻
-
-## PoS用のデータ構造
-
-PoSモードでは各アドレス（ユーザ）が「何Stake保有しているか」を管理します。ここではZig側のblockchain.zigに以下のように簡易的なグローバルマップを追加し、Stakeを記録します。将来的にEVM上のスマートコントラクトで管理する際には、この部分をスマコン呼び出しに置き換える想定です。
-
-```blockchain.zig (抜粋)
-pub var chain_store = std.ArrayList(types.Block).init(std.heap.page_allocator);
-
-/// シンプルなステークマップ
-/// address文字列 -> stake量
-pub var stake_map = std.StringHashMap(u64).init(std.heap.page_allocator);
-
-
-/// ステークを追加・変更する
-///
-/// 引数:
-///     addr: ステークを保有するアドレス
-///     amount: 新たに設定するステーク量
-pub fn setStake(addr: []const u8, amount: u64) void {
-    stake_map.put(addr, amount) catch {
-        std.log.err("Failed to set stake for {s}", .{addr});
-        return;
-    };
-    std.log.info("Stake updated: {s} = {d}", .{addr, amount});
-}
-
-/// addrが持つステーク量を取得する
-pub fn getStake(addr: []const u8) u64 {
-    return switch (stake_map.get(addr)) {
-        .some => |v| v,
-        .none => 0,
-    };
-}
-```
-
-ここでは**stake_mapを用意し、setStake関数で更新します。実際にステーク量を増減させるトランザクションを定義してもよいですが、まずはCLIコマンドで直接操作します。
-
-⸻
-
-### PoSロジック（シンプル版）
-
-PoSモード時にブロック生成する際、次のようなフローを追加します。
-
-1. 全アドレスのステーク量を合計
-2. その合計を元に確率ルーレットを作り、ランダム抽選で1名を選定
-3. 選定されたノードがブロックを生成し、報酬として固定量を上乗せ
-
-ただし今回のサンプルでは、「どのノードがどのアドレスで参加しているか」を決め打ちまたはCLI入力とし、PoSモードかつ自ノードが当選者の場合だけブロック生成をします。
-複数ノードが同時に動いている場合は、それぞれのノードが選ばれたかどうかを判定し、選ばれなければ待機状態を保つ仕組みです。
-
-### pos.zig（PoSロジックモジュール）
-
-以下のサンプルコードでは、runPosLoopというスレッドを新設し、PoSモード時に一定間隔で抽選→当選ノードがブロック生成→ブロードキャストを行う流れを示しています。
+`src/evm.zig`を新規に作成し、以下のように記述します。
 
 ```zig
-//! PoS(Proof of Stake)のシンプル実装モジュール
+//! Ethereum Virtual Machine (EVM) 実装
+//!
+//! このモジュールはEthereumのスマートコントラクト実行環境であるEVMを
+//! 簡易的に実装します。EVMバイトコードを解析・実行し、スタックベースの
+//! 仮想マシンとして動作します。
 
 const std = @import("std");
-const blockchain = @import("blockchain.zig");
-const p2p = @import("p2p.zig");
-const types = @import("types.zig");
+const logger = @import("logger.zig");
+const evm_types = @import("evm_types.zig");
+// u256型を別名で使用して衝突を回避
+const EVMu256 = evm_types.EVMu256;
+const EvmContext = evm_types.EvmContext;
 
-pub const PosConfig = struct {
-    pub const SelfAddrMaxLen = 64;
+/// EVMオペコード定義
+pub const Opcode = struct {
+    // 終了・リバート系
+    pub const STOP = 0x00;
+    pub const RETURN = 0xF3;
+    pub const REVERT = 0xFD;
 
-    /// このノードに対応するアドレス（ステークマップで検索される）
-    self_address: [SelfAddrMaxLen]u8,
-    /// 実際の長さ
-    self_address_len: usize,
-    /// ブロック生成間隔（秒）
-    block_interval_sec: u64,
-    /// ブロック生成時の固定報酬
-    block_reward: u64,
+    // スタック操作・算術命令
+    pub const ADD = 0x01;
+    pub const MUL = 0x02;
+    pub const SUB = 0x03;
+    pub const DIV = 0x04;
+    pub const SDIV = 0x05;
+    pub const MOD = 0x06;
+    pub const SMOD = 0x07;
+    pub const ADDMOD = 0x08;
+    pub const MULMOD = 0x09;
+    pub const EXP = 0x0A;
+    pub const LT = 0x10;
+    pub const GT = 0x11;
+    pub const SLT = 0x12;
+    pub const SGT = 0x13;
+    pub const EQ = 0x14;
+    pub const ISZERO = 0x15;
+    pub const AND = 0x16;
+    pub const OR = 0x17;
+    pub const XOR = 0x18;
+    pub const NOT = 0x19;
+    pub const POP = 0x50;
+
+    // メモリ操作
+    pub const MLOAD = 0x51;
+    pub const MSTORE = 0x52;
+    pub const MSTORE8 = 0x53;
+
+    // ストレージ操作
+    pub const SLOAD = 0x54;
+    pub const SSTORE = 0x55;
+
+    // 制御フロー
+    pub const JUMP = 0x56;
+    pub const JUMPI = 0x57;
+    pub const PC = 0x58;
+    pub const JUMPDEST = 0x5B;
+
+    // PUSHシリーズ (PUSH1-PUSH32)
+    pub const PUSH1 = 0x60;
+    // 他のPUSH命令も順次増えていく (0x61-0x7F)
+
+    // DUPシリーズ (DUP1-DUP16)
+    pub const DUP1 = 0x80;
+    // 他のDUP命令も順次増えていく (0x81-0x8F)
+
+    // SWAPシリーズ (SWAP1-SWAP16)
+    pub const SWAP1 = 0x90;
+    // 他のSWAP命令も順次増えていく (0x91-0x9F)
+
+    // 呼び出しデータ関連
+    pub const CALLDATALOAD = 0x35;
+    pub const CALLDATASIZE = 0x36;
+    pub const CALLDATACOPY = 0x37;
 };
 
-/// PoSを実行するループ
+/// エラー型定義
+pub const EVMError = error{
+    OutOfGas,
+    StackOverflow,
+    StackUnderflow,
+    InvalidJump,
+    InvalidOpcode,
+    MemoryOutOfBounds,
+};
+
+/// EVMバイトコードを実行する
 ///
-/// 1. 一定間隔でタイマー待ち
-/// 2. ステークに基づいてランダム抽選
-/// 3. 当選者がブロックを作成してブロードキャスト
-pub fn runPosLoop(cfg: PosConfig) !void {
-    std.log.info("PoS loop started. SelfAddr={s}, Interval={d}s",
-        .{
-            cfg.self_address[0..cfg.self_address_len],
-            cfg.block_interval_sec
-        }
-    );
+/// 引数:
+///     allocator: メモリアロケータ
+///     code: EVMバイトコード
+///     calldata: コントラクト呼び出し時の引数データ
+///     gas_limit: 実行時のガス上限
+///
+/// 戻り値:
+///     []const u8: 実行結果のバイト列
+///
+/// エラー:
+///     様々なEVM実行エラー
+pub fn execute(allocator: std.mem.Allocator, code: []const u8, calldata: []const u8, gas_limit: usize) ![]const u8 {
+    // EVMコンテキストの初期化
+    var context = EvmContext.init(allocator, code, calldata);
+    // ガスリミット設定
+    context.gas = gas_limit;
+    defer context.deinit();
 
-    while (true) {
-        std.time.sleep(cfg.block_interval_sec * std.time.ns_per_s);
+    // メインの実行ループ
+    while (context.pc < context.code.len and !context.stopped) {
+        try executeStep(&context);
+    }
 
-        const total_stake = getTotalStake();
-        if (total_stake == 0) {
-            std.log.warn("No stake found. Skipping PoS block generation", .{});
-            continue;
-        }
+    // 戻り値をコピーして返す
+    const result = try allocator.alloc(u8, context.returndata.items.len);
+    @memcpy(result, context.returndata.items);
+    return result;
+}
 
-        // 抽選
-        const winner_addr = pickWinner(total_stake);
-        if (std.mem.eql(u8, winner_addr, cfg.self_address[0..cfg.self_address_len])) {
-            // 当選したらブロック生成
-            createAndBroadcastBlock(cfg);
-        } else {
-            std.log.info("PoS: Not selected (Winner={s})", .{winner_addr});
-        }
+/// 単一のEVM命令を実行
+fn executeStep(context: *EvmContext) !void {
+    // 現在のオペコードを取得
+    const opcode = context.code[context.pc];
+
+    // ガス消費（シンプル版 - 本来は命令ごとに異なる）
+    if (context.gas < 1) {
+        context.error_msg = "Out of gas";
+        return EVMError.OutOfGas;
+    }
+    context.gas -= 1;
+
+    // オペコードを解釈して実行
+    switch (opcode) {
+        Opcode.STOP => {
+            context.stopped = true;
+        },
+
+        Opcode.ADD => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const a = try context.stack.pop();
+            const b = try context.stack.pop();
+            try context.stack.push(a.add(b));
+            context.pc += 1;
+        },
+
+        Opcode.MUL => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const a = try context.stack.pop();
+            const b = try context.stack.pop();
+            try context.stack.push(a.mul(b));
+            context.pc += 1;
+        },
+
+        Opcode.SUB => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const a = try context.stack.pop();
+            const b = try context.stack.pop();
+            try context.stack.push(a.sub(b));
+            context.pc += 1;
+        },
+
+        Opcode.DIV => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const a = try context.stack.pop();
+            const b = try context.stack.pop();
+            // 0除算の場合は0を返す
+            if (b.hi == 0 and b.lo == 0) {
+                try context.stack.push(EVMu256.zero());
+            } else {
+                // 簡易版ではu64の範囲のみサポート
+                if (a.hi == 0 and b.hi == 0) {
+                    const result = EVMu256.fromU64(@intCast(a.lo / b.lo));
+                    try context.stack.push(result);
+                } else {
+                    // 本来はより複雑な処理が必要
+                    try context.stack.push(EVMu256.zero());
+                }
+            }
+            context.pc += 1;
+        },
+
+        // PUSH1: 1バイトをスタックにプッシュ
+        Opcode.PUSH1 => {
+            if (context.pc + 1 >= context.code.len) return EVMError.InvalidOpcode;
+            const value = EVMu256.fromU64(context.code[context.pc + 1]);
+            try context.stack.push(value);
+            context.pc += 2; // オペコード＋データで2バイト進む
+        },
+
+        // DUP1: スタックトップの値を複製
+        Opcode.DUP1 => {
+            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+            const value = context.stack.data[context.stack.sp - 1];
+            try context.stack.push(value);
+            context.pc += 1;
+        },
+
+        // SWAP1: スタックトップと2番目の要素を交換
+        Opcode.SWAP1 => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const a = context.stack.data[context.stack.sp - 1];
+            const b = context.stack.data[context.stack.sp - 2];
+            context.stack.data[context.stack.sp - 1] = b;
+            context.stack.data[context.stack.sp - 2] = a;
+            context.pc += 1;
+        },
+
+        Opcode.MLOAD => {
+            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+            const offset = try context.stack.pop();
+            // 現在はu64範囲のみサポート
+            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
+            const value = try context.memory.load32(@intCast(offset.lo));
+            try context.stack.push(value);
+            context.pc += 1;
+        },
+
+        Opcode.MSTORE => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const offset = try context.stack.pop();
+            const value = try context.stack.pop();
+            // 現在はu64範囲のみサポート
+            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
+            try context.memory.store32(@intCast(offset.lo), value);
+            context.pc += 1;
+        },
+
+        Opcode.SLOAD => {
+            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+            const key = try context.stack.pop();
+            const value = context.storage.load(key);
+            try context.stack.push(value);
+            context.pc += 1;
+        },
+
+        Opcode.SSTORE => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const key = try context.stack.pop();
+            const value = try context.stack.pop();
+            try context.storage.store(key, value);
+            context.pc += 1;
+        },
+
+        Opcode.CALLDATALOAD => {
+            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+            const offset = try context.stack.pop();
+            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
+
+            var result = EVMu256.zero();
+            const off = @as(usize, @intCast(offset.lo));
+
+            // calldataから32バイトをロード（範囲外は0埋め）
+            for (0..32) |i| {
+                const byte_pos = off + i;
+                if (byte_pos < context.calldata.len) {
+                    const byte_val = context.calldata[byte_pos];
+                    if (i < 16) {
+                        // 上位16バイト
+                        result.hi |= @as(u128, byte_val) << @intCast((15 - i) * 8);
+                    } else {
+                        // 下位16バイト
+                        result.lo |= @as(u128, byte_val) << @intCast((31 - i) * 8);
+                    }
+                }
+            }
+
+            try context.stack.push(result);
+            context.pc += 1;
+        },
+
+        Opcode.RETURN => {
+            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+            const offset = try context.stack.pop();
+            const length = try context.stack.pop();
+
+            // 現在はu64範囲のみサポート
+            if (offset.hi != 0 or length.hi != 0) return EVMError.MemoryOutOfBounds;
+
+            const off = @as(usize, @intCast(offset.lo));
+            const len = @as(usize, @intCast(length.lo));
+
+            try context.memory.ensureSize(off + len);
+            if (len > 0) {
+                try context.returndata.resize(len);
+                for (0..len) |i| {
+                    if (off + i < context.memory.data.items.len) {
+                        context.returndata.items[i] = context.memory.data.items[off + i];
+                    } else {
+                        context.returndata.items[i] = 0;
+                    }
+                }
+            }
+
+            context.stopped = true;
+        },
+
+        else => {
+            logger.debugLog("未実装のオペコード: 0x{x:0>2}", .{opcode});
+            context.error_msg = "未実装または無効なオペコード";
+            return EVMError.InvalidOpcode;
+        },
     }
 }
 
-/// 全アドレスのステーク合計を返す
-fn getTotalStake() u64 {
-    var sum: u64 = 0;
-    var it = blockchain.stake_map.iterator();
-    while (it.next()) |entry| {
-        sum += entry.value;
-    }
-    std.log.info("Total stake calculated: {d}", .{sum});
-    return sum;
-}
+/// EVMバイトコードの逆アセンブル（デバッグ用）
+pub fn disassemble(code: []const u8, writer: anytype) !void {
+    var pc: usize = 0;
+    while (pc < code.len) {
+        const opcode = code[pc];
+        try writer.print("0x{x:0>4}: ", .{pc});
 
-/// ステーク量に応じたランダム抽選でwinnerのアドレスを返す
-fn pickWinner(total_stake: u64) []const u8 {
-    // 0..total_stake の範囲で乱数を1つ取る
-    // ここでは std.rand.defaultOpenSeed などを用い、簡易的に実装
-    var rnd = getRandomRange(total_stake);
+        switch (opcode) {
+            Opcode.STOP => try writer.print("STOP", .{}),
+            Opcode.ADD => try writer.print("ADD", .{}),
+            Opcode.MUL => try writer.print("MUL", .{}),
+            Opcode.SUB => try writer.print("SUB", .{}),
+            Opcode.DIV => try writer.print("DIV", .{}),
+            Opcode.MLOAD => try writer.print("MLOAD", .{}),
+            Opcode.MSTORE => try writer.print("MSTORE", .{}),
+            Opcode.SLOAD => try writer.print("SLOAD", .{}),
+            Opcode.SSTORE => try writer.print("SSTORE", .{}),
+            Opcode.JUMP => try writer.print("JUMP", .{}),
+            Opcode.JUMPI => try writer.print("JUMPI", .{}),
+            Opcode.JUMPDEST => try writer.print("JUMPDEST", .{}),
+            Opcode.RETURN => try writer.print("RETURN", .{}),
 
-    var it = blockchain.stake_map.iterator();
-    while (it.next()) |entry| {
-        if (rnd < entry.value) {
-            return entry.key;
-        } else {
-            rnd -= entry.value;
+            Opcode.PUSH1 => {
+                if (pc + 1 < code.len) {
+                    const value = code[pc + 1];
+                    try writer.print("PUSH1 0x{x:0>2}", .{value});
+                    pc += 1;
+                } else {
+                    try writer.print("PUSH1 <データ不足>", .{});
+                }
+            },
+
+            Opcode.DUP1 => try writer.print("DUP1", .{}),
+            Opcode.SWAP1 => try writer.print("SWAP1", .{}),
+            Opcode.CALLDATALOAD => try writer.print("CALLDATALOAD", .{}),
+
+            else => {
+                if (opcode >= 0x60 and opcode <= 0x7F) {
+                    // PUSH1-PUSH32
+                    const push_bytes = opcode - 0x5F;
+                    if (pc + push_bytes < code.len) {
+                        try writer.print("PUSH{d} ", .{push_bytes});
+                        for (0..push_bytes) |i| {
+                            try writer.print("0x{x:0>2}", .{code[pc + 1 + i]});
+                        }
+                        pc += push_bytes;
+                    } else {
+                        try writer.print("PUSH{d} <データ不足>", .{push_bytes});
+                        pc = code.len;
+                    }
+                } else if (opcode >= 0x80 and opcode <= 0x8F) {
+                    // DUP1-DUP16
+                    try writer.print("DUP{d}", .{opcode - 0x7F});
+                } else if (opcode >= 0x90 and opcode <= 0x9F) {
+                    // SWAP1-SWAP16
+                    try writer.print("SWAP{d}", .{opcode - 0x8F});
+                } else {
+                    // その他の未実装オペコード
+                    try writer.print("UNKNOWN 0x{x:0>2}", .{opcode});
+                }
+            },
         }
+
+        try writer.print("\n", .{});
+        pc += 1;
     }
-
-    // 万が一合わなければ最後のアドレス
-    // (理論上は合計が一致しているのでここまで来ない)
-    return blockchain.stake_map.items[blockchain.stake_map.items.len - 1].key;
 }
 
-/// 指定された範囲(0..max-1)の乱数を返す
-fn getRandomRange(max: u64) u64 {
-    var seed = std.rand.defaultOpenSeed();
-    var rndGen = std.rand.DefaultPrng.init(seed);
-    return rndGen.uniform(u64) % max;
-}
+// シンプルなEVM実行テスト
+test "Simple EVM execution" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-/// ブロックを生成してブロードキャストする
-fn createAndBroadcastBlock(cfg: PosConfig) void {
-    std.log.info("PoS: Winner! Generating block", .{});
-
-    // チェインが空ならジェネシスブロックを作成
-    const last_block = if (blockchain.chain_store.items.len == 0)
-        blockchain.createTestGenesisBlock(std.heap.page_allocator) catch return
-    else
-        blockchain.chain_store.items[blockchain.chain_store.items.len - 1];
-
-    // データ部分にPoSおよび報酬情報を入れる（デモ用）
-    const data_str = "PoS block by " ++ cfg.self_address[0..cfg.self_address_len];
-
-    var new_block = blockchain.createBlock(data_str, last_block);
-
-    // 報酬としてトランザクションを追加(超簡略化)
-    // senderを"POS_REWARD"、receiverをself_addressとしてTxを追加
-    var reward_tx = types.Transaction{
-        .sender = "POS_REWARD",
-        .receiver = std.mem.cast([]const u8, cfg.self_address[0..cfg.self_address_len]),
-        .amount = cfg.block_reward,
+    // シンプルなバイトコード: PUSH1 0x05, PUSH1 0x03, ADD, PUSH1 0x00, MSTORE, PUSH1 0x20, PUSH1 0x00, RETURN
+    // 意味: 5 + 3 = 8 を計算し、メモリに格納して返す
+    const bytecode = [_]u8{
+        0x60, 0x05, // PUSH1 5
+        0x60, 0x03, // PUSH1 3
+        0x01, // ADD
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xf3, // RETURN
     };
-    _ = new_block.transactions.append(reward_tx) catch {
-        std.log.err("Failed to append reward tx", .{});
+
+    const calldata = [_]u8{};
+
+    // EVMを実行し、戻り値を取得
+    const result = try execute(allocator, &bytecode, &calldata, 100000);
+    defer allocator.free(result);
+
+    // 結果をEVMu256形式で解釈
+    var value = EVMu256{ .hi = 0, .lo = 0 };
+    if (result.len >= 32) {
+        // 上位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i];
+            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+
+        // 下位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i + 16];
+            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+    }
+
+    // 結果が8（5+3）になっていることを確認
+    try std.testing.expect(value.hi == 0);
+    try std.testing.expect(value.lo == 8);
+}
+
+// 乗算のテスト
+test "EVM multiplication" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // バイトコード: PUSH1 0x07, PUSH1 0x06, MUL, PUSH1 0x00, MSTORE, PUSH1 0x20, PUSH1 0x00, RETURN
+    // 意味: 7 * 6 = 42 を計算し、メモリに格納して返す
+    const bytecode = [_]u8{
+        0x60, 0x07, // PUSH1 7
+        0x60, 0x06, // PUSH1 6
+        0x02, // MUL
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xf3, // RETURN
     };
 
-    // PoW時のマイニングはスキップ
-    // new_block = no hashing procedure (PoS)
-    // 一応軽くハッシュだけ計算しておく（verify用）
-    new_block.hash = blockchain.calculateHash(&new_block);
+    const calldata = [_]u8{};
+    const result = try execute(allocator, &bytecode, &calldata, 100000);
+    defer allocator.free(result);
 
-    // チェインにブロックを追加
-    blockchain.addBlock(new_block);
+    // 結果をEVMu256形式で解釈
+    var value = EVMu256{ .hi = 0, .lo = 0 };
+    if (result.len >= 32) {
+        // 上位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i];
+            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
 
-    // 他のピアへ配信
-    p2p.broadcastBlock(new_block, null);
+        // 下位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i + 16];
+            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+    }
+
+    // 結果が42（7*6）になっていることを確認
+    try std.testing.expect(value.hi == 0);
+    try std.testing.expect(value.lo == 42);
+}
+
+// ストレージ操作のテスト
+test "EVM storage operations" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // バイトコード:
+    // PUSH1 0x2A, PUSH1 0x01, SSTORE, // キー1に42を保存
+    // PUSH1 0x01, SLOAD,               // キー1の値をロード
+    // PUSH1 0x00, MSTORE,              // メモリに保存
+    // PUSH1 0x20, PUSH1 0x00, RETURN   // 戻り値を返す
+    const bytecode = [_]u8{
+        0x60, 0x2A, // PUSH1 42
+        0x60, 0x01, // PUSH1 1
+        0x55, // SSTORE
+        0x60, 0x01, // PUSH1 1
+        0x54, // SLOAD
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xf3, // RETURN
+    };
+
+    const calldata = [_]u8{};
+    const result = try execute(allocator, &bytecode, &calldata, 100000);
+    defer allocator.free(result);
+
+    // 結果をEVMu256形式で解釈
+    var value = EVMu256{ .hi = 0, .lo = 0 };
+    if (result.len >= 32) {
+        // 上位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i];
+            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+
+        // 下位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i + 16];
+            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+    }
+
+    // 結果が42になっていることを確認
+    try std.testing.expect(value.hi == 0);
+    try std.testing.expect(value.lo == 42);
+}
+
+// 複数のオペコード実行テスト
+test "EVM multiple operations" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // バイトコード:
+    // PUSH1 0x0A, PUSH1 0x0B, ADD,    // 10 + 11 = 21
+    // PUSH1 0x03, MUL,                // 21 * 3 = 63
+    // PUSH1 0x02, SWAP1, DIV,         // 63 / 2 = 31 (スワップしてスタックを調整)
+    // PUSH1 0x00, MSTORE,             // 結果をメモリに保存
+    // PUSH1 0x20, PUSH1 0x00, RETURN  // 戻り値を返す
+    const bytecode = [_]u8{
+        0x60, 0x0A, // PUSH1 10
+        0x60, 0x0B, // PUSH1 11
+        0x01, // ADD
+        0x60, 0x03, // PUSH1 3
+        0x02, // MUL
+        0x60, 0x02, // PUSH1 2
+        0x90, // SWAP1
+        0x04, // DIV
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xf3, // RETURN
+    };
+
+    const calldata = [_]u8{};
+    const result = try execute(allocator, &bytecode, &calldata, 100000);
+    defer allocator.free(result);
+
+    // 結果をEVMu256形式で解釈
+    var value = EVMu256{ .hi = 0, .lo = 0 };
+    if (result.len >= 32) {
+        // 上位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i];
+            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+
+        // 下位16バイトを解析
+        for (0..16) |i| {
+            const byte_val = result[i + 16];
+            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
+        }
+    }
+
+    // 結果が31（(10+11)*3/2）になっていることを確認
+    try std.testing.expect(value.hi == 0);
+    try std.testing.expect(value.lo == 31);
 }
 ```
 
-この例ではPoWを一切回さず、ランダム当選したノードだけがcreateAndBroadcastBlock()を呼ぶ形です。実際にはPoSでもブロックハッシュは計算しますが、マイニングのような計算競争は行いません。
+## Solidityコントラクトの実行
 
-⸻
+ここまでで基本的なEVM実装ができましたので、実際のSolidityコントラクトを実行してみましょう。
 
-## PoSかPoWかを選択する
+### Solidityコントラクトのコンパイルとデプロイ
 
-既存のmain.zigを修正し、起動時に--posフラグがあればPoSモード、なければPoWモードを使うようにします。加えて、PoSモードの場合はrunPosLoop()を別スレッドで起動して定期的にブロック生成を試みます。PoWモードの場合は従来どおりp2p.textInputLoop()でユーザが入力しマイニングを実行する流れを維持します。
+まず、Solidityで書かれた簡単な加算コントラクトをコンパイルします。`contract/SimpleAdder2.sol`に以下のコントラクトがあります。
 
-```main.zig
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+contract SimpleAdder {
+    function add(uint256 a, uint256 b) external pure returns (uint256) {
+        unchecked {
+            return a + b;
+        }
+    }
+}
+```
+
+このコントラクトをコンパイルするには、Solidityコンパイラ（solc）を使用します。以下のコマンドでバイトコードとABIを生成できます。
+
+```bash
+solc --bin --abi contract/SimpleAdder2.sol
+```
+
+コンパイル結果のバイトコードは、コントラクトのデプロイコード（コンストラクタ）とランタイムコード（実際の関数実装）の両方を含みます。
+
+### 関数セレクタとABI
+
+EVMでスマートコントラクトの関数を呼び出す際は、**関数セレクタ**という仕組みを使います。関数セレクタは、関数シグネチャ（関数名と引数の型）のKeccak-256ハッシュの最初の4バイトです。
+
+例えば、`add(uint256,uint256)`の関数セレクタは`0x771602f7`です。これは以下のように計算されます。
+
+1. 関数シグネチャ: `add(uint256,uint256)`
+2. Keccak-256ハッシュ: `771602f70e831cbc32b27580e53e6e4b1aa9aec52a62c2329c181691bcd0720f`
+3. 最初の4バイト: `0x771602f7`
+
+関数を呼び出す際のcalldataは以下の構造になります。
+
+- 最初の4バイト: 関数セレクタ
+- 続く32バイト: 第1引数（uint256）
+- 続く32バイト: 第2引数（uint256）
+
+### アセンブリ版の実装
+
+EVMの動作をより深く理解するために、Solidityのインラインアセンブリを使った実装も見てみましょう。`contract/SimpleAdderAssembly.sol`：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+contract SimpleAdderAssembly {
+    fallback() external payable {
+        assembly {
+            // calldataが68バイト以上あることを確認
+            if lt(calldatasize(), 68) {
+                revert(0, 0)
+            }
+
+            // 関数セレクタを読み込み（最初の4バイト）
+            let selector := shr(224, calldataload(0))
+
+            // 第1引数を読み込み（オフセット4から32バイト）
+            let a := calldataload(4)
+
+            // 第2引数を読み込み（オフセット36から32バイト）
+            let b := calldataload(36)
+
+            // 加算を実行
+            let result := add(a, b)
+
+            // 結果をメモリのアドレス0に格納
+            mstore(0, result)
+
+            // メモリのアドレス0から32バイトを返す
+            return(0, 32)
+        }
+    }
+}
+```
+
+### EVMでのコントラクト実行テスト
+
+では、実際にEVMでSolidityコントラクトを実行するテストを追加します。`src/evm.zig`の最後に以下のテストを追加します。
+
+```zig
+// Solidityコントラクトの実行テスト
+test "Execute Solidity add function" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // SimpleAdderのランタイムバイトコード（抜粋）
+    // 実際のバイトコードは solc でコンパイルして取得
+    // ここでは関数ディスパッチャーと add 関数の実装を含む簡略版
+    const runtime_bytecode = [_]u8{
+        // 関数セレクタのチェック
+        0x60, 0x00, // PUSH1 0x00
+        0x35, // CALLDATALOAD
+        0x60, 0xe0, // PUSH1 0xe0
+        0x1c, // SHR
+        0x63, 0x77, 0x16, 0x02, 0xf7, // PUSH4 0x771602f7 (add関数のセレクタ)
+        0x14, // EQ
+        0x60, 0x1b, // PUSH1 0x1b (ジャンプ先)
+        0x57, // JUMPI
+        0x00, // STOP (セレクタが一致しない場合)
+
+        // add関数の実装 (0x1b)
+        0x5b, // JUMPDEST
+        0x60, 0x04, // PUSH1 0x04
+        0x35, // CALLDATALOAD (第1引数)
+        0x60, 0x24, // PUSH1 0x24
+        0x35, // CALLDATALOAD (第2引数)
+        0x01, // ADD
+        0x60, 0x00, // PUSH1 0x00
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 0x20
+        0x60, 0x00, // PUSH1 0x00
+        0xf3, // RETURN
+    };
+
+    // 関数呼び出しのcalldata
+    // 0x771602f7 (関数セレクタ) + 0x0000...0005 (a=5) + 0x0000...0003 (b=3)
+    var calldata = std.ArrayList(u8).init(allocator);
+    defer calldata.deinit();
+
+    // 関数セレクタ
+    try calldata.appendSlice(&[_]u8{ 0x77, 0x16, 0x02, 0xf7 });
+
+    // 第1引数: 5 (32バイト、右詰め)
+    try calldata.appendNTimes(0, 31);
+    try calldata.append(5);
+
+    // 第2引数: 3 (32バイト、右詰め)
+    try calldata.appendNTimes(0, 31);
+    try calldata.append(3);
+
+    // EVMを実行
+    const result = try execute(allocator, &runtime_bytecode, calldata.items, 100000);
+    defer allocator.free(result);
+
+    // 結果をチェック（5 + 3 = 8）
+    try std.testing.expectEqual(@as(usize, 32), result.len);
+
+    var value: u256 = 0;
+    for (result[31], 0..) |byte, i| {
+        value |= @as(u256, byte) << @intCast(i * 8);
+    }
+
+    try std.testing.expectEqual(@as(u256, 8), value);
+}
+```
+
+### EVMデバッグツール
+
+EVM実行をデバッグするために、`src/evm_debug.zig`にデバッグ用のユーティリティを実装します。これにより、EVMの実行状態やスタックの内容を確認できます。
+
+```zig
+//! EVMデバッグユーティリティ
 
 const std = @import("std");
-const p2p = @import("p2p.zig");
-const pos = @import("pos.zig");
-const blockchain = @import("blockchain.zig");
+const evm_types = @import("evm_types.zig");
+const EvmContext = evm_types.EvmContext;
+const Opcode = @import("evm.zig").Opcode;
 
-pub fn main() !void {
-    const gpa = std.heap.page_allocator;
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+/// コンテキストの現在位置付近のオペコードを逆アセンブルするヘルパー関数
+pub fn disassembleContext(context: *EvmContext, writer: anytype) !void {
+    // PC前後の限定された範囲のオペコードを逆アセンブル
+    const startPc = if (context.pc > 10) context.pc - 10 else 0;
+    const endPc = if (context.pc + 10 < context.code.len) context.pc + 10 else context.code.len;
+    var pc = startPc;
 
-    // コマンドライン解析
-    if (args.len < 2) {
-        std.log.err("Usage: {s} <port> [--pos] [--stake <addr> <amount>] [peers...]", .{ args[0] });
-        return;
-    }
-
-    // ポート指定
-    const self_port = try std.fmt.parseInt(u16, args[1], 10);
-    var arg_index: usize = 2;
-    var is_pos_mode = false;
-    var pos_cfg = pos.PosConfig{
-        .self_address_len = 0,
-        .block_interval_sec = 10,
-        .block_reward = 50,
-    };
-    // デフォルトのself_addressは"Node<port>"とする
-    {
-        const tmp_str = try std.fmt.allocPrint(gpa, "Node{}", .{self_port});
-        defer std.heap.page_allocator.free(tmp_str);
-        std.mem.copy(u8, &pos_cfg.self_address, tmp_str);
-        pos_cfg.self_address_len = tmp_str.len;
-    }
-
-    // 追加オプションを解析
-    while (arg_index < args.len) : (arg_index += 1) {
-        const arg = args[arg_index];
-        if (std.mem.eql(u8, arg, "--pos")) {
-            is_pos_mode = true;
-        } else if (std.mem.eql(u8, arg, "--stake") and arg_index + 2 < args.len) {
-            // e.g. --stake Alice 100
-            const addr = args[arg_index + 1];
-            const amt_str = args[arg_index + 2];
-            const amt = try std.fmt.parseInt(u64, amt_str, 10);
-            blockchain.setStake(addr, amt);
-            arg_index += 2;
+    while (pc < endPc) {
+        const opcode = context.code[pc];
+        if (pc == context.pc) {
+            try writer.print("[0x{x:0>4}]: ", .{pc}); // 現在のPCをマーク
         } else {
-            // ピアかもしれない
-            // 解析して接続
-            const peer_addr = try p2p.resolveHostPort(arg);
-            _ = try std.Thread.spawn(.{}, p2p.connectToPeer, .{peer_addr});
+            try writer.print("0x{x:0>4}: ", .{pc});
         }
+
+        // オペコードに応じた出力
+        switch (opcode) {
+            Opcode.STOP => try writer.print("STOP", .{}),
+            Opcode.ADD => try writer.print("ADD", .{}),
+            Opcode.MUL => try writer.print("MUL", .{}),
+            // ... 他のオペコード
+
+            Opcode.PUSH1 => {
+                if (pc + 1 < context.code.len) {
+                    const value = context.code[pc + 1];
+                    try writer.print("PUSH1 0x{x:0>2}", .{value});
+                    pc += 1;
+                } else {
+                    try writer.print("PUSH1 <データ不足>", .{});
+                }
+            },
+
+            else => {
+                try writer.print("UNKNOWN 0x{x:0>2}", .{opcode});
+            },
+        }
+
+        try writer.print("\n", .{});
+        pc += 1;
+    }
+}
+
+/// スタックの内容をダンプする
+pub fn dumpStack(context: *EvmContext, writer: anytype) !void {
+    try writer.print("Stack (depth: {}):\n", .{context.stack.depth()});
+
+    var i: usize = 0;
+    while (i < context.stack.sp) : (i += 1) {
+        const value = context.stack.data[context.stack.sp - 1 - i];
+        try writer.print("  [{d}]: 0x{x}\n", .{ i, value });
+    }
+}
+
+/// EVMの実行状態を表示する
+pub fn dumpContext(context: *EvmContext, writer: anytype) !void {
+    try writer.print("=== EVM State ===\n", .{});
+    try writer.print("PC: 0x{x:0>4}\n", .{context.pc});
+    try writer.print("Gas: {d}\n", .{context.gas});
+    try writer.print("Stopped: {}\n", .{context.stopped});
+
+    if (context.error_msg) |msg| {
+        try writer.print("Error: {s}\n", .{msg});
     }
 
-    // チェイン状態を表示
-    blockchain.printChainState();
+    try writer.print("\n", .{});
+    try dumpStack(context, writer);
+    try writer.print("\n", .{});
+    try disassembleContext(context, writer);
+}
+```
 
-    // P2Pリスナー起動
-    _ = try std.Thread.spawn(.{}, p2p.listenLoop, .{ self_port });
+### EVMトレースの実装
 
-    // モード切り替え
-    if (is_pos_mode) {
-        std.log.info("Starting in PoS mode ...", .{});
-        // PoSループを別スレッドで起動
-        _ = try std.Thread.spawn(.{}, pos.runPosLoop, .{pos_cfg});
-    } else {
-        std.log.info("Starting in PoW mode ...", .{});
-        // 従来のtextInputLoop: CLI入力ごとにマイニング
-        _ = try std.Thread.spawn(.{}, p2p.textInputLoop, .{});
+EVMの実行をステップごとに追跡できるトレース機能も追加しましょう。これにより、各オペコードの実行前後のスタック状態やメモリの変化を記録できます。
+
+```zig
+/// EVMトレースログ
+pub const TraceLog = struct {
+    pc: usize,
+    opcode: u8,
+    gas: usize,
+    stack_before: []const evm_types.EVMu256,
+    stack_after: []const evm_types.EVMu256,
+    memory_size: usize,
+    allocator: std.mem.Allocator,
+
+    pub fn deinit(self: *TraceLog) void {
+        self.allocator.free(self.stack_before);
+        self.allocator.free(self.stack_after);
+    }
+};
+
+/// トレース機能付きEVM実行
+pub fn executeWithTrace(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    calldata: []const u8,
+    gas_limit: usize
+) !struct { result: []const u8, trace: []TraceLog } {
+    var context = EvmContext.init(allocator, code, calldata);
+    context.gas = gas_limit;
+    defer context.deinit();
+
+    var trace_logs = std.ArrayList(TraceLog).init(allocator);
+    defer trace_logs.deinit();
+
+    // 実行ループ
+    while (context.pc < context.code.len and !context.stopped) {
+        // 実行前のスタック状態を記録
+        var stack_before = try allocator.alloc(evm_types.EVMu256, context.stack.sp);
+        @memcpy(stack_before, context.stack.data[0..context.stack.sp]);
+
+        const opcode = context.code[context.pc];
+        const gas_before = context.gas;
+
+        // ステップ実行
+        try executeStep(&context);
+
+        // 実行後のスタック状態を記録
+        var stack_after = try allocator.alloc(evm_types.EVMu256, context.stack.sp);
+        @memcpy(stack_after, context.stack.data[0..context.stack.sp]);
+
+        // トレースログを追加
+        try trace_logs.append(TraceLog{
+            .pc = context.pc,
+            .opcode = opcode,
+            .gas = gas_before - context.gas,
+            .stack_before = stack_before,
+            .stack_after = stack_after,
+            .memory_size = context.memory.data.items.len,
+            .allocator = allocator,
+        });
     }
 
-    // メインスレッドを生かし続ける
-    while (true) {
-        std.time.sleep(60 * std.time.ns_per_s);
+    // 結果をコピー
+    const result = try allocator.alloc(u8, context.returndata.items.len);
+    @memcpy(result, context.returndata.items);
+
+    return .{
+        .result = result,
+        .trace = try trace_logs.toOwnedSlice(),
+    };
+}
+```
+
+## ブロックチェインへのEVM統合
+
+ここまでで独立したEVM実装ができました。次は、これを前章までで作成したブロックチェインに統合します。
+
+### スマートコントラクトのデプロイと実行
+
+ブロックチェインでスマートコントラクトを扱うには、以下の2つの操作が必要です。
+
+1. **デプロイ**: コントラクトのバイトコードをブロックチェインに保存
+2. **実行**: デプロイされたコントラクトの関数を呼び出す
+
+これらの操作を`src/blockchain.zig`に追加します。
+
+```zig
+/// スマートコントラクトのデプロイ
+pub fn deployContract(
+    self: *Blockchain,
+    deployer: []const u8,
+    bytecode: []const u8,
+    gas_limit: usize
+) ![]const u8 {
+    // コントラクトアドレスを生成（簡易版：デプロイヤーアドレス + nonce）
+    var hasher = std.crypto.hash.sha3.Sha3_256.init(.{});
+    hasher.update(deployer);
+    hasher.update(&[_]u8{self.contracts.count()});
+    var hash: [32]u8 = undefined;
+    hasher.final(&hash);
+
+    // アドレスは最後の20バイト
+    const contract_address = hash[12..];
+
+    // EVMでコンストラクタを実行
+    const runtime_code = try evm.execute(
+        self.allocator,
+        bytecode,
+        &[_]u8{},  // コンストラクタ引数なし
+        gas_limit
+    );
+
+    // コントラクトコードを保存
+    try self.contracts.put(
+        try self.allocator.dupe(u8, contract_address),
+        try self.allocator.dupe(u8, runtime_code)
+    );
+
+    return contract_address;
+}
+
+/// スマートコントラクトの呼び出し
+pub fn callContract(
+    self: *Blockchain,
+    contract_address: []const u8,
+    calldata: []const u8,
+    gas_limit: usize
+) ![]const u8 {
+    // コントラクトコードを取得
+    const code = self.contracts.get(contract_address) orelse
+        return error.ContractNotFound;
+
+    // EVMで実行
+    return try evm.execute(
+        self.allocator,
+        code,
+        calldata,
+        gas_limit
+    );
+}
+```
+
+### トランザクションタイプの拡張
+
+スマートコントラクト関連のトランザクションを扱うため、トランザクション構造を拡張します。
+
+```zig
+pub const TransactionType = enum {
+    Transfer,        // 通常の送金
+    ContractDeploy,  // コントラクトデプロイ
+    ContractCall,    // コントラクト呼び出し
+};
+
+pub const Transaction = struct {
+    from: []const u8,
+    to: ?[]const u8,      // デプロイ時はnull
+    amount: u64,
+    data: []const u8,     // コントラクトコードまたはcalldata
+    tx_type: TransactionType,
+    gas_limit: u64,
+    gas_price: u64,
+    nonce: u64,
+    signature: ?[]const u8,
+};
+```
+
+## 実践的な使用例
+
+最後に、完成したEVM統合ブロックチェインの使用例を示します。以下のコードは、Solidityで書かれた`SimpleAdder`コントラクトをデプロイし、`add(5, 3)`を呼び出して結果を取得するものです。
+
+```zig
+// メインプログラムでの使用例
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // ブロックチェインの初期化
+    var blockchain = try Blockchain.init(allocator);
+    defer blockchain.deinit();
+
+    // SimpleAdderコントラクトのバイトコード（コンパイル済み）
+    const contract_bytecode = [_]u8{
+        // ... Solidityコンパイラで生成されたバイトコード
+    };
+
+    // コントラクトをデプロイ
+    const deployer = "0x1234567890123456789012345678901234567890";
+    const contract_address = try blockchain.deployContract(
+        deployer,
+        &contract_bytecode,
+        1_000_000  // ガスリミット
+    );
+
+    std.debug.print("コントラクトアドレス: 0x", .{});
+    for (contract_address) |byte| {
+        std.debug.print("{x:0>2}", .{byte});
+    }
+    std.debug.print("\n", .{});
+
+    // add(5, 3)を呼び出すcalldataを作成
+    var calldata = std.ArrayList(u8).init(allocator);
+    defer calldata.deinit();
+
+    // 関数セレクタ: 0x771602f7
+    try calldata.appendSlice(&[_]u8{ 0x77, 0x16, 0x02, 0xf7 });
+
+    // 引数1: 5
+    try calldata.appendNTimes(0, 31);
+    try calldata.append(5);
+
+    // 引数2: 3
+    try calldata.appendNTimes(0, 31);
+    try calldata.append(3);
+
+    // コントラクトを実行
+    const result = try blockchain.callContract(
+        contract_address,
+        calldata.items,
+        100_000  // ガスリミット
+    );
+    defer allocator.free(result);
+
+    // 結果を表示（8が返るはず）
+    if (result.len >= 32) {
+        const value = result[31];
+        std.debug.print("結果: {d}\n", .{value});
     }
 }
 ```
 
-使い方は以下のようになります。
+## まとめ
 
-```bash
-# PoWモードで起動（従来どおりマイニング可能）
-zig build run -- 8000
-# PoSモードで起動（10秒間隔で抽選を行い、自ノードが当選ならブロック生成）
-zig build run -- 8001 --pos
-# ステーク操作
-zig build run -- 8002 --pos --stake Alice 100 --stake Bob 200
-```
+この章では、Zigを使用してEthereum Virtual Machine (EVM)の簡易版を実装しました。実装した主な要素は以下の通りです。
 
-複数ノードをPoSモードで起動すると、ノードごとのステークマップは独立しているため、本格的なネットワーク共通状態とは少し異なります。将来的にはオンチェインのステーク管理コントラクトやトランザクションを用いて、すべてのノードが同じステーク状態を共有します。今回はPoS導入の最初のステップとして、あくまで学習用のシンプル版です。
+1. 256ビット整数型: EVMの基本データ型を独自に実装
+2. スタック・メモリ・ストレージ: EVMの3つの主要なデータ領域を実装
+3. オペコード実行エンジン: バイトコードを解釈・実行する仮想マシン
+4. Solidityコントラクトの実行: 実際のスマートコントラクトを動作させる
+5. ブロックチェインへの統合: コントラクトのデプロイと実行をサポート
 
-⸻
+この実装により、スマートコントラクトがどのように動作するかを深く理解できました。実際のEthereumのEVMはより多くの機能（全オペコード、ガス計算、プリコンパイルコントラクトなど）を持ちますが、基本的な仕組みは同じです。
 
-## 動作確認
-
-### NodeA: PoWモード（ポート8000で起動）
-
-```bash
-zig build run -- 8000
-```
-
-### NodeB: PoSモード（ポート8001で起動、ステーク設定あり）
-
-```bash
-zig build run -- 8001 --pos --stake Node8001 150 127.0.0.1:8000
-```
-
-これによりPoWノード(8000)とPoSノード(8001)が同一ネットワーク上で稼働。NodeBはPoSループを回し、10秒間隔で抽選をします。
-PoSノード(8001)で抽選に当選すると、ブロックが生成されNetworkにブロードキャストされます。NodeA(8000)のログを見るとinfo: Added new block ...が表示されるはずです。
-一方、NodeA(8000)では手動CLI入力→マイニング→ブロック生成のフローが従来どおり行えます。どちらかが生成したブロックも相互に同期され、同じチェイン上に蓄積されていきます。
-
-⸻
-
-## 今後の拡張
-
-今回のPoS実装は非常に簡略化したもので、以下のような本格機能は未対応です。
-
-- ステークの真正性: 現状はCLIで--stakeオプションを指定するだけでいくらでもステークを設定可能。
-- 実際にはコイン保有量と連動させる必要がある。将来的にはEVM上でステーキングコントラクトを介してロックした資金だけを有効ステークと認める仕組みが必要。
-- 複数ノード間でのステーク共有: 各ノードがバラバラにstake_mapを持っているため、グローバルな合意がない。実際にはトランザクションやブロックを通じて、正しい合意状態を維持する必要がある。
-- スラッシング: ダブルサインや不正提案を検出した場合にステークを没収する等、PoSの安全保障策が未実装。
-- 報酬ロジックの高度化: ブロック提案報酬の他に、ネットワーク参加報酬、デポジット返却、インアクティブ時のペナルティなど多数。
-
-これらは次章以降やスマートコントラクト章で扱います。とりあえず本章では「PoWとPoSを切り替えて遊べる最小実装」を体験することが目的です。
-
-⸻
-
-### まとめ
-
-本章では、PoW中心だったチェインにPoS(Proof of Stake) の概念を組み込みました。起動オプション--posでPoSモードに切り替え、シンプルなステークマップとランダム抽選によりブロック生成を進める仕組みです。
-
-- PoS導入のメリット: 計算リソースの節約、環境負荷の軽減など
-- 課題: 本格的なステーキング、スラッシング、報酬分配やEVMとの連携などやることは多い
-- 今回は簡易版として、CLI操作でステークを設定し、PoSモードでブロック生成する仕組みを実装しました。
-- 次章以降で本格的なPoS機能を実装していきます。
-- スマートコントラクト章では、EVM上でのPoS実装し、より高度なセキュリティと機能を提供する予定です。
+次章では、このEVM統合ブロックチェインをP2Pネットワークで動作させ、複数ノード間でスマートコントラクトを共有・実行する分散システムを構築します。
