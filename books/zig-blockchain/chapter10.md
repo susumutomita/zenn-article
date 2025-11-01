@@ -1,3 +1,8 @@
+---
+title: "Solidityコントラクトの実行"
+free: true
+---
+
 ## Solidityコントラクトの実行
 
 ここまでで基本的なEVM実装ができましたので、実際のSolidityコントラクトを実行してみましょう。
