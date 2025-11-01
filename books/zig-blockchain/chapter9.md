@@ -5,7 +5,7 @@ free: true
 
 ## EVM実装に向けた準備
 
-第8章まででP2Pネットワークによるブロックチェインの基本的な実装が完成しました。第9章からは、ブロックチェインの次の大きなステップとして、スマートコントラクトを実行できるEVM（Ethereum Virtual Machine）の実装に挑戦します。
+第8章まででP2Pネットワークによるブロックチェインの基本的な実装が完成しました。ここからは、ブロックチェインの次の大きなステップとして、スマートコントラクトを実行できるEVM（Ethereum Virtual Machine）の実装に挑戦します。
 
 EVMには、実行時に使用されるいくつかの主要なデータ領域があります。[Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)。
 
