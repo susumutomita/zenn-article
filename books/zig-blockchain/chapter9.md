@@ -276,5 +276,3 @@ pub const EVMu256 = struct {
     }
 };
 ```
-
-## スタックの実装
