@@ -16,11 +16,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup safe-chain
-        run: |
-          bun add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
-          safe-chain setup-ci
-
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -30,6 +25,11 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
+
+      - name: Setup safe-chain
+        run: |
+          pnpm add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
+          safe-chain setup-ci
 
       - name: Install dependencies
         run: |
