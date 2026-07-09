@@ -1,5 +1,5 @@
 ---
-title: "EVM実装: スタック・メモリ・オペコード"
+title: "簡易EVM実装: スタック・メモリ・オペコード"
 free: true
 ---
 
@@ -260,7 +260,7 @@ pub const EVMAddress = struct {
 
     /// ゼロアドレスを作成
     pub fn zero() EVMAddress {
-        return EVMAddress{ .data = [_]u8{0}  20 };
+        return EVMAddress{ .data = [_]u8{0} ** 20 };
     }
 
     /// バイト配列からアドレスを作成
@@ -365,7 +365,7 @@ pub const EVMAddress = struct {
         }
 
         // アドレスのKeccak-256ハッシュを計算
-        // 注：完全な実装にするためには、適切なKeccakライブラリが必要です
+        // 注：EIP-55に厳密対応するには、適切なKeccakライブラリが必要です
         // この実装はシンプル化のため、実際のハッシュ計算は省略しています
 
         // 結果文字列（0xプレフィックス付き）
@@ -1158,4 +1158,392 @@ test "EVM multiple operations" {
 }
 ```
 
-## Solidityコントラクトの実行
+## Solidity実行に必要なオペコードを追加する
+
+次章では、Solidityが生成した関数ディスパッチャーを実行します。
+そのため、ここまでの基本命令だけでは足りません。
+次章へ進む前に、完成形の`src/evm.zig`と同じ方針で命令を追加します。
+
+特に次章のテストでは、`SHR(0x1c)`、`PUSH4(0x63)`、`EQ(0x14)`、`JUMPI(0x57)`、`JUMPDEST(0x5b)`を使います。
+これらが未実装のままだと、Solidityの関数セレクタ判定で停止します。
+
+まず、`Opcode`に不足している定数を追加します。
+
+```zig
+// ビットシフト操作
+pub const SHL = 0x1B;
+pub const SHR = 0x1C;
+pub const SAR = 0x1D;
+
+// PUSHシリーズ
+pub const PUSH0 = 0x5F;
+
+// コード関連
+pub const CODESIZE = 0x38;
+pub const CODECOPY = 0x39;
+
+// 戻りデータ関連
+pub const RETURNDATASIZE = 0x3D;
+pub const RETURNDATACOPY = 0x3E;
+
+// コントラクト関連
+pub const CALLVALUE = 0x34;
+```
+
+`EVMError`には、`REVERT`用のエラーも加えます。
+
+```zig
+pub const EVMError = error{
+    OutOfGas,
+    StackOverflow,
+    StackUnderflow,
+    InvalidJump,
+    InvalidOpcode,
+    MemoryOutOfBounds,
+    Revert,
+};
+```
+
+次に、`executeStep`の`switch`へ次の分岐を追加します。
+既存の`else`分岐は、最後の汎用処理に置き換えてください。
+
+```zig
+Opcode.MOD => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    if (b.hi == 0 and b.lo == 0) {
+        try context.stack.push(EVMu256.zero());
+    } else if (a.hi == 0 and b.hi == 0) {
+        try context.stack.push(EVMu256.fromU64(@intCast(a.lo % b.lo)));
+    } else {
+        try context.stack.push(EVMu256.zero());
+    }
+    context.pc += 1;
+},
+
+Opcode.POP => {
+    if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+    _ = try context.stack.pop();
+    context.pc += 1;
+},
+
+Opcode.EQ => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    const value: u64 = if (a.hi == b.hi and a.lo == b.lo) 1 else 0;
+    try context.stack.push(EVMu256.fromU64(value));
+    context.pc += 1;
+},
+
+Opcode.LT => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    const value: u64 = if (a.hi < b.hi or (a.hi == b.hi and a.lo < b.lo)) 1 else 0;
+    try context.stack.push(EVMu256.fromU64(value));
+    context.pc += 1;
+},
+
+Opcode.GT => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    const value: u64 = if (a.hi > b.hi or (a.hi == b.hi and a.lo > b.lo)) 1 else 0;
+    try context.stack.push(EVMu256.fromU64(value));
+    context.pc += 1;
+},
+
+Opcode.ISZERO => {
+    if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+    const x = try context.stack.pop();
+    const value: u64 = if (x.hi == 0 and x.lo == 0) 1 else 0;
+    try context.stack.push(EVMu256.fromU64(value));
+    context.pc += 1;
+},
+
+Opcode.AND => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    try context.stack.push(EVMu256{ .hi = a.hi & b.hi, .lo = a.lo & b.lo });
+    context.pc += 1;
+},
+
+Opcode.OR => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    try context.stack.push(EVMu256{ .hi = a.hi | b.hi, .lo = a.lo | b.lo });
+    context.pc += 1;
+},
+
+Opcode.XOR => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    const b = try context.stack.pop();
+    try context.stack.push(EVMu256{ .hi = a.hi ^ b.hi, .lo = a.lo ^ b.lo });
+    context.pc += 1;
+},
+
+Opcode.NOT => {
+    if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+    const a = try context.stack.pop();
+    try context.stack.push(EVMu256{ .hi = ~a.hi, .lo = ~a.lo });
+    context.pc += 1;
+},
+```
+
+シフト命令は、関数セレクタを取り出す`SHR 224`で必要になります。
+完成形では256ビット全域を完全実装しているわけではありませんが、Solidityの基本的な関数呼び出しには十分です。
+
+```zig
+Opcode.SHL => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const shift = try context.stack.pop();
+    const value = try context.stack.pop();
+    if (shift.hi > 0 or shift.lo >= 256) {
+        try context.stack.push(EVMu256.zero());
+    } else {
+        const shift_amount = @as(u8, @intCast(shift.lo));
+        if (shift_amount == 0) {
+            try context.stack.push(value);
+        } else if (shift_amount < 64) {
+            try context.stack.push(EVMu256{
+                .hi = (value.hi << @intCast(shift_amount)) | (value.lo >> @intCast(64 - shift_amount)),
+                .lo = value.lo << @intCast(shift_amount),
+            });
+        } else if (shift_amount < 128) {
+            try context.stack.push(EVMu256{
+                .hi = value.lo << @intCast(shift_amount - 64),
+                .lo = 0,
+            });
+        } else {
+            try context.stack.push(EVMu256.zero());
+        }
+    }
+    context.pc += 1;
+},
+
+Opcode.SHR => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const shift = try context.stack.pop();
+    const value = try context.stack.pop();
+    if (shift.hi > 0 or shift.lo >= 256) {
+        try context.stack.push(EVMu256.zero());
+    } else {
+        const shift_amount = @as(u8, @intCast(shift.lo));
+        var result = EVMu256{ .hi = value.hi, .lo = value.lo };
+        if (shift_amount == 0) {
+            // そのまま返す
+        } else if (shift_amount < 64) {
+            const shift_u7 = @as(u7, @intCast(shift_amount));
+            const complement_u6 = @as(u6, @intCast(64 - shift_amount));
+            result.lo = (value.lo >> shift_u7) | (value.hi << complement_u6);
+            result.hi = value.hi >> shift_u7;
+        } else if (shift_amount < 128) {
+            const adjusted_shift = @as(u7, @intCast(shift_amount - 64));
+            result.lo = value.hi >> adjusted_shift;
+            result.hi = 0;
+        } else {
+            const high_shift = @as(u7, @intCast(shift_amount - 128));
+            result.lo = value.hi >> high_shift;
+            result.hi = 0;
+        }
+        try context.stack.push(result);
+    }
+    context.pc += 1;
+},
+
+Opcode.SAR => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const shift = try context.stack.pop();
+    const value = try context.stack.pop();
+    if (shift.hi > 0 or shift.lo >= 256) {
+        if (value.hi & (1 << 127) != 0) {
+            try context.stack.push(EVMu256{ .hi = std.math.maxInt(u128), .lo = std.math.maxInt(u128) });
+        } else {
+            try context.stack.push(EVMu256.zero());
+        }
+    } else {
+        const shift_amount = @as(u8, @intCast(shift.lo));
+        var result = EVMu256{ .hi = value.hi, .lo = value.lo };
+        const sign_bit = (value.hi & (1 << 127)) != 0;
+        if (shift_amount == 0) {
+            try context.stack.push(value);
+            context.pc += 1;
+            return;
+        } else if (shift_amount < 64) {
+            const shift_u7 = @as(u7, @intCast(shift_amount));
+            const complement_u6 = @as(u6, @intCast(64 - shift_amount));
+            result.lo = (value.lo >> shift_u7) | (value.hi << complement_u6);
+            result.hi = value.hi >> shift_u7;
+            if (sign_bit) {
+                const mask = ~@as(u128, 0) << @as(u7, @intCast(127 - shift_amount));
+                result.hi |= mask;
+            }
+            try context.stack.push(result);
+        } else if (shift_amount < 128) {
+            const adjusted_shift = @as(u7, @intCast(shift_amount - 64));
+            result.lo = value.hi >> adjusted_shift;
+            result.hi = if (sign_bit) std.math.maxInt(u128) else 0;
+            try context.stack.push(result);
+        } else {
+            if (sign_bit) {
+                try context.stack.push(EVMu256{ .hi = std.math.maxInt(u128), .lo = std.math.maxInt(u128) });
+            } else {
+                try context.stack.push(EVMu256.zero());
+            }
+        }
+    }
+    context.pc += 1;
+},
+```
+
+制御フローでは、ジャンプ先が`JUMPDEST`であることを確認します。
+これにより、Solidityのディスパッチャーが安全に関数本体へ移れます。
+
+```zig
+Opcode.JUMPDEST => {
+    context.pc += 1;
+},
+
+Opcode.JUMP => {
+    if (context.stack.depth() < 1) return EVMError.StackUnderflow;
+    const dest = try context.stack.pop();
+    if (dest.hi != 0) return EVMError.InvalidJump;
+    const jump_dest = @as(usize, @intCast(dest.lo));
+    if (jump_dest >= context.code.len) return EVMError.InvalidJump;
+    if (context.code[jump_dest] != Opcode.JUMPDEST) return EVMError.InvalidJump;
+    context.pc = jump_dest;
+},
+
+Opcode.JUMPI => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    const dest = try context.stack.pop();
+    const condition = try context.stack.pop();
+    if (condition.hi != 0 or condition.lo != 0) {
+        if (dest.hi != 0) return EVMError.InvalidJump;
+        const jump_dest = @as(usize, @intCast(dest.lo));
+        if (jump_dest >= context.code.len) return EVMError.InvalidJump;
+        if (context.code[jump_dest] != Opcode.JUMPDEST) return EVMError.InvalidJump;
+        context.pc = jump_dest;
+    } else {
+        context.pc += 1;
+    }
+},
+```
+
+Solidityの初期化コードとABI処理では、calldataやcodeをメモリへコピーする命令も使われます。
+
+```zig
+Opcode.CALLDATASIZE => {
+    try context.stack.push(EVMu256.fromU64(context.calldata.len));
+    context.pc += 1;
+},
+
+Opcode.CALLDATACOPY => {
+    if (context.stack.depth() < 3) return EVMError.StackUnderflow;
+    const mem_offset = try context.stack.pop();
+    const data_offset = try context.stack.pop();
+    const length = try context.stack.pop();
+    if (mem_offset.hi != 0 or data_offset.hi != 0 or length.hi != 0) {
+        return EVMError.MemoryOutOfBounds;
+    }
+    const mem_off = @as(usize, @intCast(mem_offset.lo));
+    const data_off = @as(usize, @intCast(data_offset.lo));
+    const len = @as(usize, @intCast(length.lo));
+    try context.memory.ensureSize(mem_off + len);
+    for (0..len) |i| {
+        context.memory.data.items[mem_off + i] =
+            if (data_off + i < context.calldata.len) context.calldata[data_off + i] else 0;
+    }
+    context.pc += 1;
+},
+
+Opcode.CODESIZE => {
+    try context.stack.push(EVMu256.fromU64(context.code.len));
+    context.pc += 1;
+},
+
+Opcode.CODECOPY => {
+    if (context.stack.depth() < 3) return EVMError.StackUnderflow;
+    const mem_offset = try context.stack.pop();
+    const code_offset = try context.stack.pop();
+    const length = try context.stack.pop();
+    if (mem_offset.hi != 0 or code_offset.hi != 0 or length.hi != 0) {
+        return EVMError.MemoryOutOfBounds;
+    }
+    const mem_off = @as(usize, @intCast(mem_offset.lo));
+    const code_off = @as(usize, @intCast(code_offset.lo));
+    const len = @as(usize, @intCast(length.lo));
+    try context.memory.ensureSize(mem_off + len);
+    for (0..len) |i| {
+        context.memory.data.items[mem_off + i] =
+            if (code_off + i < context.code.len) context.code[code_off + i] else 0;
+    }
+    context.pc += 1;
+},
+
+Opcode.RETURNDATASIZE, Opcode.CALLVALUE => {
+    try context.stack.push(EVMu256.zero());
+    context.pc += 1;
+},
+
+Opcode.REVERT => {
+    if (context.stack.depth() < 2) return EVMError.StackUnderflow;
+    context.stopped = true;
+    return EVMError.Revert;
+},
+```
+
+最後に、`PUSH`、`DUP`、`SWAP`を汎用処理にします。
+これにより、`PUSH4`などの可変長の即値命令も扱えます。
+
+```zig
+else => {
+    if (opcode >= 0x5F and opcode <= 0x7F) {
+        const push_bytes = opcode - 0x5F;
+        var value = EVMu256.zero();
+        if (context.pc + push_bytes + 1 > context.code.len) {
+            context.error_msg = "コード範囲外のPUSH操作";
+            return EVMError.InvalidOpcode;
+        }
+        for (0..push_bytes) |i| {
+            const byte = context.code[context.pc + 1 + i];
+            if (push_bytes <= 16) {
+                const shift = @as(u7, @intCast(8 * (push_bytes - 1 - i)));
+                value.lo |= @as(u128, byte) << shift;
+            } else if (i < push_bytes - 16) {
+                const shift = @as(u7, @intCast(8 * (push_bytes - 17 - i)));
+                value.hi |= @as(u128, byte) << shift;
+            } else {
+                const shift = @as(u7, @intCast(8 * (push_bytes - 1 - i)));
+                value.lo |= @as(u128, byte) << shift;
+            }
+        }
+        try context.stack.push(value);
+        context.pc += push_bytes + 1;
+    } else if (opcode >= 0x80 and opcode <= 0x8F) {
+        const dup_index = opcode - 0x7F;
+        if (context.stack.depth() < dup_index) return EVMError.StackUnderflow;
+        try context.stack.push(context.stack.data[context.stack.sp - dup_index]);
+        context.pc += 1;
+    } else if (opcode >= 0x90 and opcode <= 0x9F) {
+        const swap_index = opcode - 0x8F;
+        if (context.stack.depth() < swap_index + 1) return EVMError.StackUnderflow;
+        const top = context.stack.sp - 1;
+        const other = context.stack.sp - 1 - swap_index;
+        const temp = context.stack.data[top];
+        context.stack.data[top] = context.stack.data[other];
+        context.stack.data[other] = temp;
+        context.pc += 1;
+    } else {
+        context.error_msg = "未実装または無効なオペコード";
+        return EVMError.InvalidOpcode;
+    }
+},
+```
+
+ここまで反映すれば、次章のSolidity関数呼び出しテストで使う命令は実装済みです。
