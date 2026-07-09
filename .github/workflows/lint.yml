@@ -10,8 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Check out the code
+        # actions/checkout v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          submodules: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -20,8 +23,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
+
+      - name: Setup safe-chain
+        run: |
+          pnpm add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
+          safe-chain setup-ci
 
       - name: Install dependencies
         run: |
