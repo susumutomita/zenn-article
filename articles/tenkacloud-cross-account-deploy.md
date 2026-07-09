@@ -3,7 +3,7 @@ title: "参加者それぞれのAWSアカウントに問題環境を配るクロ
 emoji: "🚩"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [AWS, CloudFormation, CDK, security, SaaS]
-published: false
+published: true
 ---
 
 [TenkaCloud](https://www.tenkacloud.com/?lang=ja)という、実際のAWSアカウント上でクラウド競技を開催するOSSを作っています（[susumutomita/TenkaCloud](https://github.com/susumutomita/TenkaCloud)、Apache-2.0）。参加者は運営が用意した共有環境ではなく、自分たちの隔離されたAWSアカウントで本物のAWSシナリオを解きます。
