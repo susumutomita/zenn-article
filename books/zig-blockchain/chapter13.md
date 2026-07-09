@@ -3,7 +3,7 @@ title: "EVM実行エンジンを実装する"
 free: true
 ---
 
-この章では引き続き、**Zig**プログラミング言語を用いてEthereum Virtual Machine (EVM)を実装します。
+この章では引き続き、**Zig**プログラミング言語を用いてEthereum Virtual Machine (EVM)の実行エンジンを実装します。扱う範囲は、本章で示す基本オペコードに絞った学習用の簡易EVMです。
 
 ### EVM実行エンジンの実装
 
@@ -581,9 +581,9 @@ test "EVM multiple operations" {
 }
 ```
 
-## Solidityコントラクトの実行
+## Solidity形式のコントラクト呼び出し
 
-ここまでで基本的なEVM実装ができましたので、実際のSolidityコントラクトを実行してみましょう。
+ここまでで、本章で扱う基本オペコード範囲のEVM実装ができました。次は、Solidityコントラクトの呼び出しで使われるcalldataの形式を見てみましょう。
 
 ### Solidityコントラクトのコンパイルとデプロイ
 
@@ -666,32 +666,21 @@ contract SimpleAdderAssembly {
 
 ### EVMでのコントラクト実行テスト
 
-では、実際にEVMでSolidityコントラクトを実行するテストを追加します。`src/evm.zig`の最後に以下のテストを追加します。
+では、ABI形式のcalldataをEVMで読むテストを追加します。
+本章の掲載エンジンは、関数ディスパッチに必要な`SHR`、`EQ`、`JUMPI`、`PUSH4`まではまだ扱いません。
+そのため、ここでは関数セレクタの照合を省き、実装済みの基本オペコードだけで`add(uint256,uint256)`相当の計算を確認します。
+`src/evm.zig`の最後に以下のテストを追加します。
 
 ```zig
-// Solidityコントラクトの実行テスト
-test "Execute Solidity add function" {
+// ABI calldataを使った加算テスト
+test "Execute ABI encoded add calldata" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // SimpleAdderのランタイムバイトコード（抜粋）
-    // 実際のバイトコードは solc でコンパイルして取得
-    // ここでは関数ディスパッチャーと add 関数の実装を含む簡略版
+    // 本章で実装済みのオペコードだけを使う簡略版。
+    // 関数セレクタの検証はせず、calldataの第1引数と第2引数を加算する。
     const runtime_bytecode = [_]u8{
-        // 関数セレクタのチェック
-        0x60, 0x00, // PUSH1 0x00
-        0x35, // CALLDATALOAD
-        0x60, 0xe0, // PUSH1 0xe0
-        0x1c, // SHR
-        0x63, 0x77, 0x16, 0x02, 0xf7, // PUSH4 0x771602f7 (add関数のセレクタ)
-        0x14, // EQ
-        0x60, 0x1b, // PUSH1 0x1b (ジャンプ先)
-        0x57, // JUMPI
-        0x00, // STOP (セレクタが一致しない場合)
-
-        // add関数の実装 (0x1b)
-        0x5b, // JUMPDEST
         0x60, 0x04, // PUSH1 0x04
         0x35, // CALLDATALOAD (第1引数)
         0x60, 0x24, // PUSH1 0x24
@@ -727,12 +716,7 @@ test "Execute Solidity add function" {
     // 結果をチェック（5 + 3 = 8）
     try std.testing.expectEqual(@as(usize, 32), result.len);
 
-    var value: u256 = 0;
-    for (result[31], 0..) |byte, i| {
-        value |= @as(u256, byte) << @intCast(i * 8);
-    }
-
-    try std.testing.expectEqual(@as(u256, 8), value);
+    try std.testing.expectEqual(@as(u8, 8), result[31]);
 }
 ```
 
@@ -1058,9 +1042,9 @@ pub fn main() !void {
 1. 256ビット整数型: EVMの基本データ型を独自に実装
 2. スタック・メモリ・ストレージ: EVMの3つの主要なデータ領域を実装
 3. オペコード実行エンジン: バイトコードを解釈・実行する仮想マシン
-4. Solidityコントラクトの実行: 実際のスマートコントラクトを動作させる
+4. Solidity形式のcalldata実行: 本章の基本オペコード範囲に限定して引数を読み取る
 5. ブロックチェインへの統合: コントラクトのデプロイと実行をサポート
 
 この実装により、スマートコントラクトがどのように動作するかを深く理解できました。実際のEthereumのEVMはより多くの機能（全オペコード、ガス計算、プリコンパイルコントラクトなど）を持ちますが、基本的な仕組みは同じです。
 
-次章では、このEVM統合ブロックチェインをP2Pネットワークで動作させ、複数ノード間でスマートコントラクトを共有・実行する分散システムを構築します。
+次章では、Solidityで書いたシンプルなコントラクトをコンパイルし、この簡易EVM上で実行する流れを確認します。
