@@ -127,7 +127,7 @@ flowchart TB
   Ingest -.->|別の問題として分ける| Exec
 ```
 
-実行層のクロスアカウント設計は[別の記事](https://github.com/susumutomita/TenkaCloud)に書きました。
+実行層のクロスアカウント設計は[別の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)に書きました。
 
 ## おわりに
 
