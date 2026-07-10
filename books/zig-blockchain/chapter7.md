@@ -905,6 +905,8 @@ info: Added new block index=1, nonce=1924, hash={ 0, 0, a0, c6, 19, 2e, 84, 6f, 
 
 Docker Composeを使って、複数のノードを立ち上げてみます。例えば、node1とnode2を起動し、node1からnode2に接続することで、P2Pネットワークの動作を確認できます。
 
+なお、P2Pのブロックは採掘時に実時刻（`std.time`）を用いるため、`timestamp`・`nonce`・`hash`は実行するたびに変わります。先ほどのローカル実行例とこのDocker実行例で値が異なるのはそのためで、読者の環境でも本書とは異なる値になります（先頭に`0000`が並ぶ難易度条件は共通です）。
+
 ```bash
 docker compose up
 [+] Running 3/3
