@@ -4,7 +4,7 @@ free: true
 ---
 
 
-## ステップ1: 簡単なPoW(Proof of Work)の実装
+### ステップ1: 簡単なPoW(Proof of Work)の実装
 
 次に、ブロックチェインの**Proof of Work (PoW)** をシンプルに再現してみます。PoWはブロックチェイン(特にビットコイン)で採用されている**合意形成アルゴリズム**で、不正防止のために計算作業(=仕事, Work)を課す仕組みです。
 
@@ -133,6 +133,9 @@ fn calculateHash(block: *const Block) [32]u8 {
     hasher.update(toBytes(u32, block.index));
     hasher.update(toBytes(u64, block.timestamp));
 
+    // nonceもハッシュに含める
+    hasher.update(toBytes(u64, block.nonce));
+
     // 前のブロックのハッシュは配列→スライスで渡す
     hasher.update(block.prev_hash[0..]);
 
@@ -197,7 +200,7 @@ pub fn main() !void {
     try stdout.print("Hash       : ", .{}); // ← ここはプレースホルダなし、引数なし
     // 32バイトのハッシュを1バイトずつ16進数で出力
     for (genesis_block.hash) |byte| {
-        try stdout.print("{x}", .{byte});
+        try stdout.print("{x:0>2}", .{byte});
     }
     try stdout.print("\n", .{});
 }
@@ -214,7 +217,7 @@ Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
-Hash       : d7928f7e56537c9e97ce858e7c8fbc211c2336f32b32d8edc707cdda271142b
+Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 ```
 
 もしくはdocker composeで実行できます。
@@ -234,7 +237,7 @@ node2  | Data       : Hello, Zig Blockchain!
 node2  | Transactions:
 node2  |   Alice -> Bob : 100
 node2  |   Charlie -> Dave : 50
-node2  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node2  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node2 exited with code 0
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
@@ -243,7 +246,7 @@ node1  | Data       : Hello, Zig Blockchain!
 node1  | Transactions:
 node1  |   Alice -> Bob : 100
 node1  |   Charlie -> Dave : 50
-node1  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node1  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node3  | Block index: 0
 node3  | Timestamp  : 1672531200
 node3  | Nonce      : 0
@@ -251,7 +254,7 @@ node3  | Data       : Hello, Zig Blockchain!
 node3  | Transactions:
 node3  |   Alice -> Bob : 100
 node3  |   Charlie -> Dave : 50
-node3  | Hash       : e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node3  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node1 exited with code 0
 node3 exited with code 0
 ```
@@ -264,7 +267,7 @@ node3 exited with code 0
 条件とは今回は簡単のため「ハッシュ値の先頭のバイトが一定数0であること」と定義しましょう。例えば難易度を`difficulty = 2`とした場合、「ハッシュ値配列の先頭2バイトが0×00であること」とします。
 (これは16進数で「0000....」と始まるハッシュという意味で、先頭16ビットがゼロという条件です)。
 
-#### ステップ2: マイニング関数の追加
+### ステップ2: マイニング関数の追加
 
 ブロックの**PoWマイニング**を実装するには、以下の2つの関数を用意します。
 
@@ -445,7 +448,7 @@ fn calculateHash(block: *const Block) [32]u8 {
 
     // 最終的なハッシュ値を計算
     const hash = hasher.finalResult();
-    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    debugLog("nonce: {d}, hash: {x:0>2}\n", .{ block.nonce, hash });
     return hash;
 }
 ```
@@ -484,7 +487,7 @@ fn debugLog(comptime format: []const u8, args: anytype) void {
 //------------------------------------------------------------------------------
 
 // Transaction 構造体
-// ブロックチェーン上の「取引」を表現します。
+// ブロックチェイン上の「取引」を表現します。
 // 送信者、受信者、取引金額の３要素のみ保持します。
 const Transaction = struct {
     sender: []const u8, // 送信者のアドレスまたは識別子(文字列)
@@ -493,7 +496,7 @@ const Transaction = struct {
 };
 
 // Block 構造体
-// ブロックチェーン上の「ブロック」を表現します。
+// ブロックチェイン上の「ブロック」を表現します。
 // ブロック番号、生成時刻、前ブロックのハッシュ、取引リスト、PoW用の nonce、
 // 追加データ、そして最終的なブロックハッシュを保持します。
 const Block = struct {
@@ -617,7 +620,7 @@ fn calculateHash(block: *const Block) [32]u8 {
 
     // 最終的なハッシュ値を計算
     const hash = hasher.finalResult();
-    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    debugLog("nonce: {d}, hash: {x:0>2}\n", .{ block.nonce, hash });
     return hash;
 }
 
@@ -702,7 +705,7 @@ pub fn main() !void {
     }
     try stdout.print("Hash       : ", .{});
     for (genesis_block.hash) |byte| {
-        try stdout.print("{x}", .{byte});
+        try stdout.print("{x:0>2}", .{byte});
     }
     try stdout.print("\n", .{});
 }
@@ -718,12 +721,12 @@ pub fn main() !void {
 ❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
-Nonce      : 49954
+Nonce      : 30572
 Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
-Hash       : 001da5a39756df66c7bd9f6db2d2cbbaff48b779ccf25569bac9a997c13d
+Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 ```
 
 もしくはdocker composeで実行できます。
@@ -738,28 +741,28 @@ Hash       : 001da5a39756df66c7bd9f6db2d2cbbaff48b779ccf25569bac9a997c13d
 Attaching to node1, node2, node3
 node2  | Block index: 0
 node2  | Timestamp  : 1672531200
-node2  | Nonce      : 51858
+node2  | Nonce      : 30572
 node2  | Data       : Hello, Zig Blockchain!
 node2  | Transactions:
 node2  |   Alice -> Bob : 100
 node2  |   Charlie -> Dave : 50
-node2  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node2  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
-node1  | Nonce      : 51858
+node1  | Nonce      : 30572
 node1  | Data       : Hello, Zig Blockchain!
 node1  | Transactions:
 node1  |   Alice -> Bob : 100
 node1  |   Charlie -> Dave : 50
-node1  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node1  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node3  | Block index: 0
 node3  | Timestamp  : 1672531200
-node3  | Nonce      : 51858
+node3  | Nonce      : 30572
 node3  | Data       : Hello, Zig Blockchain!
 node3  | Transactions:
 node3  |   Alice -> Bob : 100
 node3  |   Charlie -> Dave : 50
-node3  | Hash       : 00c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node3  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node2 exited with code 0
 node1 exited with code 0
 node3 exited with code 0
@@ -957,7 +960,7 @@ fn debugLog(comptime format: []const u8, args: anytype) void {
 //------------------------------------------------------------------------------
 
 // Transaction 構造体
-// ブロックチェーン上の「取引」を表現します。
+// ブロックチェイン上の「取引」を表現します。
 // 送信者、受信者、取引金額の３要素のみ保持します。
 const Transaction = struct {
     sender: []const u8, // 送信者のアドレスまたは識別子(文字列)
@@ -966,7 +969,7 @@ const Transaction = struct {
 };
 
 // Block 構造体
-// ブロックチェーン上の「ブロック」を表現します。
+// ブロックチェイン上の「ブロック」を表現します。
 // ブロック番号、生成時刻、前ブロックのハッシュ、取引リスト、PoW用の nonce、
 // 追加データ、そして最終的なブロックハッシュを保持します。
 const Block = struct {
@@ -1090,7 +1093,7 @@ fn calculateHash(block: *const Block) [32]u8 {
 
     // 最終的なハッシュ値を計算
     const hash = hasher.finalResult();
-    debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    debugLog("nonce: {d}, hash: {x:0>2}\n", .{ block.nonce, hash });
     return hash;
 }
 
@@ -1175,7 +1178,7 @@ pub fn main() !void {
     }
     try stdout.print("Hash       : ", .{});
     for (genesis_block.hash) |byte| {
-        try stdout.print("{x}", .{byte});
+        try stdout.print("{x:0>2}", .{byte});
     }
     try stdout.print("\n", .{});
 }

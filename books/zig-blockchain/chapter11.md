@@ -1,15 +1,15 @@
 ---
-title: "SolidityとEVMのブロックチェイン統合"
+title: "簡易EVMとSolidityのブロックチェイン統合"
 free: true
 ---
 
-## Solidityコントラクトの実行
+## 簡易EVMでSolidityコントラクトを実行する
 
 ここまでで基本的なEVM実装ができましたので、実際のSolidityコントラクトを実行してみましょう。
 
 ### Solidityコントラクトのコンパイルとデプロイ
 
-まず、Solidityで書かれた簡単な加算コントラクトをコンパイルします。`contract/SimpleAdder2.sol`に次のようなコントラクトを作成します。
+まず、Solidityで書かれた簡単な加算コントラクトをコンパイルします。`contract/SimpleAdder.sol`に次のようなコントラクトを作成します。
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -27,7 +27,7 @@ contract SimpleAdder {
 このコントラクトをコンパイルするには、次のコマンドを実行します。
 
 ```bash
-solc --bin --abi contract/SimpleAdder2.sol
+solc --bin --abi contract/SimpleAdder.sol
 ```
 
 コンパイル結果のバイトコードは、コントラクトのデプロイコード（コンストラクタ）とランタイムコード（実際の関数実装）の両方を含みます。
@@ -326,152 +326,141 @@ pub fn executeWithTrace(
 1. デプロイ: コントラクトのバイトコードをブロックチェインに保存
 2. 実行: デプロイされたコントラクトの関数を呼び出す
 
-これらの操作を`src/blockchain.zig`に追加します。
+完成形の実装では、これらを`Blockchain`型のメソッドとしては定義しません。
+CLI入口の`src/main.zig`にある独立関数が、EVM用トランザクションを作成します。
+その後、`src/blockchain.zig`の`processEvmTransactionWithErrorDetails`へ渡します。
+
+### Transaction構造体
+
+EVM用のトランザクションも、既存の`Transaction`構造体を使います。
+専用の列挙型や署名フィールドはありません。
+完成形の`src/types.zig`では、次のフィールドを使います。
 
 ```zig
-/// スマートコントラクトのデプロイ
-pub fn deployContract(
-    self: *Blockchain,
-    deployer: []const u8,
-    bytecode: []const u8,
-    gas_limit: usize
-) ![]const u8 {
-    // コントラクトアドレスを生成（簡易版：デプロイヤーアドレス + nonce）
-    var hasher = std.crypto.hash.sha3.Sha3_256.init(.{});
-    hasher.update(deployer);
-    hasher.update(&[_]u8{self.contracts.count()});
-    var hash: [32]u8 = undefined;
-    hasher.final(&hash);
-
-    // アドレスは最後の20バイト
-    const contract_address = hash[12..];
-
-    // EVMでコンストラクタを実行
-    const runtime_code = try evm.execute(
-        self.allocator,
-        bytecode,
-        &[_]u8{},  // コンストラクタ引数なし
-        gas_limit
-    );
-
-    // コントラクトコードを保存
-    try self.contracts.put(
-        try self.allocator.dupe(u8, contract_address),
-        try self.allocator.dupe(u8, runtime_code)
-    );
-
-    return contract_address;
-}
-
-/// スマートコントラクトの呼び出し
-pub fn callContract(
-    self: *Blockchain,
-    contract_address: []const u8,
-    calldata: []const u8,
-    gas_limit: usize
-) ![]const u8 {
-    // コントラクトコードを取得
-    const code = self.contracts.get(contract_address) orelse
-        return error.ContractNotFound;
-
-    // EVMで実行
-    return try evm.execute(
-        self.allocator,
-        code,
-        calldata,
-        gas_limit
-    );
-}
-```
-
-### トランザクションタイプの拡張
-
-スマートコントラクト関連のトランザクションを扱うため、トランザクション構造を拡張します。
-
-```zig
-pub const TransactionType = enum {
-    Transfer,        // 通常の送金
-    ContractDeploy,  // コントラクトデプロイ
-    ContractCall,    // コントラクト呼び出し
-};
-
 pub const Transaction = struct {
-    from: []const u8,
-    to: ?[]const u8,      // デプロイ時はnull
+    sender: []const u8,
+    receiver: []const u8,
     amount: u64,
-    data: []const u8,     // コントラクトコードまたはcalldata
-    tx_type: TransactionType,
-    gas_limit: u64,
-    gas_price: u64,
-    nonce: u64,
-    signature: ?[]const u8,
+    tx_type: u8 = 0,
+    evm_data: ?[]const u8 = null,
+    gas_limit: usize = 1000000,
+    gas_price: u64 = 20000000000,
+    id: [32]u8 = [_]u8{0} ** 32,
 };
 ```
 
-## 実践的な使用例
+`tx_type`は`u8`で表します。
+完成形では、`0`が通常送金、`1`がコントラクトデプロイ、`2`がコントラクト呼び出しです。
 
-最後に、完成したEVM統合ブロックチェインの使用例を示します。
+### デプロイ処理
+
+`--deploy <バイトコードHEX> <コントラクトアドレス>`を受け取ると、`main.zig`の`deployContract`が呼ばれます。
+この実装では、Ethereumのように`keccak256(RLP(sender, nonce))[12:]`でアドレスを導出しません。
+コントラクトアドレスはCLI引数で直接受け取ります。
+なお、Zig標準ライブラリの`Sha3_256`はEthereumのKeccak-256とは別物です。
+本書の完成形では、コントラクトアドレス導出に`Sha3_256`やKeccak-256を使いません。
 
 ```zig
-// メインプログラムでの使用例
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+fn deployContract(
+    allocator: std.mem.Allocator,
+    bytecode_hex: []const u8,
+    contract_address: []const u8,
+    gas_limit: usize,
+    sender_address: []const u8,
+) !void {
+    const bytecode = try utils.hexToBytes(allocator, bytecode_hex);
+    defer allocator.free(bytecode);
 
-    // ブロックチェインの初期化
-    var blockchain = try Blockchain.init(allocator);
-    defer blockchain.deinit();
-
-    // SimpleAdderコントラクトのバイトコード（コンパイル済み）
-    const contract_bytecode = [_]u8{
-        // ... Solidityコンパイラで生成されたバイトコード
+    const tx = types.Transaction{
+        .sender = sender_address,
+        .receiver = contract_address,
+        .amount = 0,
+        .tx_type = 1,
+        .evm_data = bytecode,
+        .gas_limit = gas_limit,
+        .gas_price = 10,
     };
 
-    // コントラクトをデプロイ
-    const deployer = "0x1234567890123456789012345678901234567890";
-    const contract_address = try blockchain.deployContract(
-        deployer,
-        &contract_bytecode,
-        1_000_000  // ガスリミット
-    );
+    try p2p.broadcastEvmTransaction(tx);
 
-    std.debug.print("コントラクトアドレス: 0x", .{});
-    for (contract_address) |byte| {
-        std.debug.print("{x:0>2}", .{byte});
-    }
-    std.debug.print("\n", .{});
+    var tx_copy = tx;
+    const result = try blockchain.processEvmTransactionWithErrorDetails(&tx_copy);
+    try blockchain.logEvmResult(&tx_copy, result);
+}
+```
 
-    // add(5, 3)を呼び出すcalldataを作成
-    var calldata = std.ArrayList(u8).init(allocator);
-    defer calldata.deinit();
+`processEvmTransactionWithErrorDetails`の中では、デプロイ用のcreation bytecodeをEVMで実行します。
+その戻り値であるruntime codeを、`contract_storage`へ保存します。
 
-    // 関数セレクタ: 0x771602f7
-    try calldata.appendSlice(&[_]u8{ 0x77, 0x16, 0x02, 0xf7 });
+```zig
+pub var contract_storage = std.StringHashMap([]const u8).init(std.heap.page_allocator);
+```
 
-    // 引数1: 5
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(5);
+この`contract_storage`は、`Blockchain`インスタンス内のフィールドではありません。
+`src/blockchain.zig`のグローバルなアドレス→コントラクトコードのマップです。
 
-    // 引数2: 3
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(3);
+### コール処理
 
-    // コントラクトを実行
-    const result = try blockchain.callContract(
-        contract_address,
-        calldata.items,
-        100_000  // ガスリミット
-    );
-    defer allocator.free(result);
+コール時も、`main.zig`の`callContract`が`tx_type = 2`のトランザクションを作ります。
+ローカルにコードがあれば、その場で実行します。
+見つからない場合は、P2P同期後に再実行できるように保留情報をグローバル変数へ残します。
 
-    // 結果を表示（8が返るはず）
-    if (result.len >= 32) {
-        const value = result[31];
-        std.debug.print("結果: {d}\n", .{value});
+```zig
+fn callContract(
+    allocator: std.mem.Allocator,
+    contract_address: []const u8,
+    input_hex: []const u8,
+    gas_limit: usize,
+    sender_address: []const u8,
+) !void {
+    const input_data = try utils.hexToBytes(allocator, input_hex);
+
+    const tx = types.Transaction{
+        .sender = sender_address,
+        .receiver = contract_address,
+        .amount = 0,
+        .tx_type = 2,
+        .evm_data = input_data,
+        .gas_limit = gas_limit,
+        .gas_price = 10,
+    };
+
+    try p2p.broadcastEvmTransaction(tx);
+
+    if (blockchain.contract_storage.get(contract_address)) |_| {
+        var tx_copy = tx;
+        const result = try blockchain.processEvmTransactionWithErrorDetails(&tx_copy);
+        try blockchain.logEvmResult(&tx_copy, result);
+    } else {
+        global_call_pending = true;
+        global_contract_address = contract_address;
+        global_evm_input = input_data;
+        global_gas_limit = gas_limit;
     }
 }
 ```
+
+`processEvmTransactionWithErrorDetails`は、`tx_type`で処理を分岐します。
+デプロイではruntime codeを保存します。
+コールでは`contract_storage.get(tx.receiver)`で保存済みコードを取得し、`evm.execute`へcalldataを渡します。
+詳細エラー付きの経路では、実際には`executeWithErrorInfo`を呼び出します。
+
+```zig
+if (tx.tx_type == 1) {
+    const evm_result = evm.executeWithErrorInfo(allocator, evm_data, "", tx.gas_limit);
+    if (!evm_result.success) return error.EvmExecutionFailed;
+    const result = evm_result.data;
+    try contract_storage.put(tx.receiver, result);
+} else if (tx.tx_type == 2) {
+    const code = contract_storage.get(tx.receiver) orelse return error.ContractNotFound;
+    const evm_result = evm.executeWithErrorInfo(allocator, code, evm_data, tx.gas_limit);
+    if (!evm_result.success) return error.EvmExecutionFailed;
+    result = evm_result.data;
+}
+```
+
+この形にしておくと、第12章で扱うP2P同期とも同じデータ構造を使えます。
+通常の`processEvmTransaction`経路では、デプロイ済みコントラクトを`contracts`付きブロックとして配布します。
 
 ## まとめ
 
@@ -485,11 +474,18 @@ pub fn main() !void {
 
 この実装により、スマートコントラクトがどのように動作するかを深く理解できました。実際のEthereumのEVMはより多くの機能（全オペコード、ガス計算、プリコンパイルコントラクトなど）を持ちますが、基本的な仕組みは同じです。
 
+本章のサンプル実装で扱う範囲は限定的です。
+対応するのは、四則演算、比較、シフト、`PUSH`/`DUP`/`SWAP`、メモリ操作、ストレージ操作、`CALLDATA`系、`JUMP`/`JUMPI`、`RETURN`/`REVERT`などの基本命令です。
+一方で、`SHA3`、`CALL`、`CREATE`、`LOG`、`EXP`、正確なオペコード別ガス計算は扱いません。
+また、ガスは1命令=1ガスの簡易モデルです。
+`EVMu256.mul`は大きな値でオーバーフロー時にパニックする可能性があります。
+`DIV`や`MOD`は、上位128ビットを含む値では0を返す簡略実装です。
+
 次章では、このEVM統合ブロックチェインをP2Pネットワークで動作させ、複数ノード間でスマートコントラクトを共有・実行する分散システムを構築します。
 
 ## 最終的に出来上がったもの
 
-以下は、実際にSolidityスマートコントラクトを実行できる完全な実装です (`src/evm_types.zig`)。
+以下は、本章で扱う基本オペコードを実装したサンプル実装です (`src/evm_types.zig`)。
 
 ```zig
 //! EVMデータ構造定義
@@ -613,7 +609,7 @@ pub const EVMAddress = struct {
 
     /// ゼロアドレスを作成
     pub fn zero() EVMAddress {
-        return EVMAddress{ .data = [_]u8{0}  20 };
+        return EVMAddress{ .data = [_]u8{0} ** 20 };
     }
 
     /// バイト配列からアドレスを作成
@@ -718,7 +714,7 @@ pub const EVMAddress = struct {
         }
 
         // アドレスのKeccak-256ハッシュを計算
-        // 注：完全な実装にするためには、適切なKeccakライブラリが必要です
+        // 注：EIP-55に厳密対応するには、適切なKeccakライブラリが必要です
         // この実装はシンプル化のため、実際のハッシュ計算は省略しています
 
         // 結果文字列（0xプレフィックス付き）
@@ -937,4 +933,4 @@ pub const EvmContext = struct {
 };
 ```
 
-このコードは実際にSolidityスマートコントラクトを実行できる検証済みの実装です。
+このコードは、本章で扱う基本オペコードを確認するためのサンプル実装です。

@@ -199,7 +199,7 @@ pub fn calculateHash(block: *const types.Block) [32]u8 {
 
     // 最終的なハッシュ値を計算
     const hash = hasher.finalResult();
-    logger.debugLog("nonce: {d}, hash: {x}\n", .{ block.nonce, hash });
+    logger.debugLog("nonce: {d}, hash: {x:0>2}\n", .{ block.nonce, hash });
     return hash;
 }
 
@@ -293,7 +293,7 @@ pub fn main() !void {
     }
     try stdout.print("Hash       : ", .{});
     for (genesis_block.hash) |byte| {
-        try stdout.print("{x}", .{byte});
+        try stdout.print("{x:0>2}", .{byte});
     }
     try stdout.print("\n", .{});
 }
@@ -364,11 +364,11 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 ❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
-Nonce      : 698
+Nonce      : 96
 Data       : Hello, Zig Blockchain!
 - Tx: Alice -> Bob : 100
 - Tx: Charlie -> Dave : 50
-Hash       : 01fc976b652c64979aa83734fc577e64b2afa48d92bb0d3fec7bd76c2f8db
+Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 ```
 
 もしくはdocker composeで実行できます。
@@ -387,21 +387,21 @@ node3  | Nonce      : 96
 node3  | Data       : Hello, Zig Blockchain!
 node3  | - Tx: Alice -> Bob : 100
 node3  | - Tx: Charlie -> Dave : 50
-node3  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node3  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
 node1  | Nonce      : 96
 node1  | Data       : Hello, Zig Blockchain!
 node1  | - Tx: Alice -> Bob : 100
 node1  | - Tx: Charlie -> Dave : 50
-node1  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node1  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node2  | Block index: 0
 node2  | Timestamp  : 1672531200
 node2  | Nonce      : 96
 node2  | Data       : Hello, Zig Blockchain!
 node2  | - Tx: Alice -> Bob : 100
 node2  | - Tx: Charlie -> Dave : 50
-node2  | Hash       : 04bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node2  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node3 exited with code 0
 node1 exited with code 0
 node2 exited with code 0
