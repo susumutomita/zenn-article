@@ -360,8 +360,6 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 
 分割後のコードが正常に動作するか確認します。
 
-<!-- TODO: 実行ログはzig環境で再取得し実出力に差し替える -->
-
 ```bash
 ❯ zig build run
 Block index: 0
@@ -370,7 +368,7 @@ Nonce      : 96
 Data       : Hello, Zig Blockchain!
 - Tx: Alice -> Bob : 100
 - Tx: Charlie -> Dave : 50
-Hash       : 00004bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 ```
 
 もしくはdocker composeで実行できます。
@@ -389,21 +387,21 @@ node3  | Nonce      : 96
 node3  | Data       : Hello, Zig Blockchain!
 node3  | - Tx: Alice -> Bob : 100
 node3  | - Tx: Charlie -> Dave : 50
-node3  | Hash       : 00004bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node3  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
 node1  | Nonce      : 96
 node1  | Data       : Hello, Zig Blockchain!
 node1  | - Tx: Alice -> Bob : 100
 node1  | - Tx: Charlie -> Dave : 50
-node1  | Hash       : 00004bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node1  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node2  | Block index: 0
 node2  | Timestamp  : 1672531200
 node2  | Nonce      : 96
 node2  | Data       : Hello, Zig Blockchain!
 node2  | - Tx: Alice -> Bob : 100
 node2  | - Tx: Charlie -> Dave : 50
-node2  | Hash       : 00004bf9e5b025756adadbe4e6fe68eeebcfe2f7939e83fb57ba45f37f196a9a
+node2  | Hash       : 004bf9e5b025756adadbe40e6fe68eeebcfe2f79039e83fb57ba45f37f196a9a
 node3 exited with code 0
 node1 exited with code 0
 node2 exited with code 0

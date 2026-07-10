@@ -208,8 +208,6 @@ pub fn main() !void {
 
 実行してみると以下のようにnonceが0から始まっていることが確認できます。現状のコードでは、nonceを追加してハッシュ計算に含めるだけです。マイニング(nonceを変えながら特定条件を満たすまで試行錯誤する処理)をまだ実装していないので、nonce=0がずっと使われているだけになります。ただし、ハッシュ計算時にnonceも投入しているので、後ほどマイニングを実装したときにnonceを変化させるとハッシュ値も変化するようになっています。
 
-<!-- TODO: 実行ログはzig環境で再取得し実出力に差し替える -->
-
 ```bash
 ❯ zig build run
 Block index: 0
@@ -219,7 +217,7 @@ Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
-Hash       : 000e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 ```
 
 もしくはdocker composeで実行できます。
@@ -239,7 +237,7 @@ node2  | Data       : Hello, Zig Blockchain!
 node2  | Transactions:
 node2  |   Alice -> Bob : 100
 node2  |   Charlie -> Dave : 50
-node2  | Hash       : 000e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node2  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node2 exited with code 0
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
@@ -248,7 +246,7 @@ node1  | Data       : Hello, Zig Blockchain!
 node1  | Transactions:
 node1  |   Alice -> Bob : 100
 node1  |   Charlie -> Dave : 50
-node1  | Hash       : 000e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node1  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node3  | Block index: 0
 node3  | Timestamp  : 1672531200
 node3  | Nonce      : 0
@@ -256,7 +254,7 @@ node3  | Data       : Hello, Zig Blockchain!
 node3  | Transactions:
 node3  |   Alice -> Bob : 100
 node3  |   Charlie -> Dave : 50
-node3  | Hash       : 000e8393c1fc14302185d8357b9c906b72595c4c1a72b834f89491faf214cfe7
+node3  | Hash       : e83903c1fc14302185d8357b9c906b72595c4c1a72b834f894091faf214c0fe7
 node1 exited with code 0
 node3 exited with code 0
 ```
@@ -723,12 +721,12 @@ pub fn main() !void {
 ❯ zig build run
 Block index: 0
 Timestamp  : 1672531200
-Nonce      : 51858
+Nonce      : 30572
 Data       : Hello, Zig Blockchain!
 Transactions:
   Alice -> Bob : 100
   Charlie -> Dave : 50
-Hash       : 00000c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 ```
 
 もしくはdocker composeで実行できます。
@@ -743,28 +741,28 @@ Hash       : 00000c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
 Attaching to node1, node2, node3
 node2  | Block index: 0
 node2  | Timestamp  : 1672531200
-node2  | Nonce      : 51858
+node2  | Nonce      : 30572
 node2  | Data       : Hello, Zig Blockchain!
 node2  | Transactions:
 node2  |   Alice -> Bob : 100
 node2  |   Charlie -> Dave : 50
-node2  | Hash       : 00000c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node2  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node1  | Block index: 0
 node1  | Timestamp  : 1672531200
-node1  | Nonce      : 51858
+node1  | Nonce      : 30572
 node1  | Data       : Hello, Zig Blockchain!
 node1  | Transactions:
 node1  |   Alice -> Bob : 100
 node1  |   Charlie -> Dave : 50
-node1  | Hash       : 00000c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node1  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node3  | Block index: 0
 node3  | Timestamp  : 1672531200
-node3  | Nonce      : 51858
+node3  | Nonce      : 30572
 node3  | Data       : Hello, Zig Blockchain!
 node3  | Transactions:
 node3  |   Alice -> Bob : 100
 node3  |   Charlie -> Dave : 50
-node3  | Hash       : 00000c081305c640b6ab5216a3ed6c5bf61d1e4690f981e2c8da905ff866eba7
+node3  | Hash       : 0000ea1282184d0ee50cef565c3d8f9c5966f4a6ad46322bbf06285149b41ac1
 node2 exited with code 0
 node1 exited with code 0
 node3 exited with code 0

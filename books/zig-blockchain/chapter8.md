@@ -1120,8 +1120,6 @@ zig build run -- --listen 8081 --connect 127.0.0.1:8080
 
 NodeB側のコンソールでhiと入力しています。
 
-<!-- TODO: 実行ログはzig環境で再取得し実出力に差し替える -->
-
 ```bash
 zig build run -- --listen 8081 --connect 127.0.0.1:8080
 info: Current chain state:
