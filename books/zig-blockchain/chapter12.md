@@ -1,8 +1,9 @@
 ---
-title: Chapter 11 — Deploy/Call と P2P 同期（EVM_TX/contract配布）
+title: "EVMコントラクトのデプロイ/コールとP2P同期"
 ---
 
 この章では、CLIからのデプロイ/コール、P2Pブロードキャスト、チェイン同期後の保留コール実行までを「差分」で読み解きます。どのファイルのどこが担っているか、該当箇所をピンポイントに示します。
+完成形コードへどの差分を入れると動くかを追う章として読み進めてください。
 
 ### 到達目標
 - `--deploy` でcreation bytecodeを実行→runtime codeを保存→ブロック配布
@@ -108,7 +109,7 @@ zig build run -- --listen 9000 \
 ```
 - ターミナル2（接続＋コール側）
 ```bash
-SEL=$(solc --hashes references/chapter9/contract/SimpleAdder.sol | awk '/mul\(uint256,uint256\)/{print $1}' | sed 's/://')
+SEL=$(solc --hashes references/chapter9/contract/SimpleAdder.sol | awk '/add\(uint256,uint256\)/{print $1}' | sed 's/://')
 A=$(printf "%064x" 6); B=$(printf "%064x" 7); DATA=0x${SEL}${A}${B}
 zig build run -- --listen 9001 --connect 127.0.0.1:9000 \
   --call 0x000000000000000000000000000000000000abcd "$DATA" --gas 100000 \
@@ -118,4 +119,4 @@ zig build run -- --listen 9001 --connect 127.0.0.1:9000 \
 ### まとめ
 - デプロイはruntime codeの保存と、contracts付きブロックの配布までを一連で扱う
 - コールはローカルor同期後に実行され、結果は32バイトで返る
-- EVMコアとABIディスパッチが整っていれば、四則演算を含む典型的な関数は問題なく動く
+- EVMコアとABIディスパッチが整っていれば、本書で扱う加算関数を呼び出せる
