@@ -12,7 +12,7 @@ published: false
 
 ## CDK Aspectで合成結果を書き換える
 
-いちばん強く効いているのはCDK Aspectです。Aspectは、CDKがテンプレートを合成するときに、構築ツリーの全ノードを一巡して手を入れられる仕組みです。ここに「DynamoDBのテーブルはすべて最小容量にする」というルールを置きます。
+いちばん強く効いているのはCDK Aspectです。Aspectは、CDKがテンプレートを合成するときに、構築ツリーの全ノードを一巡して手を入れられる仕組みです。公式ドキュメントも、Aspectは合成時に他のコードがすべて走ったあとで適用される宣言的な仕組みだと説明しています（[AWS CDK Developer Guide: Aspects](https://docs.aws.amazon.com/cdk/v2/guide/aspects.html)）。ここに「DynamoDBのテーブルはすべて最小容量にする」というルールを置きます。
 
 ```ts
 // infrastructure/lib/cdk-aspect/dynamodb-low-capacity.ts
@@ -42,7 +42,7 @@ flowchart LR
 
 ## KMSの常設コストを消す
 
-もう1つ、静かに効いてくる常設コストがKMSのカスタマー管理キーです。1キーあたり月1ドルが、使っていても使っていなくてもかかります。SBTはCodeBuildの成果物を暗号化するためにこのキーを作るので、TenkaCloudではAspectでそれを外し、AWS管理キーのデフォルトに倒します。
+もう1つ、静かに効いてくる常設コストがKMSのカスタマー管理キーです。1キーあたり月1ドルが、使っていても使っていなくてもかかります（[AWS KMS Pricing](https://aws.amazon.com/kms/pricing/)）。SBTはCodeBuildの成果物を暗号化するためにこのキーを作るので、TenkaCloudではAspectでそれを外し、AWS管理キーのデフォルトに倒します。
 
 ```ts
 // infrastructure/lib/cdk-aspect/codebuild-use-aws-managed-kms.ts
@@ -50,11 +50,11 @@ flowchart LR
 node.addPropertyDeletionOverride("EncryptionKey");
 ```
 
-もう1本のAspectは、残ったKMSキーの削除待機期間を短くします。削除予定のキーが待機中も課金されるからです。シークレットの置き場もSSM Parameter StoreのSecureStringにしていて、暗号化はAWS管理キー（`alias/aws/ssm`）です。ここも追加コストはかかりません。
+AWS管理キーには保管料がかからないので、これで月1ドルの常設コストが消えます。同じ公式ページには、カスタマー管理キーは削除予定にすると課金されなくなる、とも書いてあります。だから「削除待機中のキーが課金され続ける」ことを気にする必要はありません。シークレットの置き場も、Secrets Managerではなく、SSM Parameter StoreのSecureStringにしています。標準パラメータは無料で（[AWS Systems Manager Pricing](https://aws.amazon.com/systems-manager/pricing/)）、暗号化にAWS管理キー（`alias/aws/ssm`）を使うので、追加の保管料もかかりません。
 
 ## Secrets Managerを禁じる（ただし強制は別ルート）
 
-Secrets Managerはシークレット1件ごとに課金されます。そこでTenkaCloudは、そもそもimportさせないルールを持っています。
+Secrets Managerはシークレット1件ごとに月0.40ドル課金されます（[AWS Secrets Manager Pricing](https://aws.amazon.com/secrets-manager/pricing/)）。そこでTenkaCloudは、そもそもimportさせないルールを持っています。
 
 ```ts
 // .claude/harness/src/rules/secrets-manager-forbidden.ts
@@ -81,7 +81,7 @@ const SECRETS_MANAGER_IMPORT_RE =
 | CodeBuild（問題デプロイ） | 実質$0 | Lambda CreateStackがデフォルトで、Lite modeにCodeBuildなし |
 | KMSカスタマー管理キー | $0 | AspectでAWS管理キーに倒して解消 |
 
-つまり現状のデフォルトでは、DynamoDBの常設コストが最後に残ります。これを消すためのバックエンド差し替えは実装とテストは済んでいますが、本番の実測はこれからです。加えて、2025年7月以降の新しい無料枠はクレジット制で、25RCU/WCUの常時無料枠がありません。だから「$0」は、バックエンドの選択と口座の条件がそろったときの話です。誇張せずに言うと、「無料枠に収まるよう設計してあり、最後の常設コストを消す途中」が正確です。
+つまり現状のデフォルトでは、DynamoDBの常設コストが最後に残ります。プロビジョンド容量の料金は、確保した量に対して時間単位でかかります。使った量に関係なく、アイドルでも発生します（[DynamoDBの課金ドキュメント](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-understanding-billing.html)）。これを消すためのバックエンド差し替えは実装とテストは済んでいますが、本番の実測はこれからです。加えて、2025年7月15日以降に作った新しいAWSアカウントでは、無料枠がクレジット制へ変わりました（[AWS公式ドキュメント](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier.html)）。クレジットで請求が$0に見えても、使用量そのものは積み上がります。クレジットが尽きるか、6か月を過ぎれば実費になります。だから「$0」は、バックエンドの選択と口座の条件がそろったときの話です。誇張せずに言うと、「無料枠に収まるよう設計してあり、最後の常設コストを消す途中」が正確です。
 
 ## おわりに
 
