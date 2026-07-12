@@ -3,7 +3,7 @@ title: "SBTの2プレーンに「問題デプロイ」の層を足す — TenkaC
 emoji: "🏢"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [AWS, CDK, SaaS, TypeScript, マルチテナント]
-published: false
+published: true
 ---
 
 [TenkaCloud](https://www.tenkacloud.com/?lang=ja)という、実際のAWSアカウント上でクラウド競技を開催するOSSを作っています（[susumutomita/TenkaCloud](https://github.com/susumutomita/TenkaCloud)、Apache-2.0）。これはマルチテナントのSaaSで、土台に`@cdklabs/sbt-aws`（SaaS Builder Toolkit、以下SBT、バージョン0.3.9）を使っています。
@@ -169,4 +169,4 @@ TenkaCloudのマルチテナント構成は、こう組みました。
 
 足した理由は、中核の操作である「他人のアカウントへ配る」が、SBTのアプリケーションプレーンに収まらないからでした。信頼境界、ライフサイクル、データのどれも別物なので、プレーンとして切り出すのが素直だと判断しました。
 
-この問題デプロイのプレーンの中身、つまりクロスアカウントで配る仕組みは[別の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)に書きました。そのデプロイ権限を、署名した「操作の意図」の交換に置き換える`trust-bridge`は[こちらの記事](https://zenn.dev/bull/articles/tenkacloud-trust-bridge)に書いています。
+この問題デプロイのプレーンの中身、つまりクロスアカウントで配る仕組みは[別の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)に書きました。

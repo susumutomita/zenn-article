@@ -3,7 +3,7 @@ title: "他人のCloudFormationを安全に取り込む — inert & content-addr
 emoji: "📦"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [AWS, security, TypeScript, サプライチェーン, CloudFormation]
-published: false
+published: true
 ---
 
 [TenkaCloud](https://www.tenkacloud.com/?lang=ja)という、実際のAWSアカウント上でクラウド競技を開催するOSSを作っています（[susumutomita/TenkaCloud](https://github.com/susumutomita/TenkaCloud)、Apache-2.0）。競技の問題は「パック」という単位で、外部の人が投稿できる形にしています。
