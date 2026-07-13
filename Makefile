@@ -1,4 +1,4 @@
-.PHONY: install lint lint_fix setup_husky new_article preview update-claude-secrets before_commit help
+.PHONY: install lint lint_fix setup_husky new_article preview update-claude-secrets validate_books before_commit help
 
 PNPM_RUN_TARGETS = lint preview
 
@@ -16,6 +16,10 @@ lint_fix:
 setup_husky:
 	pnpm run husky
 
+.PHONY: validate_books
+validate_books:
+	pnpm run validate:books
+
 .PHONY: new_article
 new_article:
 	npx zenn new:article --slug $(slug) --title "$(title)"
@@ -25,4 +29,4 @@ update-claude-secrets:
 	./set_claude_code_secrets.sh
 
 .PHONY: before_commit
-before_commit: lint
+before_commit: lint validate_books

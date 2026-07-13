@@ -45,7 +45,9 @@ EVMには、目的の異なる3つのデータ領域があります。
 |----------|------|--------|------------|
 | スタック | 命令のオペランドと計算結果 | トランザクション内のみ | LIFO（後入れ先出し）最大1024要素 |
 | メモリ | 関数呼び出し時の一時データ | トランザクション内のみ | バイトアドレス指定動的に拡張 |
-| ストレージ | コントラクトの状態変数 | ブロックチェイン上に永続化 | キー/値ペアガスコストが高い |
+| ストレージ | コントラクトの状態変数 | 本物のEVMでは永続。本書では1回の実行内のみ | キー/値ペア |
+
+本物のEthereumではストレージをワールドステートへ反映します。本書の `EvmContext.init` は実行ごとに新しい `AutoHashMap` を作り、`deinit` で破棄します。そのため、本章の `SSTORE` / `SLOAD` は同じ `execute` 呼び出しの中だけで有効です。呼び出しをまたぐ状態永続化は実装範囲外です。
 
 ### 本章の実装フロー
 
@@ -53,7 +55,7 @@ EVMには、目的の異なる3つのデータ領域があります。
 
 1. スタックの実装 - EVMの計算の中核となるLIFO構造
 2. メモリの実装 - 動的に拡張可能なバイト配列
-3. ストレージの実装 - 永続的なキー/値ストア
+3. ストレージの実装 - 1回の実行内で使うキー/値ストア
 4. オペコード実行エンジン - バイトコードを解釈して実行
 
 それでは、まずスタックから実装していきましょう。
@@ -82,7 +84,7 @@ pub const EvmStack = struct {
     pub fn init() EvmStack {
         return EvmStack{
             .data = undefined,  // 初期化は不要
-            .top = 0,
+            .sp = 0,
         };
     }
 
@@ -138,7 +140,7 @@ pub const EvmStack = struct {
 
 コード全体は次のようになります。
 
-```evm_types.zig
+```zig
 //! EVMデータ構造定義
 //!
 //! このモジュールはEthereum Virtual Machine (EVM)の実行に必要な
@@ -167,40 +169,30 @@ pub const EVMu256 = struct {
     /// 加算演算
     pub fn add(self: EVMu256, other: EVMu256) EVMu256 {
         var result = EVMu256{ .hi = self.hi, .lo = self.lo };
-        // 修正: Zigの最新バージョンに合わせて@addWithOverflow呼び出しを変更
         var overflow: u1 = 0;
         result.lo, overflow = @addWithOverflow(result.lo, other.lo);
-        // オーバーフローした場合は上位ビットに1を加算
-        result.hi = result.hi + other.hi + overflow;
+        result.hi = result.hi +% other.hi +% @as(u128, overflow);
         return result;
     }
 
     /// 減算演算
     pub fn sub(self: EVMu256, other: EVMu256) EVMu256 {
         var result = EVMu256{ .hi = self.hi, .lo = self.lo };
-        // 修正: Zigの最新バージョンに合わせて@subWithOverflow呼び出しを変更
         var underflow: u1 = 0;
         result.lo, underflow = @subWithOverflow(result.lo, other.lo);
-        // アンダーフローした場合は上位ビットから1を引く
-        result.hi = result.hi - other.hi - underflow;
+        result.hi = result.hi -% other.hi -% @as(u128, underflow);
         return result;
     }
 
-    /// 乗算演算（シンプル実装 - 実際には最適化が必要）
+    /// 乗算演算（mod 2^256）
     pub fn mul(self: EVMu256, other: EVMu256) EVMu256 {
-        // 簡易実装: 下位ビットのみの乗算
-        // 注：完全な256ビット乗算は複雑なため、ここでは省略
-        if (self.hi == 0 and other.hi == 0) {
-            const result_lo = self.lo * other.lo;
-            // シフト演算で上位ビットを取得
-            // 128ビットシフトを避けるために、別の方法で計算
-            // 注: u128に入らない上位ビットは無視される
-            const result_hi = @as(u128, 0); // 簡略化した実装では上位ビットは0として扱う
-            return EVMu256{ .hi = result_hi, .lo = result_lo };
-        } else {
-            // 簡易実装のため、上位ビットがある場合は詳細計算を省略
-            return EVMu256{ .hi = 0, .lo = 0 };
-        }
+        const lhs = (@as(u256, self.hi) << 128) | @as(u256, self.lo);
+        const rhs = (@as(u256, other.hi) << 128) | @as(u256, other.lo);
+        const product = lhs *% rhs;
+        return .{
+            .hi = @truncate(product >> 128),
+            .lo = @truncate(product),
+        };
     }
 
     /// 等価比較
@@ -438,10 +430,11 @@ pub const EvmMemory = struct {
     pub fn ensureSize(self: *EvmMemory, size: usize) !void {
         if (size > self.data.items.len) {
             // サイズを32バイト単位に切り上げて拡張
+            const old_len = self.data.items.len;
             const new_size = ((size + 31) / 32) * 32;
             try self.data.resize(new_size);
             // 拡張部分を0で初期化
-            var i = self.data.items.len;
+            var i = old_len;
             while (i < new_size) : (i += 1) {
                 self.data.items[i] = 0;
             }
@@ -1295,34 +1288,81 @@ Opcode.NOT => {
 },
 ```
 
-シフト命令は、関数セレクタを取り出す`SHR 224`で必要になります。
-完成形では256ビット全域を完全実装しているわけではありませんが、Solidityの基本的な関数呼び出しには十分です。
+シフト命令は、関数セレクタを取り出す`SHR 224`でも必要になります。`EVMu256`は128ビットずつの`hi`と`lo`で構成するため、桁の境界も128です。0、127、128、255、256をまたぐケースをヘルパー関数とテストで固定します。
 
 ```zig
+fn logicalShiftLeft(value: EVMu256, shift: EVMu256) EVMu256 {
+    if (shift.hi != 0 or shift.lo >= 256) return EVMu256.zero();
+    const amount: u8 = @intCast(shift.lo);
+    if (amount == 0) return value;
+    if (amount < 128) {
+        const right: u7 = @intCast(128 - amount);
+        const left: u7 = @intCast(amount);
+        return .{
+            .hi = (value.hi << left) | (value.lo >> right),
+            .lo = value.lo << left,
+        };
+    }
+    if (amount == 128) return .{ .hi = value.lo, .lo = 0 };
+    const left: u7 = @intCast(amount - 128);
+    return .{ .hi = value.lo << left, .lo = 0 };
+}
+
+fn logicalShiftRight(value: EVMu256, shift: EVMu256) EVMu256 {
+    if (shift.hi != 0 or shift.lo >= 256) return EVMu256.zero();
+    const amount: u8 = @intCast(shift.lo);
+    if (amount == 0) return value;
+    if (amount < 128) {
+        const right: u7 = @intCast(amount);
+        const left: u7 = @intCast(128 - amount);
+        return .{
+            .hi = value.hi >> right,
+            .lo = (value.lo >> right) | (value.hi << left),
+        };
+    }
+    if (amount == 128) return .{ .hi = 0, .lo = value.hi };
+    const right: u7 = @intCast(amount - 128);
+    return .{ .hi = 0, .lo = value.hi >> right };
+}
+
+fn arithmeticShiftRight(value: EVMu256, shift: EVMu256) EVMu256 {
+    const negative = (value.hi & (@as(u128, 1) << 127)) != 0;
+    const fill: u128 = if (negative) std.math.maxInt(u128) else 0;
+    if (shift.hi != 0 or shift.lo >= 256) return .{ .hi = fill, .lo = fill };
+
+    const amount: u8 = @intCast(shift.lo);
+    if (amount == 0) return value;
+    if (amount < 128) {
+        const right: u7 = @intCast(amount);
+        const left: u7 = @intCast(128 - amount);
+        const sign_mask: u128 = if (negative)
+            @as(u128, std.math.maxInt(u128)) << left
+        else
+            0;
+        return .{
+            .hi = (value.hi >> right) | sign_mask,
+            .lo = (value.lo >> right) | (value.hi << left),
+        };
+    }
+    if (amount == 128) return .{ .hi = fill, .lo = value.hi };
+
+    const right: u7 = @intCast(amount - 128);
+    const left: u7 = @intCast(256 - @as(u16, amount));
+    const sign_mask: u128 = if (negative)
+        @as(u128, std.math.maxInt(u128)) << left
+    else
+        0;
+    return .{
+        .hi = fill,
+        .lo = (value.hi >> right) | sign_mask,
+    };
+}
+
 Opcode.SHL => {
     if (context.stack.depth() < 2) return EVMError.StackUnderflow;
     const shift = try context.stack.pop();
     const value = try context.stack.pop();
-    if (shift.hi > 0 or shift.lo >= 256) {
-        try context.stack.push(EVMu256.zero());
-    } else {
-        const shift_amount = @as(u8, @intCast(shift.lo));
-        if (shift_amount == 0) {
-            try context.stack.push(value);
-        } else if (shift_amount < 64) {
-            try context.stack.push(EVMu256{
-                .hi = (value.hi << @intCast(shift_amount)) | (value.lo >> @intCast(64 - shift_amount)),
-                .lo = value.lo << @intCast(shift_amount),
-            });
-        } else if (shift_amount < 128) {
-            try context.stack.push(EVMu256{
-                .hi = value.lo << @intCast(shift_amount - 64),
-                .lo = 0,
-            });
-        } else {
-            try context.stack.push(EVMu256.zero());
-        }
-    }
+    try context.stack.push(logicalShiftLeft(value, shift));
     context.pc += 1;
 },
 
@@ -1330,29 +1370,7 @@ Opcode.SHR => {
     if (context.stack.depth() < 2) return EVMError.StackUnderflow;
     const shift = try context.stack.pop();
     const value = try context.stack.pop();
-    if (shift.hi > 0 or shift.lo >= 256) {
-        try context.stack.push(EVMu256.zero());
-    } else {
-        const shift_amount = @as(u8, @intCast(shift.lo));
-        var result = EVMu256{ .hi = value.hi, .lo = value.lo };
-        if (shift_amount == 0) {
-            // そのまま返す
-        } else if (shift_amount < 64) {
-            const shift_u7 = @as(u7, @intCast(shift_amount));
-            const complement_u6 = @as(u6, @intCast(64 - shift_amount));
-            result.lo = (value.lo >> shift_u7) | (value.hi << complement_u6);
-            result.hi = value.hi >> shift_u7;
-        } else if (shift_amount < 128) {
-            const adjusted_shift = @as(u7, @intCast(shift_amount - 64));
-            result.lo = value.hi >> adjusted_shift;
-            result.hi = 0;
-        } else {
-            const high_shift = @as(u7, @intCast(shift_amount - 128));
-            result.lo = value.hi >> high_shift;
-            result.hi = 0;
-        }
-        try context.stack.push(result);
-    }
+    try context.stack.push(logicalShiftRight(value, shift));
     context.pc += 1;
 },
 
@@ -1360,43 +1378,7 @@ Opcode.SAR => {
     if (context.stack.depth() < 2) return EVMError.StackUnderflow;
     const shift = try context.stack.pop();
     const value = try context.stack.pop();
-    if (shift.hi > 0 or shift.lo >= 256) {
-        if (value.hi & (1 << 127) != 0) {
-            try context.stack.push(EVMu256{ .hi = std.math.maxInt(u128), .lo = std.math.maxInt(u128) });
-        } else {
-            try context.stack.push(EVMu256.zero());
-        }
-    } else {
-        const shift_amount = @as(u8, @intCast(shift.lo));
-        var result = EVMu256{ .hi = value.hi, .lo = value.lo };
-        const sign_bit = (value.hi & (1 << 127)) != 0;
-        if (shift_amount == 0) {
-            try context.stack.push(value);
-            context.pc += 1;
-            return;
-        } else if (shift_amount < 64) {
-            const shift_u7 = @as(u7, @intCast(shift_amount));
-            const complement_u6 = @as(u6, @intCast(64 - shift_amount));
-            result.lo = (value.lo >> shift_u7) | (value.hi << complement_u6);
-            result.hi = value.hi >> shift_u7;
-            if (sign_bit) {
-                const mask = ~@as(u128, 0) << @as(u7, @intCast(127 - shift_amount));
-                result.hi |= mask;
-            }
-            try context.stack.push(result);
-        } else if (shift_amount < 128) {
-            const adjusted_shift = @as(u7, @intCast(shift_amount - 64));
-            result.lo = value.hi >> adjusted_shift;
-            result.hi = if (sign_bit) std.math.maxInt(u128) else 0;
-            try context.stack.push(result);
-        } else {
-            if (sign_bit) {
-                try context.stack.push(EVMu256{ .hi = std.math.maxInt(u128), .lo = std.math.maxInt(u128) });
-            } else {
-                try context.stack.push(EVMu256.zero());
-            }
-        }
-    }
+    try context.stack.push(arithmeticShiftRight(value, shift));
     context.pc += 1;
 },
 ```

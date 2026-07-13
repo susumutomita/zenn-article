@@ -16,9 +16,8 @@
 必要な依存関係をインストールします。
 
 ```bash
-npm install
-pip install -r requirements.txt
-pre-commit install
+pnpm install
+pnpm run husky
 ```
 
 ## 記事の作成
@@ -73,5 +72,7 @@ make lint
 ## 利用可能なMakeコマンド
 
 - `make lint`: リンターを実行します。
+- `make validate_books`: Zennのブック構成を検証します。
+- `pnpm verify:zig-book`: 隣接する`BlockChain`リポジトリの章コードを検証します。
 - `make new_article`: 新しい記事を作成します。
 - `make preview`: ローカルプレビューを開始します。
