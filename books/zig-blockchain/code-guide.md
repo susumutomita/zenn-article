@@ -77,6 +77,8 @@ chNN-secNN-short-name
 
 `references/` の各スナップショットは、原則としてそれぞれのディレクトリ内で `build.zig` を使う自己完結したプロジェクトです。第10章には独立したEVM実行エンジン、第11章にはブロックチェインへ統合したEVM、第12章にはCLIとP2Pまで統合したEVMのスナップショットがあります。節とファイル、テストの対応は、後述の「EVM編の節とコードの対応」で固定します。
 
+第7章、第8章、第10章は、Zennの1ファイルあたり50,000文字という上限に収めるため、それぞれ前半と後半の2ファイルに分かれています。前後半は同じ章の連続した作業であり、作業ディレクトリと章末スナップショットは共通です。
+
 | 本書 | 主な実装 | 対応するコード | 状態 |
 | --- | --- | --- | --- |
 | 第2章 | Zig、Docker、ビルド環境 | [`references/chapter2/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter2) | 章スナップショット |
@@ -84,10 +86,10 @@ chNN-secNN-short-name
 | 第4章 | nonce、PoW、マイニング、テスト | [`references/chapter3/step4/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter3/step4) → [`step4-2/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter3/step4-2) → [`step5/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter3/step5) | 節スナップショット。ディレクトリ番号と本書の章番号が異なる |
 | 第5章 | モジュール分割したブロックチェイン | [`references/chapter5/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter5) | 章スナップショット |
 | 第6章 | P2P通信と2ノード接続 | [`references/chapter6/step1/nodeA/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter6/step1/nodeA)、[`nodeB/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter6/step1/nodeB)、[`step2/nodeA/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter6/step2/nodeA) | 節スナップショット。step2は同じ実行ファイルをlisten/connectの2モードで使うため、nodeB別スナップショットは不要 |
-| 第7章 | ノード間のブロック共有 | [`references/chapter7/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter7) | 章スナップショット |
-| 第8章 | 複数ピア、再伝播、チェイン同期 | [`references/chapter8/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter8) | 章スナップショット |
+| 第7章（前半・後半） | ノード間のブロック共有 | [`references/chapter7/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter7) | 前後半で共通の章スナップショット |
+| 第8章（前半・後半） | 複数ピア、再伝播、チェイン同期 | [`references/chapter8/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter8) | 前後半で共通の章スナップショット |
 | 第9章 | EVM導入、256ビット値 | [`references/chapter9/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter9) | `EVMu256`だけを動かす章スナップショット |
-| 第10章 | スタック、メモリ、ストレージ、オペコード | [`references/chapter10/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter10) | `EVM result: 5 + 3 = 8`まで動かす章スナップショット |
+| 第10章（前半・後半） | スタック、メモリ、ストレージ、オペコード | [`references/chapter10/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter10) | 前後半を通して`EVM result: 5 + 3 = 8`まで動かす章スナップショット |
 | 第11章 | Solidity実行とブロックチェイン統合 | [`references/chapter11/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter11) | 章専用スナップショット。第12章のCLI、`EVM_TX`、64 KiBフレームはまだ含まない |
 | 第12章 | CLI、P2P、EVMトランザクション | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | 第11章スナップショットへ第12章の完全差分を適用した章スナップショット |
 | 第13章 | EVM、P2P、PoWのテスト | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter)、[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) | 完成版の各モジュールに同居するテストを実行 |
