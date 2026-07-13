@@ -23,6 +23,15 @@ free: true
 
 ## ステップ1: 基本的なP2P通信の実装
 
+```text
+対象パス:   references/chapter6/step1/nodeA/src/main.zig、references/chapter6/step1/nodeB/src/main.zig
+開始地点:   それぞれ空のディレクトリで zig init を実行した状態
+今回の変更: nodeAをTCPサーバー、nodeBを1回送信するTCPクライアントとして実装
+テスト:     両ディレクトリで zig fmt --check . && zig build test && zig build
+実行:       nodeAで zig build run、その後nodeBで zig build run
+期待結果:   nodeAのログに Hello from NodeB が1回表示される
+```
+
 まずはブロックチェインネットワークの土台となる、ノード同士の直接通信を実装します。P2Pネットワークでは各ノードがサーバ、クライアントになりえます。そのため、お互いに接続してメッセージをやりとりできる仕組みが必要です。ここではZig標準ライブラリのソケット機能を使い、TCP通信によるノード間の接続とメッセージ交換をします。また、どのノードと接続済みかを把握するためのノードリスト管理も実装します。
 
 ### ZigでのTCPソケット通信のセットアップ
@@ -119,6 +128,15 @@ info: ノードA: メッセージ内容: Hello from NodeB
 
 ## ステップ2: ノード同士の接続と基本メッセージ交換
 
+```text
+対象パス:   references/chapter6/step2/nodeA/src/main.zig
+開始地点:   ch06-sec01-one-way-tcp
+今回の変更: 1つの実行ファイルへlisten/connectモード、MSG/ACKの往復を追加
+テスト:     zig fmt --check . && zig build test && zig build。章末に実TCPで往復確認
+実行:       zig build run -- --listen 8080 と zig build run -- --connect 127.0.0.1:8080
+期待結果:   HELLO Aを送ると、サーバーにHELLO A、クライアントにACK:HELLO Aが表示される
+```
+
 先ほど紹介したサーバ(A)・クライアント(B)という一対のやり取りを、ブロックチェインのP2Pネットワークではより柔軟な相互接続に拡張します。実際のブロックチェインP2Pネットワークでは、各ノード（ピア）が複数の隣接ノードと接続し合い、ブロックやトランザクションなどのデータを中継・共有します。そのため、ノードの実装には以下の2つの機能が必要になります。
 1.受信用のサーバ機能
 他ノードからの接続を受け付けるリスナーソケット。これはステップ1で紹介したようにlisten()とaccept()を用いて実装します。
@@ -135,7 +153,7 @@ info: ノードA: メッセージ内容: Hello from NodeB
 
 実際のBitcoinプロトコルでも、接続直後にversionメッセージを交換し、続いてverack（承認応答）のやりとりを行う「ハンドシェイク」があります（詳しくは[こちら](https://learnmeabitcoin.com/technical/networking/)参照）。ここではあくまでもシンプルな例として、「HELLO」で始める方法を示しているだけです。
 
-以下のコードでは、サーバーモードとクライアントモードを起動引数で切り替え、クライアント側がサーバーに接続してメッセージ送信し、サーバー側が受信・表示するところまでを実装しています。
+以下のコードでは、サーバーモードとクライアントモードを起動引数で切り替えます。クライアントは`MSG:<payload>`を送り、サーバーは`ACK:<payload>`を返します。これにより、片方向の送信ログだけでなく同じTCP接続上の往復まで確認できます。
 
 ```zig
 const std = @import("std");
@@ -155,23 +173,55 @@ var peers: [MAX_PEERS]?Peer = [_]?Peer{null} ** MAX_PEERS;
 
 /// 受信を処理するスレッド関数 (スレッドに渡すためにstruct + run関数を定義)
 const ConnHandler = struct {
+    fn handleMessage(conn: std.net.Server.Connection, message: []const u8) !void {
+        if (!std.mem.startsWith(u8, message, "MSG:")) {
+            std.log.warn("Unknown message from {any}: {s}", .{ conn.address, message });
+            return;
+        }
+
+        const payload = message[4..];
+        std.log.info("[Received from {any}] {s}", .{ conn.address, payload });
+
+        var writer = conn.stream.writer();
+        try writer.writeAll("ACK:");
+        try writer.writeAll(payload);
+        try writer.writeAll("\n");
+        std.log.info("[Sent to {any}] ACK:{s}", .{ conn.address, payload });
+    }
+
     fn run(conn: std.net.Server.Connection) !void {
         defer conn.stream.close(); // 接続が終わったらクローズ
         var reader = conn.stream.reader();
 
         std.log.info("Accepted a new connection from {any}", .{conn.address});
-        var buf: [256]u8 = undefined;
+        var buf: [4096]u8 = undefined;
+        var buffered: usize = 0;
 
         while (true) {
-            // データを読み取る
-            const n = try reader.read(&buf);
+            const n = try reader.read(buf[buffered..]);
             if (n == 0) {
                 std.log.info("Peer {any} disconnected.", .{conn.address});
                 break;
             }
-            // 受信メッセージ表示
-            const msg_slice = buf[0..n];
-            std.log.info("[Received from {any}] {s}", .{ conn.address, msg_slice });
+
+            buffered += n;
+            var consumed: usize = 0;
+            while (std.mem.indexOfScalarPos(u8, buf[0..buffered], consumed, '\n')) |newline| {
+                const message = std.mem.trimRight(u8, buf[consumed..newline], "\r");
+                try handleMessage(conn, message);
+                consumed = newline + 1;
+            }
+
+            if (consumed > 0) {
+                const remaining = buffered - consumed;
+                std.mem.copyForwards(u8, buf[0..remaining], buf[consumed..buffered]);
+                buffered = remaining;
+            }
+
+            if (buffered == buf.len) {
+                std.log.warn("Message too long from {any}; closing connection", .{conn.address});
+                break;
+            }
         }
     }
 };
@@ -180,7 +230,8 @@ const ConnHandler = struct {
 /// ユーザーがコンソールに入力した文字列を送信する
 const SendHandler = struct {
     fn run(peer: Peer) !void {
-        defer peer.stream.close();
+        // 読み取りはメインスレッドが担当するため、終了時は送信側だけを閉じる。
+        defer std.posix.shutdown(peer.stream.handle, .send) catch {};
         std.log.info("Connected to peer {any}", .{peer.address});
 
         var stdin_file = std.io.getStdIn();
@@ -198,7 +249,9 @@ const SendHandler = struct {
 
             // 書き込み(送信)
             var writer = peer.stream.writer();
+            try writer.writeAll("MSG:");
             try writer.writeAll(line_slice);
+            try writer.writeAll("\n");
             std.log.info("Message sent to {any}: {s}", .{ peer.address, line_slice });
         }
     }
@@ -269,6 +322,7 @@ pub fn main() !void {
         std.log.info("Connecting to {s}:{d}...", .{ host_str, port_num });
         const remote_addr = try std.net.Address.resolveIp(host_str, port_num);
         var socket = try std.net.tcpConnectToAddress(remote_addr);
+        defer socket.close();
         // 送信用のスレッドをspawn
         const peer = Peer{
             .address = remote_addr,
@@ -308,6 +362,7 @@ pub fn main() !void {
 info: Listening on port 8080...
 info: Accepted a new connection from 127.0.0.1:50115
 info: [Received from 127.0.0.1:50115] HELLO A
+info: [Sent to 127.0.0.1:50115] ACK:HELLO A
 ```
 
 ```bash
@@ -320,10 +375,20 @@ info: Connected to peer 127.0.0.1:8080
 info: Type message (Ctrl+D to exit):
 HELLO A
 info: Message sent to 127.0.0.1:8080: HELLO A
+info: [Received from 127.0.0.1:8080] ACK:HELLO A
 info: Type message (Ctrl+D to exit):
 ```
 
-サーバ側コンソールでは```「Accepted a new connection...」「[Received from ...] HELLO A」```というログが表示されます。クライアント側コンソールでは自分が打ち込んだ文字列（今回の例では「HELLO A」）が送信され、サーバー側に届いていることを確認できます。
+サーバー側の`[Received ...] HELLO A`とクライアント側の`ACK:HELLO A`を両方確認してください。後者が表示されなければ、接続はできてもメッセージの往復はまだ成立していません。
+
+リポジトリルートからステップ1の片方向送信と、ステップ2の往復を続けて自動確認できます。固定したZig 0.14.0のコンテナ内で各プロセスを起動し、要求と応答のログを検査します。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+sh references/chapter6/step2/nodeA/scripts/acceptance.sh
+```
+
+`CHAPTER6_STEP1_ACCEPTANCE PASS`に続き、末尾の`CHAPTER6_TCP_ACCEPTANCE PASS`まで終了コード0で到達した場合だけ、この章のTCP実装は完了です。
 
 ノードリストの管理について。
 

@@ -39,7 +39,7 @@ docker run --rm zig-blockchain-book zig build test
 2. **開始地点**
    その節の変更前に相当するチェックポイントを確認します。本文の途中から始める場合も、先に開始地点がテストを通ることを確かめます。
 3. **今回の変更**
-   本文で示した追加・変更部分だけを反映します。コード例で省略した部分は、前の節で作成済みのコードです。
+   本文のコード例と、その章の完全差分を対応させます。第11章と第12章には、`references/book-patches/chapter11.patch`と`chapter12.patch`があります。説明用のコード片だけから、不足部分を推測する必要はありません。
 4. **テスト**
    変更した関数や型に近いテストを実行します。成功ケースだけでなく、不正な入力や改ざんを拒否するケースも確認します。
 5. **実行**
@@ -75,7 +75,7 @@ chNN-secNN-short-name
 
 ## 章とコードスナップショットの対応
 
-`references/` の各スナップショットは、原則としてそれぞれのディレクトリ内で `build.zig` を使う自己完結したプロジェクトです。ただし、第10章以降のEVM統合は複数章で完成版を共有します。節とファイル、テストの対応は、後述の「EVM編の節とコードの対応」で固定します。
+`references/` の各スナップショットは、原則としてそれぞれのディレクトリ内で `build.zig` を使う自己完結したプロジェクトです。第10章には独立したEVM実行エンジン、第11章にはブロックチェインへ統合したEVM、第12章にはCLIとP2Pまで統合したEVMのスナップショットがあります。節とファイル、テストの対応は、後述の「EVM編の節とコードの対応」で固定します。
 
 | 本書 | 主な実装 | 対応するコード | 状態 |
 | --- | --- | --- | --- |
@@ -87,9 +87,9 @@ chNN-secNN-short-name
 | 第7章 | ノード間のブロック共有 | [`references/chapter7/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter7) | 章スナップショット |
 | 第8章 | 複数ピア、再伝播、チェイン同期 | [`references/chapter8/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter8) | 章スナップショット |
 | 第9章 | EVM導入、256ビット値 | [`references/chapter9/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter9) | `EVMu256`だけを動かす章スナップショット |
-| 第10章 | スタック、メモリ、ストレージ、オペコード | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | EVM完成版を共有。第10章だけの独立スナップショットは未提供 |
-| 第11章 | Solidity実行とブロックチェイン統合 | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | EVM完成版を共有。第11章だけの独立スナップショットは未提供 |
-| 第12章 | CLI、P2P、EVMトランザクション | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | EVM完成版を共有。第12章だけの独立スナップショットは未提供 |
+| 第10章 | スタック、メモリ、ストレージ、オペコード | [`references/chapter10/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter10) | `EVM result: 5 + 3 = 8`まで動かす章スナップショット |
+| 第11章 | Solidity実行とブロックチェイン統合 | [`references/chapter11/`](https://github.com/susumutomita/BlockChain/tree/main/references/chapter11) | 章専用スナップショット。第12章のCLI、`EVM_TX`、64 KiBフレームはまだ含まない |
+| 第12章 | CLI、P2P、EVMトランザクション | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | 第11章スナップショットへ第12章の完全差分を適用した章スナップショット |
 | 第13章 | EVM、P2P、PoWのテスト | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter)、[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) | 完成版の各モジュールに同居するテストを実行 |
 | 第14章 | 完成ノードの受け入れ確認 | [`contract/`](https://github.com/susumutomita/BlockChain/tree/main/contract)、[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) | ルート完成版を使う統合シナリオ |
 | 第15章 | PoSの設計案 | なし | **未提供**。学習用の設計案であり、現在のルート `src/` に未統合 |
@@ -101,20 +101,20 @@ chNN-secNN-short-name
 
 ## EVM編の節とコードの対応
 
-第9章から第12章は、概念ごとにファイルを分け、最後に`references/EVMchapter/`で統合します。本文の節と、節終了時に確認するファイル・テストは次の対応です。
+第9章と第10章は独立した章スナップショットで段階的に実装します。第11章は`references/chapter11/`、第12章は`references/EVMchapter/`がそれぞれの終了地点です。本文のコード片は要点を説明し、章別patchはその章で必要なimport、CLI引数解析、補助関数、JSON、P2P処理、テストまで含む適用可能な完全差分です。
 
 | 章・節 | 対象ファイル | 節終了時の確認 |
 | --- | --- | --- |
 | 第9章 256ビット値 | `references/chapter9/src/evm_types.zig` | `zig build test`と`zig build run` |
-| 第10章 スタック | `references/EVMchapter/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmStack"` |
-| 第10章 メモリ | `references/EVMchapter/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmMemory"` |
-| 第10章 ストレージ | `references/EVMchapter/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmStorage"` |
-| 第10章 実行コンテキスト | `references/EVMchapter/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmContext"` |
-| 第10章 実行ループとオペコード | `references/EVMchapter/src/evm.zig` | `zig test src/evm.zig` |
-| 第11章 Solidityコントラクト | `references/EVMchapter/contract/SimpleAdder.sol` | `solc --bin --abi`で`Adder.bin`と`Adder.abi`を生成 |
-| 第11章 ABI calldata | `references/EVMchapter/src/evm.zig` | `zig test src/evm.zig --test-filter "ABI calldata"` |
-| 第11章 詳細エラー | `references/EVMchapter/src/evm.zig` | `zig test src/evm.zig --test-filter "EVM execution with error info"` |
-| 第11章 デプロイブロック | `references/EVMchapter/src/main.zig`、`blockchain.zig` | `zig build test` |
+| 第10章 スタック | `references/chapter10/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmStack"` |
+| 第10章 メモリ | `references/chapter10/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmMemory"` |
+| 第10章 ストレージ | `references/chapter10/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmStorage"` |
+| 第10章 実行コンテキスト | `references/chapter10/src/evm_types.zig` | `zig test src/evm_types.zig --test-filter "EvmContext"` |
+| 第10章 実行ループとオペコード | `references/chapter10/src/evm.zig` | `zig test src/evm.zig`と`zig build run` |
+| 第11章 Solidityコントラクト | `references/chapter11/contract/SimpleAdder.sol` | `solc --bin --abi`で`Adder.bin`と`Adder.abi`を生成 |
+| 第11章 ABI calldata | `references/chapter11/src/evm.zig` | `zig test src/evm.zig --test-filter "ABI calldata"` |
+| 第11章 詳細エラー | `references/chapter11/src/evm.zig` | `zig test src/evm.zig --test-filter "EVM execution with error info"` |
+| 第11章 デプロイブロック | `references/chapter11/src/blockchain.zig` | 読者の作業コピーで`zig build test --summary all` |
 | 第12章 deploy/call CLI | `references/EVMchapter/src/main.zig` | 1ノードのデプロイとコール |
 | 第12章 JSON変換 | `references/EVMchapter/src/parser.zig` | `zig test src/p2p.zig --test-filter JSON` |
 | 第12章 EVM_TXと同期 | `references/EVMchapter/src/p2p.zig` | `zig test src/p2p.zig`と2ノード確認 |
@@ -122,10 +122,27 @@ chNN-secNN-short-name
 macOS 26で単体の`zig test`がリンクエラーになる場合は、検証スクリプトを使います。
 
 ```bash
+sh scripts/verify-book-code.sh references/chapter10
+sh scripts/verify-book-code.sh references/chapter11
 sh scripts/verify-book-code.sh references/EVMchapter
 ```
 
 このスクリプトはDocker内で章末の全テストを実行します。
+
+### 第11章と第12章の完全差分
+
+第11章は第8章のP2Pコードと第10章のEVMコードを開始地点にし、`references/book-patches/chapter11.patch`を適用します。第12章は完成した第11章を開始地点にし、`references/book-patches/chapter12.patch`を適用します。各章の具体的な作業コピー作成コマンドは本文に掲載します。
+
+patchを適用した後に合否を判定する対象は、`references/`の見本ではなく読者自身の`.zig-book-work/chapter11/`または`chapter12/`です。`zig fmt --check .`、`zig build test --summary all`、`zig build`をその作業コピー内で実行してください。第12章では、さらに同じ作業コピーを引数に渡し、1ノードと2ノードの受け入れ結果を確かめます。
+
+リポジトリ側では、次のゲートが開始地点から両patchを適用し直し、再構築した内容が章スナップショットと一致することを検査します。
+
+```bash
+sh scripts/rebuild-book-code.sh
+BOOK_REBUILD_ACCEPTANCE=1 sh scripts/rebuild-book-code.sh
+```
+
+前者は再構築、format、build、全テストを確認します。後者は第12章の実TCP受け入れ確認まで実行します。この保守用ゲートはpatchと見本のドリフトを検出するためのもので、読者の作業コピーをテストする章末ゲートの代わりではありません。
 
 ## 本に対応するコードと完成版コードの違い
 
@@ -173,6 +190,11 @@ docker run --rm \
   -w /app/references/chapter5 \
   zig-blockchain-book zig build test
 
+# 第11章終了時点だけをテスト
+docker run --rm \
+  -w /app/references/chapter11 \
+  zig-blockchain-book zig build test
+
 # EVM完成版をテスト
 docker run --rm \
   -w /app/references/EVMchapter \
@@ -191,6 +213,7 @@ zig build run
 ルートの基本検証は次の3つです。
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 zig fmt --check .
 zig build test
 zig build

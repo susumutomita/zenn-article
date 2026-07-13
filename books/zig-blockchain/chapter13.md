@@ -341,7 +341,7 @@ docker run --rm --entrypoint zig zig-blockchain-book \
 ```zig
 for (chain_store.items) |existing_block| {
     if (std.mem.eql(u8, &existing_block.hash, &new_block.hash)) {
-        return;
+        return .duplicate;
     }
 }
 ```
@@ -461,6 +461,67 @@ docker run --rm --entrypoint zig zig-blockchain-book \
 `EVM transaction JSON format consistency (serialize/parse)`が`OK`になります。
 特に、`evm_data`が16進文字列のまま残らず、元のバイト列へ戻ることが重要です。
 
+## EVMブロックの改ざんと不正チェインを拒否する
+
+EVM統合後は、送金額だけでなくcreation code、gas、トランザクションID、デプロイ済みruntime codeもブロックhashの対象です。さらに、正しいPoWを持つだけではチェインへ追加せず、indexと`prev_hash`が現在の先端へ連続することを先に検証します。
+
+ここで`invalid longer chain`が検証するのは、候補チェインを一括適用する`syncChain`補助関数の失敗時atomicityです。現在のP2P実通信はこの関数を呼ばず、`GET_CHAIN`で受け取った`BLOCK:`を現在のtipへ順次追加します。そのため、このテストをネットワーク上のフォーク自動解決の実装とは扱いません。
+
+### 対象ファイル
+
+- `src/blockchain.zig`
+- `src/p2p.zig`
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/blockchain.zig \
+  --test-filter "EVM payload and deployed runtime tampering"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/blockchain.zig \
+  --test-filter "addBlock rejects wrong index and link"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/blockchain.zig \
+  --test-filter "invalid longer chain leaves local chain"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig \
+  --test-filter "Solidity deployment block fits in one P2P frame"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig \
+  --test-filter "invalid received block is neither added nor relayed"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig \
+  --test-filter "locally mined block owns input"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/parser.zig \
+  --test-filter "block parser rejects out-of-range and floating consensus numbers"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/parser.zig \
+  --test-filter "transaction parser rejects floating integer fields"
+```
+
+### 期待する結果
+
+8つの対象テストがそれぞれ1件以上実行され、すべて`OK`になります。これらは次を固定します。
+
+- creation codeまたはruntime codeを1バイト変えると、保存済みhashと再計算hashが一致しない。
+- indexまたは親hashが違うブロックを拒否し、含まれていたコントラクトを状態へ保存しない。
+- 長いだけの不正チェインを拒否し、ローカルチェインとコントラクト状態を変更しない。
+- creation codeとruntime codeをJSON化したフレームが4 KiBを超え、明示した64 KiB上限内には収まる。
+- 受信後にhash不一致となったブロックは、チェインへ追加せず、再伝播キューにも入れない。
+- 次の標準入力で作業バッファが再利用されても、採掘済みブロックの`data`とPoWは変わらない。
+- `u32`を超えるindexと、整数フィールドへ渡された小数を`InvalidFormat`として拒否する。
+
+このテスト群はトランザクション署名を検証するものではありません。内容のコミットメントと送信者の認証は別の境界です。
+
 ## 通常トランザクションとPoWを確認する
 
 EVMを追加した後も、元からあるブロックチェインの基本機能を守る必要があります。
@@ -539,8 +600,8 @@ docker run --rm zig-blockchain-book \
 
 ### 期待する結果
 
-現在の完成形では、`27/27 steps succeeded; 83/83 tests passed`と表示されます。
-`83`は13個のテストルートで実行された件数の合計です。Zigではimport先のテストも各テストルートから実行されるため、一意な`test`宣言数とは一致しません。
+現在の完成形では、`27/27 steps succeeded; 154/154 tests passed`と表示されます。
+`154`は13個のテストルートで実行された件数の合計です。Zigではimport先のテストも各テストルートから実行されるため、一意な`test`宣言数とは一致しません。
 コマンドは終了コード0で完了します。
 `REVERT`のような失敗系テストも、期待したエラーを検証できれば成功です。
 
