@@ -15,10 +15,6 @@ graph LR
     B -->|Previous Hash| C[Block 2<br/>Transactions<br/>Hash: 0x8B2...]
     C -->|Previous Hash| D[Block 3<br/>Transactions<br/>Hash: 0x5C9...]
 
-    style A fill:#f9f,stroke:#333,stroke-width:4px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style C fill:#bbf,stroke:#333,stroke-width:2px
-    style D fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
 全ノードがこのチェインのコピーを保持し、新しいブロックが提案されるとネットワーク全体で正当性を検証してから追加します（この合意形成プロセスを**コンセンサスアルゴリズム**と呼びます）。

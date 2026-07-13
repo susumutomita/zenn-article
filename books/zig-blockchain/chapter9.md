@@ -343,8 +343,6 @@ graph TD
     Check -->|No| Revert[OutOfGas<br/>状態を巻き戻し]
     Continue --> Return[RETURN<br/>結果を返す]
 
-    style Revert fill:#ffcccc
-    style Return fill:#ccffcc
 ```
 
 この図の`PUSH1=3`や`ADD=3`は、実際のEthereumのガス例です。
@@ -363,8 +361,8 @@ graph TD
 ```mermaid
 graph LR
     subgraph "ブロック N"
-        TX1[トランザクション1<br/>Contract.set(42)]
-        TX2[トランザクション2<br/>Contract.get()]
+        TX1["トランザクション1<br/>Contract.set(42)"]
+        TX2["トランザクション2<br/>Contract.get()"]
     end
 
     subgraph "ワールドステート"
@@ -375,7 +373,6 @@ graph LR
     TX1 -.更新.-> S1
     TX2 -.読み取り.-> S1
 
-    style S1 fill:#9f9
 ```
 
 ---
