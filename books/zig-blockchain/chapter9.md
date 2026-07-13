@@ -13,6 +13,48 @@ free: true
 - 2つの`u128`から`EVMu256`を構成する
 - 加算、減算、比較、バイト列変換をテストする
 
+```text
+対象パス:   book-work/chapter9/build.zig、build.zig.zon、src/evm_types.zig、src/root.zig、src/main.zig
+対応見本:   references/chapter9/（実装を終えるまでは開かない）
+開始地点:   ch08-sec03-relay-blockの受け入れ確認が成功した状態
+今回の変更: P2P編を保存したまま、EVMu256だけを扱う独立した章スナップショットを新規作成
+テスト:     zig fmt --check . && zig build test && zig build
+実行:       zig build run
+期待結果:   キャリーと32バイト往復のテストが通り、150、50、false、trueが表示される
+```
+
+## 第8章から第9章へ進む
+
+第8章までのP2Pノードは、`references/chapter8`に対応するチェックポイントとして残します。第9章では、まだEVMをP2Pノードへ統合しません。完成済みのEVMコードを混ぜず、値表現だけを独立して検証できるように、同じリポジトリの`book-work/chapter9`へ新しいZigプロジェクトを作ります。
+
+まず第8章の受け入れ確認を終えてください。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+sh references/chapter8/scripts/acceptance.sh
+```
+
+最後に`P2P_ACCEPTANCE PASS`と表示されたら、そのままリポジトリルートで作業ディレクトリを作ります。`references/chapter9`や`references/EVMchapter`は完成見本なので、ここではコピーしません。
+
+```bash
+mkdir -p book-work/chapter9/src
+cd book-work/chapter9
+```
+
+この章で作るファイルは次の5つです。以降のコードブロックを、示したパスへそのまま配置します。
+
+```text
+book-work/chapter9/
+├── build.zig
+├── build.zig.zon
+└── src/
+    ├── evm_types.zig
+    ├── main.zig
+    └── root.zig
+```
+
+すでにZig 0.14.0を利用できる場合は、`book-work/chapter9`で`zig init`を実行して生成された3ファイルを、後述のコードで置き換えても構いません。本文にはビルドファイルを含む全内容を掲載するため、`zig init`や完成見本を参照しなくても同じスナップショットを作れます。
+
 ## スマートコントラクトとは
 
 まず「スマートコントラクト」という用語について理解しましょう。「スマート」という言葉から「賢い」「高度なAI」のような印象を受けますが、実際にはブロックチェイン上で自動実行されるプログラムのことです。
@@ -29,13 +71,13 @@ free: true
 
 従来の中央サーバー上の自動実行プログラムとの違いを見てみましょう。
 
-| 特性 | 中央サーバー実装 | ブロックチェイン実装 |
+| 特性 | 中央サーバー実装 | 十分に分散し検証されたブロックチェインが目指す性質 |
 |------|---------------|------------------|
-| 改ざん耐性 | 運営者が自由に変更可能 | デプロイ後は誰も変更できない |
-| 透明性 | コードは非公開が一般的 | 誰でもコードを検証できる |
-| 信頼 | 運営者を信頼する必要がある | コードのみを信頼すればよい（trustless） |
-| 検閲耐性 | 運営者が実行を停止できる | 誰も実行を止められない |
-| 単一障害点 | サーバーダウンで停止 | 分散ノードで常に稼働 |
+| 改ざん耐性 | 運営者が変更できる | 合意済み履歴の変更を、多数の検証者と暗号学的検証によって難しくする |
+| 透明性 | コードを非公開にできる | 公開されたコードと状態遷移を参加者が検証できる |
+| 信頼 | 運営者の権限と運用を信頼する | 運営者だけでなく、プロトコル、実装、検証者集合などの前提へ信頼を分散する |
+| 検閲耐性 | 運営者が実行を停止できる | 単一主体による停止を難しくできるが、停止不能が保証されるわけではない |
+| 単一障害点 | 単一サーバーの障害で停止し得る | 複数ノードが稼働していれば処理を継続できる設計にできる |
 
 #### 具体例：オンラインゲームのアイテム販売
 
@@ -49,11 +91,11 @@ free: true
 ブロックチェイン実装の場合。
 
 - スマートコントラクトで「100個のみ発行可能」とコード化
-- デプロイ後は運営でさえも追加発行できない
-- 誰でもコードを読んで100個制限を検証できる
-- ブロックチェインが存続する限りアイテムは存在し続ける
+- 管理者だけが勝手に追加発行できないよう、権限と更新経路をコントラクトで制限できる
+- 公開されたコード、デプロイ済みbytecode、状態を照合して100個制限を検証できる
+- 台帳と検証可能な状態が複数ノードに保存されるため、単一サービスの終了へ依存しにくくできる
 
-この違いこそが、スマートコントラクトの真の価値です。同じ「自動実行プログラム」でも、ブロックチェイン上に実装することで初めて、**改ざん不可能性**、**透明性**、**信頼不要（trustless）**、**検閲耐性**という特性が実現されます。つまり、実装場所（中央サーバーまたはブロックチェイン）によって、プログラムの信頼性や価値が根本的に変わるのです。
+この違いがスマートコントラクトを使う理由の1つです。ただし、ブロックチェインへ載せるだけで改ざん不能や無停止になるわけではありません。権限設計、合意形成、ノードの分散、クライアント実装、利用者が検証する情報まで含めて性質が決まります。本書の学習ノードはhashとPoWによる内容検証までは実装しますが、署名、送信者認可、アカウントnonce、本格的なフォーク選択やファイナリティは実装しません。公開ネットワーク向けの保証ではないことを、第14章でもう一度確認します。
 
 ## EVMとは
 
@@ -348,15 +390,17 @@ graph TD
 この図の`PUSH1=3`や`ADD=3`は、実際のEthereumのガス例です。
 本書の簡易EVMでは、命令種別に関係なく1命令=1ガスとして実装します。
 
-### ブロックチェイン上での永続化
+### Ethereumの永続化と本書の実装範囲
 
-実行が成功すると、以下のデータがブロックチェインに永続化されます。
+一般のEthereumでは、実行が成功すると、以下の情報がブロック、レシート、ワールドステートの対応する領域へ反映されます。
 
 1. ストレージの変更 - コントラクトの状態変数の更新
 2. イベントログ - `emit`で発行されたイベント
 3. トランザクション履歴 - 誰がいつ何を実行したかの記録
 
-これらは全ノードで検証され、コンセンサスを経てブロックに記録されます。
+これらはEthereumノードが共通の状態遷移規則で検証し、コンセンサスの対象となるブロックと状態に反映します。
+
+一方、本書の実装が到達する範囲は異なります。第12章で、デプロイトランザクションとruntime codeを採掘済みブロックに含め、実行中プロセスの`contract_storage`へ保存するところまでです。`SSTORE`の値は1回のEVM呼び出しの中だけで有効で、イベントログと汎用的な取引履歴は実装しません。ブロックとコントラクト状態はメモリ上にあり、プロセスを再起動すると失われます。また、P2Pノードが行うのはhash、PoW、index、親hashの検証であり、Ethereumと同等の状態遷移やコンセンサスではありません。以下の図は一般的なEthereumの概念図であり、本書の実行結果ではありません。
 
 ```mermaid
 graph LR
@@ -379,9 +423,9 @@ graph LR
 
 以上がスマートコントラクトのライフサイクルです。これから実装するEVMは、このフローの「フェーズ4: 実行」部分を担当します。デプロイ済みのバイトコードを読み込み、命令を解釈してスタック・メモリ・ストレージを操作しながら、計算結果を返すエンジンを構築していきます。
 
-## ZigでEVMを実装する準備
+## Solidityコンパイルの流れを先に知る
 
-開発環境の準備をします。
+ここでは後続章で使うSolidityコンパイルの流れだけを確認します。**第9章の実装・テストに`solc`は不要**です。実際に`SimpleAdder.sol`を配置して簡易EVMへ接続する作業は第11章で行うため、先にEVMu256の章スナップショットを完成させたい場合は「簡易EVMの構成」まで読み進めてください。
 
 Solidityコンパイラの準備: Solidityのスマートコントラクトをバイトコードにコンパイルできるように、Solidity公式のコマンドラインコンパイラ`solc`を用意します。Solidityの開発環境が既にある場合はsolcコマンドが使えるはずです。インストールされていない場合、Ethereum公式サイトや各種ドキュメントに従ってインストールしてください（例：macOSならHomebrewで`brew install solidity`）。
 
@@ -427,15 +471,15 @@ Contract JSON ABI
 
 `-o`オプションで出力先ディレクトリを指定すれば、コンパイル結果をファイルとして保存も可能です。
 
-## 簡易EVMの実装
+## 簡易EVMの構成
 
-それでは、ZigでEVMのコアとなるバイトコード実行エンジンを実装してみましょう。EVMはスタックマシンですので、スタックやメモリ、ストレージを管理しつつ、バイトコード中のオペコードを読み取って解釈・実行するループを作ることになります。
+これから複数章を使い、ZigでEVMのコアとなるバイトコード実行エンジンを実装します。EVMはスタックマシンですので、スタックやメモリ、ストレージを管理しつつ、バイトコード中のオペコードを読み取って解釈・実行するループを作ることになります。本章で実装するのは、その最小単位である`EVMu256`だけです。
 
 ### データ構造の定義
 
 まず、EVMの実行に必要なデータを用意します。スタック、メモリ、ストレージ、プログラムカウンタ、ガスなどです。今回は各コンポーネントを明確に分離し、オブジェクト指向的な設計で実装します。
 
-- 256ビット整数型 (u256): EVMの基本データ型です。Zigには組み込みの256ビット整数型がないため、2つの128ビット整数（上位128ビットと下位128ビット）を組み合わせた独自の構造体として実装します。加算・減算などの演算メソッドも提供します。
+- 256ビット整数型 (`EVMu256`): EVMの基本データ型です。Zig 0.14.0は`u256`のような任意ビット幅整数を扱えます。本書ではキャリー、ボロー、ビッグエンディアン変換をコードで追います。そのため、2つの128ビット整数（上位と下位）を組み合わせた構造体として実装します。
 - スタック (EvmStack): 固定長配列（サイズ1024）で表現し、各要素を`u256`型とします。スタックポインタ（現在のスタック高さ）を別途管理し、プッシュ/ポップ操作を提供します。
 - メモリ (EvmMemory): 動的に拡張可能な`std.ArrayList(u8)`で表現します。32バイト単位でデータを読み書きするメソッドを提供し、アクセス範囲が現在のサイズを超えた場合は自動的にサイズを拡張します。
 - ストレージ (EvmStorage): コントラクトの永続的なキー/値ストアです。シンプルな実装として、`std.AutoHashMap(u256, u256)`を使用し、キーと値の組を保持します。
@@ -447,9 +491,88 @@ Contract JSON ABI
 では、これらを踏まえてZigコードを書いていきます。
 まずEVMデータ構造の基本定義です。
 
+## 第9章のビルド構成を作る
+
+```text
+対象パス:   book-work/chapter9/build.zig、book-work/chapter9/build.zig.zon
+開始地点:   ch08-sec03-relay-blockを確認し、book-work/chapter9/srcを作成した状態
+今回の変更: EVMu256ライブラリ、デモ実行、両方のテストをまとめて実行するZigパッケージを定義
+テスト:     後続の3つのsrcファイル配置後にzig build test
+実行:       後続の3つのsrcファイル配置後にzig build run
+期待結果:   testとrunのビルドステップが認識される
+```
+
+`book-work/chapter9/build.zig`へ、次の内容を配置します。`src/root.zig`をライブラリ入口、`src/main.zig`を実行入口とし、実行側から`chapter9_lib`という名前でライブラリを読み込めるようにします。
+
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const lib_mod = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const exe_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_mod.addImport("chapter9_lib", lib_mod);
+
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "chapter9",
+        .root_module = lib_mod,
+    });
+    b.installArtifact(lib);
+
+    const exe = b.addExecutable(.{
+        .name = "chapter9",
+        .root_module = exe_mod,
+    });
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| run_cmd.addArgs(args);
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
+
+    const lib_tests = b.addTest(.{ .root_module = lib_mod });
+    const exe_tests = b.addTest(.{ .root_module = exe_mod });
+    const run_lib_tests = b.addRunArtifact(lib_tests);
+    const run_exe_tests = b.addRunArtifact(exe_tests);
+
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_lib_tests.step);
+    test_step.dependOn(&run_exe_tests.step);
+}
+```
+
+続いて、`book-work/chapter9/build.zig.zon`を作ります。`fingerprint`はこの学習用パッケージの識別子です。別名のパッケージとして公開する場合は、`zig init`で新しい値を生成してください。
+
+```zig
+.{
+    .name = .chapter9,
+    .version = "0.0.0",
+    .fingerprint = 0x5128ebffb0c1ecc5,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
+```
+
 ## Zigで256ビット整数を実装する
 
-EVMの特徴の1つは、256ビット整数を基本データ型として使うことです。Zigには標準で256ビット整数型がないため、独自に実装します。
+EVMの特徴の1つは、256ビット整数を基本データ型として使うことです。Zigでは`u256`も宣言できますが、本書ではEVMの32バイト表現と桁上がりを目で追うため、`hi`と`lo`に分けた独自型を実装します。これはZigの制約ではなく、この章の学習上の選択です。
 
 ### なぜ256ビットなのか
 
@@ -475,7 +598,7 @@ EVMが256ビット整数を採用した理由は次のとおりです。
 
 1. u64×4: 最も汎用的だが、キャリー処理が複雑
 2. u128×2: Zigがu128をサポートしているため効率的
-3. 単一のu256: Zigには存在しない
+3. 単一の`u256`: Zigでも利用でき、実装は短くなる。ただし本章では内部のキャリー処理が隠れる
 
 ```text
 256ビット整数の構造：
@@ -485,9 +608,18 @@ EVMが256ビット整数を採用した理由は次のとおりです。
 └─────────────────────┴─────────────────────┘
 ```
 
-evm_types.zigを新規に作成し、以下のように記述します。
-
 ### EVMu256型の実装
+
+```text
+対象パス:   book-work/chapter9/src/evm_types.zig
+開始地点:   ch09-sec01-build-files
+今回の変更: hiとlo、基本値、ラップ加減算、比較、32バイトのビッグエンディアン相互変換を実装
+テスト:     src/root.zig配置後にzig build test
+実行:       src/main.zig配置後にzig build run
+期待結果:   下位128ビットの桁上がりがhiへ伝わり、toBytes/fromBytesが元の値へ戻る
+```
+
+`book-work/chapter9/src/evm_types.zig`を新規に作成し、以下の内容を配置します。このコードブロックはファイル全体です。
 
 ```zig
 const std = @import("std");
@@ -518,7 +650,7 @@ pub const EVMu256 = struct {
         // 下位128ビットの加算
         const result_lo = self.lo +% other.lo;
         // キャリー（桁上がり）の計算
-        const carry = if (result_lo < self.lo) 1 else 0;
+        const carry: u128 = if (result_lo < self.lo) 1 else 0;
         // 上位128ビットの加算（キャリーを含む）
         const result_hi = self.hi +% other.hi +% carry;
 
@@ -530,7 +662,7 @@ pub const EVMu256 = struct {
         // 下位128ビットの減算
         const result_lo = self.lo -% other.lo;
         // ボロー（桁借り）の計算
-        const borrow = if (self.lo < other.lo) 1 else 0;
+        const borrow: u128 = if (self.lo < other.lo) 1 else 0;
         // 上位128ビットの減算（ボローを含む）
         const result_hi = self.hi -% other.hi -% borrow;
 
@@ -590,45 +722,146 @@ pub const EVMu256 = struct {
 };
 ```
 
-### EVMu256型の使用例
+### ライブラリ入口と境界値テスト
 
-実装したEVMu256型を使って、簡単な計算をしてみましょう。
+```text
+対象パス:   book-work/chapter9/src/root.zig
+開始地点:   ch09-sec02-evmu256
+今回の変更: EVMu256を公開し、下位桁のキャリーと32バイト変換の往復をテスト
+テスト:     zig build test
+実行:       なし（ライブラリのテストとして実行）
+期待結果:   maxInt(u128)+1でhi=1・lo=0となり、32バイト変換後も値が一致する
+```
+
+`book-work/chapter9/src/root.zig`はライブラリの入口です。`EVMu256`を公開し、実装を壊しやすい2つの境界をテストします。次のコードブロックがファイル全体です。
 
 ```zig
+//! 第9章のライブラリ入口。
+//!
+//! このチェックポイントでは、EVM全体へ進む前に256ビット整数の表現と
+//! 基本演算、ビッグエンディアンのバイト変換だけを扱う。
+
 const std = @import("std");
-const EVMu256 = @import("evm_types.zig").EVMu256;
 
-pub fn main() !void {
-    // 2つの256ビット整数を作成
-    const a = EVMu256.fromU64(100);
-    const b = EVMu256.fromU64(50);
+pub const EVMu256 = @import("evm_types.zig").EVMu256;
 
-    // 加算: 100 + 50 = 150
-    const sum = a.add(b);
-    std.debug.print("100 + 50 = {}\n", .{sum.lo});
+test "EVMu256 addition carries into the high half" {
+    const max_low = EVMu256{ .hi = 0, .lo = std.math.maxInt(u128) };
+    const result = max_low.add(EVMu256.one());
 
-    // 減算: 100 - 50 = 50
-    const diff = a.sub(b);
-    std.debug.print("100 - 50 = {}\n", .{diff.lo});
+    try std.testing.expectEqual(@as(u128, 1), result.hi);
+    try std.testing.expectEqual(@as(u128, 0), result.lo);
+}
 
-    // 等価比較
-    const is_equal = a.eq(b);
-    std.debug.print("a == b: {}\n", .{is_equal});
+test "EVMu256 byte conversion round-trips" {
+    const value = EVMu256{
+        .hi = 0x0123456789abcdef_fedcba9876543210,
+        .lo = 0x0011223344556677_8899aabbccddeeff,
+    };
 
-    // ゼロチェック
-    const zero = EVMu256.zero();
-    std.debug.print("zero.isZero(): {}\n", .{zero.isZero()});
+    const bytes = value.toBytes();
+    const decoded = EVMu256.fromBytes(&bytes);
+
+    try std.testing.expect(decoded.eq(value));
 }
 ```
 
-実行結果。
+### EVMu256型を実行する
+
+```text
+対象パス:   book-work/chapter9/src/main.zig
+開始地点:   ch09-sec03-evmu256-tests
+今回の変更: 100と50の加減算、バイト列の往復、比較、ゼロ判定を表示するデモを実装
+テスト:     zig fmt --check . && zig build test && zig build
+実行:       zig build run
+期待結果:   100+50=150、100-50=50、往復後hi=0・lo=150、比較false、ゼロ判定true
+```
+
+`book-work/chapter9/src/main.zig`へ実行例を配置します。`chapter9_lib`は、先ほど`build.zig`の`addImport`で登録したライブラリ名です。相対パスで完成版のEVMコードを読み込んでいるわけではありません。
+
+```zig
+//! 第9章: EVMの基本データ型である256ビット整数を動かす。
+
+const std = @import("std");
+const EVMu256 = @import("chapter9_lib").EVMu256;
+
+pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+
+    const a = EVMu256.fromU64(100);
+    const b = EVMu256.fromU64(50);
+    const sum = a.add(b);
+    const difference = a.sub(b);
+    const round_trip = EVMu256.fromBytes(&sum.toBytes());
+
+    try stdout.print("100 + 50 = {d}\n", .{sum.lo});
+    try stdout.print("100 - 50 = {d}\n", .{difference.lo});
+    try stdout.print("sum round-trip: hi={d}, lo={d}\n", .{ round_trip.hi, round_trip.lo });
+    try stdout.print("a == b: {}\n", .{a.eq(b)});
+    try stdout.print("zero.isZero(): {}\n", .{EVMu256.zero().isZero()});
+}
+
+test "chapter 9 EVMu256 demo calculations" {
+    const a = EVMu256.fromU64(100);
+    const b = EVMu256.fromU64(50);
+
+    try std.testing.expectEqual(@as(u128, 150), a.add(b).lo);
+    try std.testing.expectEqual(@as(u128, 50), a.sub(b).lo);
+}
+```
+
+### テスト、ビルド、実行
+
+Zig 0.14.0を直接使える環境では、`book-work/chapter9`で次を実行します。4コマンドのどれかが非0で終了した場合は、次章へ進まず、対象パスとコードブロックを見直してください。
+
+```bash
+zig fmt --check .
+zig build test
+zig build
+zig build run
+```
+
+macOS 26などDockerを標準にする環境では、BlockChainリポジトリのルートでイメージを作り、作業スナップショットを読み取り専用でマウントします。キャッシュと成果物はコンテナの`/tmp`へ出すため、ホスト側へroot所有ファイルを残しません。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+docker build --build-arg ZIG_VERSION=0.14.0 -t zig-blockchain-book .
+
+docker run --rm \
+  -v "$PWD/book-work/chapter9:/work:ro" \
+  -w /work \
+  zig-blockchain-book \
+  sh -c '
+    zig fmt --check . &&
+    zig build test --cache-dir /tmp/zig-cache --global-cache-dir /tmp/zig-global-cache &&
+    zig build --cache-dir /tmp/zig-cache --global-cache-dir /tmp/zig-global-cache --prefix /tmp/zig-out &&
+    zig build run --cache-dir /tmp/zig-cache --global-cache-dir /tmp/zig-global-cache --prefix /tmp/zig-out
+  '
+```
+
+`zig build test`は、`root.zig`の2件と`main.zig`の1件を実行します。成功時はエラーを出さず終了し、`zig build run`は次の5行を表示します。
 
 ```text
 100 + 50 = 150
 100 - 50 = 50
+sum round-trip: hi=0, lo=150
 a == b: false
 zero.isZero(): true
 ```
+
+最後に、本文だけで作ったスナップショットと完成見本の構成を照合できます。ここで初めて`references/chapter9`を参照します。差分がある場合も完成見本を丸ごとコピーせず、どのファイルのどの行が異なるかを確認してください。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+diff -ru \
+  --exclude=.zig-cache \
+  --exclude=zig-out \
+  --exclude=Dockerfile \
+  --exclude=docker-compose.yml \
+  book-work/chapter9 references/chapter9
+```
+
+短いコメントの有無を除き、`build.zig`、`build.zig.zon`、`src/evm_types.zig`、`src/root.zig`、`src/main.zig`の動作は同じになります。`diff`は差がある場合に終了コード1を返しますが、比較コマンド自体の失敗ではありません。
 
 ### この章のまとめ
 
@@ -638,7 +871,7 @@ zero.isZero(): true
 
 1. **スマートコントラクトの本質**
    - ブロックチェイン上で自動実行されるプログラム
-   - 改ざん不可能性、透明性、信頼不要（trustless）という特性
+   - 検証可能性と改ざん耐性を目指す仕組み、その成立に必要な合意・分散・権限設計の前提
 
 2. **EVMの役割**
    - Ethereumブロックチェイン上でスマートコントラクトを実行する仮想マシン

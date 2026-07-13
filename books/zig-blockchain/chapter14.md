@@ -13,11 +13,11 @@ free: true
 
 | 対象 | 受け入れ条件 | 検証場所 |
 | --- | --- | --- |
-| ブロック | トランザクションを含むSHA-256ハッシュを計算できる | `src/main.zig`のテスト |
+| ブロック | 全トランザクションフィールドとデプロイ済みruntime codeを含むSHA-256ハッシュを計算できる | `src/blockchain.zig`の改ざんテスト |
 | PoW | 難易度で指定した先頭ゼロバイトを持つnonceを探索できる | `src/main.zig`のテスト |
 | EVMの型 | u256、スタック、メモリ、ストレージの成功・失敗を検証できる | `src/evm_types.zig`のテスト |
 | EVM命令 | 算術、メモリ、ジャンプ、RETURN、REVERTなど本書のサブセットを実行できる | `src/evm.zig`のテスト |
-| P2P | 未送信EVMトランザクションをキューへ入れ、JSONを往復できる | `src/p2p.zig`のテスト |
+| P2P | 無効ブロックを再伝播せず、4 KiB超のデプロイブロックを同期できる | `src/p2p.zig`のテストと2ノード受け入れ確認 |
 | Solidity | `Adder.add`のcreation bytecodeをデプロイし、ABI calldataで呼べる | 第12章の実行手順 |
 | 教材コード | 提供済みの章・節チェックポイントをすべてビルドできる | `scripts/verify-book-code.sh` |
 
@@ -42,6 +42,25 @@ sh scripts/verify-book-code.sh references/chapter3/step2
 sh scripts/verify-book-code.sh references/chapter8
 sh scripts/verify-book-code.sh references/EVMchapter
 ```
+
+## 参照コードと完成版の実通信を検証する
+
+ユニットテストだけでは、TCPフレーム、プロセス起動順、チェイン同期、Solidityコンパイラとの組み合わせを確認できません。第12章の受け入れスクリプトを、章の参照コードとリポジトリ直下の完成版の両方へ実行します。
+
+```bash
+sh references/EVMchapter/scripts/acceptance.sh
+sh references/EVMchapter/scripts/acceptance.sh .
+```
+
+第1コマンドは`references/EVMchapter/`を対象にします。第2コマンドは引数の`.`をプロジェクトルートとして扱い、`src/`の完成版を対象にします。両方で次の3行が表示され、終了コード0になることが合格条件です。
+
+```text
+ONE_NODE_EVM PASS: add(2,3)=5
+TWO_NODE_EVM PASS: deployment synchronized and add(2,3)=5 on both nodes
+EVM_ACCEPTANCE PASS
+```
+
+このゲートはdigest固定のsolc 0.8.24で、Berlin向けcreation codeを生成します。デプロイブロックが64 KiBのP2P上限内に収まり、同期先がruntime codeを復元し、両ノードで`add(2,3)=5`になることを実際に確認します。
 
 ## 決定的なEVMスモークテスト
 
@@ -109,11 +128,12 @@ zig test src/evm.zig --test-filter "EVM REVERT operation"
 
 第12章で作った`DATA`を使い、`Adder.add(2, 3)`をもう一度実行します。
 
-Linuxで`solc` 0.8.24をインストールしている場合は次を実行します。
+Linuxで`solc` 0.8.24をインストールしている場合は次を実行します。受け入れ確認済みの命令構成を固定するため、ターゲットはBerlinへ固定します。
 
 ```bash
 mkdir -p /tmp/zig-book-out
-solc --bin contract/SimpleAdder.sol -o /tmp/zig-book-out --overwrite
+solc --bin --evm-version berlin \
+  contract/SimpleAdder.sol -o /tmp/zig-book-out --overwrite
 SEL=$(solc --hashes contract/SimpleAdder.sol | awk '/add\(uint256,uint256\)/{print $1}' | sed 's/://')
 A=$(printf "%064x" 2)
 B=$(printf "%064x" 3)
@@ -129,7 +149,7 @@ docker run --rm \
   -v "$PWD/contract:/sources:ro" \
   -v "$PWD/.zig-book-out:/out" \
   ethereum/solc:0.8.24 \
-  --bin SimpleAdder.sol -o /out --overwrite
+  --bin --evm-version berlin SimpleAdder.sol -o /out --overwrite
 
 SEL=$(docker run --rm \
   -w /sources \
@@ -205,12 +225,14 @@ pnpm exec zenn list:books
 
 本書で完成するのは、仕組みを観察するための学習用ノードです。次の性質は持ちません。
 
-- `addBlock`は本格的なフォーク選択や全状態遷移を検証しない。
-- 同期は、信頼できない相手からのチェインを安全に採用する合意プロトコルではない。
-- ブロックハッシュはトランザクションの全フィールドやコントラクト状態を確約しない。
+- `addBlock`はhash、PoW、index、親hashを検証しますが、累積workによるフォーク選択や決定的な全状態遷移は実装しない。
+- `syncChain`補助関数は候補チェインのhash、PoW、決定的genesis、index、親hash、重複を一括置換の前に検証し、候補の選択基準は長さだけである。ただしこれはユニットテスト用の境界で、P2P実通信からは未接続。`GET_CHAIN`は`BLOCK:`を順次`addBlock`し、空ノードまたは同じprefixを持つ遅れたノードの追従だけを保証する。分岐済みチェインの自動置換、累積workによるフォーク選択、ファイナリティは持たない。
+- ブロックハッシュは現在の全トランザクションフィールドとデプロイ済みruntime codeを確約しますが、残高、アカウントnonce、EVMストレージのstate rootは持たない。
 - EVMでは、命令別ガス、永続ストレージ、外部コール、ログ、暗号プリコンパイルが完全ではない。
-- トランザクション署名、アカウント残高、nonce、手数料市場は実装していない。
-- ネットワーク入力に対する認証、帯域制御、永続DB、クラッシュ復旧は実装していない。
+- トランザクション署名、アカウント残高、アカウントnonce（ブロックのPoW nonceとは別）、手数料市場は実装していない。
+- P2Pフレームは64 KiBへ制限しますが、ピア認証、帯域制御、タイムアウト、永続DB、クラッシュ復旧は実装していない。
+
+ブロックhashとPoWは、受信した内容が採掘済みhashから変わっていないことを検出します。署名がないため、`sender`を書いた本人が秘密鍵の所有者であることは証明しません。hashだけでは、攻撃者が別内容を新しいブロックとして採掘する行為を防げません。署名、送信者導出、アカウントnonce、リプレイ拒否は[BlockChain Issue #197](https://github.com/susumutomita/BlockChain/issues/197)で次版の実装と本文を対にして追跡します。
 
 この境界を保ったまま、ブロック生成、PoW、伝播、同期、バイトコード実行、コントラクトのデプロイとコールを1つのプログラムで追えることが、本書の到達点です。
 
