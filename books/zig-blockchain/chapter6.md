@@ -169,7 +169,7 @@ const Peer = struct {
 /// ピアリスト
 /// ここでは最大10ノードまで接続する簡易実装
 const MAX_PEERS = 10;
-var peers: [MAX_PEERS]?Peer = [_]?Peer{null} ** MAX_PEERS;
+var peers: [MAX_PEERS]?Peer = [_]?Peer{null ** MAX_PEERS};
 
 /// 受信を処理するスレッド関数 (スレッドに渡すためにstruct + run関数を定義)
 const ConnHandler = struct {
@@ -335,15 +335,37 @@ pub fn main() !void {
 
         // メインスレッドで受信ループ
         var reader = socket.reader();
-        var buf: [256]u8 = undefined;
+        var buf: [4096]u8 = undefined;
+        var buffered: usize = 0;
+
         while (true) {
-            const n = try reader.read(&buf);
+            const n = try reader.read(buf[buffered..]);
             if (n == 0) {
+                if (buffered > 0) {
+                    std.log.warn("Ignoring unterminated message from {s}:{d}", .{ host_str, port_num });
+                }
                 std.log.info("Peer {s}:{d} disconnected.", .{ host_str, port_num });
                 break;
             }
-            const msg_slice = buf[0..n];
-            std.log.info("[Received from {s}:{d}] {s}", .{ host_str, port_num, msg_slice });
+
+            buffered += n;
+            var consumed: usize = 0;
+            while (std.mem.indexOfScalarPos(u8, buf[0..buffered], consumed, '\n')) |newline| {
+                const message = std.mem.trimRight(u8, buf[consumed..newline], "\r");
+                std.log.info("[Received from {s}:{d}] {s}", .{ host_str, port_num, message });
+                consumed = newline + 1;
+            }
+
+            if (consumed > 0) {
+                const remaining = buffered - consumed;
+                std.mem.copyForwards(u8, buf[0..remaining], buf[consumed..buffered]);
+                buffered = remaining;
+            }
+
+            if (buffered == buf.len) {
+                std.log.warn("Message too long from {s}:{d}; closing connection", .{ host_str, port_num });
+                break;
+            }
         }
     } else {
         std.log.err("Unsupported mode: {s}", .{mode});
@@ -351,6 +373,8 @@ pub fn main() !void {
     }
 }
 ```
+
+TCPはメッセージ境界を保持しないバイトストリームです。そのため、サーバーが`ACK:`、ペイロード、改行を順に書いても、クライアント側の1回の`read()`で全体を受け取れるとは限りません。上の受信ループは未完了のバイト列を`buf`に残し、改行が届いた時点で初めて1つの応答として表示します。1回の`read()`に複数の応答が入った場合も改行ごとに処理します。切断まで改行が届かなかった断片は警告して無視し、4096バイトを超えても改行がない入力は接続を閉じます。
 
 ### 実行例
 

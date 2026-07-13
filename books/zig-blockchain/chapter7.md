@@ -739,6 +739,21 @@ const types = @import("types.zig");
 const parser = @import("parser.zig");
 const net = std.net;
 
+fn handlePeerMessage(message: []const u8) void {
+    std.log.info("[Recv complete] {s}", .{message});
+
+    if (!std.mem.startsWith(u8, message, "BLOCK:")) {
+        std.log.info("Unknown msg: {s}", .{message});
+        return;
+    }
+
+    var new_block = parser.parseBlockJson(message["BLOCK:".len..]) catch |err| {
+        std.log.err("Failed parseBlockJson: {any}", .{err});
+        return;
+    };
+    if (!blockchain.addBlock(new_block)) parser.deinitParsedBlock(&new_block);
+}
+
 //------------------------------------------------------------------------------
 // メイン処理およびテスト実行
 //------------------------------------------------------------------------------
@@ -811,21 +826,36 @@ pub fn main() !void {
         };
         _ = try std.Thread.spawn(.{}, blockchain.ClientHandler.run, .{peer});
         var reader = socket.reader();
-        var buf: [256]u8 = undefined;
+        var buf: [4096]u8 = undefined;
+        var buffered: usize = 0;
+
         while (true) {
-            const n = try reader.read(&buf);
+            const n = try reader.read(buf[buffered..]);
             if (n == 0) {
+                if (buffered > 0) {
+                    std.log.warn("Ignoring unterminated message from {s}:{d}", .{ host_str, port_num });
+                }
                 std.log.info("Server disconnected.", .{});
                 break;
             }
-            const msg_slice = buf[0..n];
-            std.log.info("[Recv] {s}", .{msg_slice});
-            if (std.mem.startsWith(u8, msg_slice, "BLOCK:")) {
-                const json_part = msg_slice[6..];
-                const new_block = try parser.parseBlockJson(json_part);
-                _ = blockchain.addBlock(new_block);
-            } else {
-                std.log.info("Unknown msg: {s}", .{msg_slice});
+
+            buffered += n;
+            var consumed: usize = 0;
+            while (std.mem.indexOfScalarPos(u8, buf[0..buffered], consumed, '\n')) |newline| {
+                const message = std.mem.trimRight(u8, buf[consumed..newline], "\r");
+                handlePeerMessage(message);
+                consumed = newline + 1;
+            }
+
+            if (consumed > 0) {
+                const remaining = buffered - consumed;
+                std.mem.copyForwards(u8, buf[0..remaining], buf[consumed..buffered]);
+                buffered = remaining;
+            }
+
+            if (buffered == buf.len) {
+                std.log.err("Message too long from {s}:{d}; closing connection", .{ host_str, port_num });
+                break;
             }
         }
     }
@@ -889,7 +919,7 @@ test "マイニングが先頭1バイト0のハッシュを生成できる" {
 }
 ```
 
-ポイント: クライアントモードでは送信処理と受信処理を分けて、送信は別スレッド(ClientHandler)で行います。受信はメインスレッドで同時並行に動かしています。これによって、ユーザが入力をしている間もサーバーからのメッセージを受け取ることが可能になります。
+ポイント: クライアントモードでは送信処理と受信処理を分けて、送信は別スレッド(ClientHandler)で行います。受信はメインスレッドで同時並行に動かしています。TCPの1回の`read`は1メッセージとは限らないため、受信バイトを蓄積して改行ごとに完成フレームを取り出します。最後の未完成部分は次の`read`まで残し、改行のない4096バイトが埋まった場合は過大フレームとして接続を閉じます。これによって、ユーザが入力をしている間もサーバーからの`BLOCK:`メッセージを正しく復元して受け取れます。
 
 以上で、サーバー・クライアント両モードの動作がmain関数に組み込まれました。アプリケーションとして、起動時の引数によってP2Pノードとしての役割を変えられるようになっています。
 
