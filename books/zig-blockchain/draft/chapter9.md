@@ -47,8 +47,6 @@ graph TD
     Stack <--> Storage
     PC --> Gas
 
-    style Stack fill:#f9f,stroke:#333,stroke-width:2px
-    style Storage fill:#9ff,stroke:#333,stroke-width:2px
 ```
 
 EVMには、実行時に使用されるいくつかの主要なデータ領域があります。[Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)。

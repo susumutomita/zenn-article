@@ -32,9 +32,6 @@ graph TD
     Stack <-->|一時保存| Memory
     Stack <-->|永続化| Storage
 
-    style Stack fill:#f96,stroke:#333,stroke-width:3px
-    style Memory fill:#9cf,stroke:#333,stroke-width:3px
-    style Storage fill:#9f9,stroke:#333,stroke-width:3px
 ```
 
 ### 3つのデータ領域の役割
