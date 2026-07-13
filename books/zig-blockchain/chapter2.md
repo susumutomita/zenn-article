@@ -81,17 +81,23 @@ FROM alpine:latest
 # xz パッケージを追加して tar が .tar.xz を解凍できるようにする
 RUN apk add --no-cache curl tar xz
 
-# Zig のバージョンを指定可能にするビルド引数（デフォルトは 0.14.0）
+# ZigとコンテナのCPUアーキテクチャを指定する
 ARG ZIG_VERSION=0.14.0
-# ここでは x86_64 用のバイナリを使用する例です
-ENV ZIG_DIST=zig-linux-x86_64-${ZIG_VERSION}
+ARG TARGETARCH
 ENV ZIG_VERSION=${ZIG_VERSION}
 
-# 指定された Zig のバージョンを公式サイトからダウンロードして解凍し、PATH に追加
-RUN curl -LO https://ziglang.org/download/${ZIG_VERSION}/${ZIG_DIST}.tar.xz && \
-  tar -xf ${ZIG_DIST}.tar.xz && \
-  rm ${ZIG_DIST}.tar.xz
-ENV PATH="/${ZIG_DIST}:${PATH}"
+# amd64とarm64のどちらでも、対応する公式バイナリを展開する
+RUN case "${TARGETARCH}" in \
+      amd64) ZIG_ARCH=x86_64 ;; \
+      arm64) ZIG_ARCH=aarch64 ;; \
+      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    ZIG_DIST="zig-linux-${ZIG_ARCH}-${ZIG_VERSION}" && \
+    curl -fLO "https://ziglang.org/download/${ZIG_VERSION}/${ZIG_DIST}.tar.xz" && \
+    mkdir -p /opt/zig && \
+    tar -xf "${ZIG_DIST}.tar.xz" -C /opt/zig --strip-components=1 && \
+    rm "${ZIG_DIST}.tar.xz"
+ENV PATH="/opt/zig:${PATH}"
 
 # 一般ユーザー appuser を作成し、作業用ディレクトリを設定
 RUN addgroup -S appgroup && \
@@ -126,7 +132,6 @@ CMD ["zig", "build", "run"]
 services:
   node1:
     build: .
-    platform: linux/amd64
     container_name: node1
     ports:
       - "3001:3000"
@@ -134,7 +139,6 @@ services:
       - NODE_ID=1
   node2:
     build: .
-    platform: linux/amd64
     container_name: node2
     ports:
       - "3002:3000"
@@ -142,7 +146,6 @@ services:
       - NODE_ID=2
   node3:
     build: .
-    platform: linux/amd64
     container_name: node3
     ports:
       - "3003:3000"
@@ -176,7 +179,11 @@ node3 exited with code 0
 node1 exited with code 0
 ```
 
-上記のように、3つのノードがそれぞれHello Worldプログラムを実行して終了しました。Composeを終了するには`Ctrl+C`を押してください。
+上記のように、3つのノードがそれぞれHello Worldプログラムを実行して終了しました。確認後は、固定名のコンテナを次のコマンドで削除してから次章へ進みます。
+
+```bash
+docker compose down --remove-orphans
+```
 
 ## GitHub Actions導入
 

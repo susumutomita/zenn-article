@@ -1,1050 +1,563 @@
 ---
-title: "EVM実行エンジンを実装する"
+title: "テストでEVMとP2P統合を固める"
 free: true
 ---
 
-この章では引き続き、**Zig**プログラミング言語を用いてEthereum Virtual Machine (EVM)の実行エンジンを実装します。扱う範囲は、本章で示す基本オペコードに絞った学習用の簡易EVMです。
+第12章までで、簡易EVMをブロックチェインとP2P通信へ接続しました。
+機能を追加しただけでは、どこかを直したときに別の機能を壊すおそれがあります。
+そこで本章では、完成形に含まれるテストを実行し、実装の境界を1つずつ確認します。
 
-### EVM実行エンジンの実装
+本章の目的は、大きな実装をもう一度書き写すことではありません。
+テストコードを仕様書として読み、正常系と失敗系の両方を再現することです。
 
-EVMの実行エンジン部分は、オペコードの読み取り、解釈、実行を担当します。主な機能は以下の通りです。
+## 本章で確認すること
 
-- オペコード定数の定義: EVMで使用される命令コードを定数として定義します（STOP, ADD, MULなど）
-- 実行ループ: バイトコードを1命令ずつ処理し、コンテキストを更新していきます
-- 命令処理: 各オペコードに対応する処理をswitch文で実装します
+本章では、次の順番で確認します。
 
-下記は実行エンジンの核となる部分です。
+1. `EVMu256`の演算と桁上がり
+2. EVMスタックのLIFO動作と境界エラー
+3. EVMメモリの拡張と32バイトの読み書き
+4. オペコードの正常終了
+5. `REVERT`と不正ジャンプの失敗契約
+6. ブロック中継の重複抑止
+7. ピア未接続時のEVMトランザクションキュー
+8. EVMトランザクションのJSON往復変換
+9. 通常トランザクション、ブロック追加、PoW
+10. Docker上での全体テスト
 
-`src/evm.zig`を新規に作成し、以下のように記述します。
+確認対象は、[`BlockChain`リポジトリ](https://github.com/susumutomita/BlockChain)直下の完成形です。
+本章で示すテストは、次の実ファイルに置かれています。
 
-```zig
-//! Ethereum Virtual Machine (EVM) 実装
-//!
-//! このモジュールはEthereumのスマートコントラクト実行環境であるEVMを
-//! 簡易的に実装します。EVMバイトコードを解析・実行し、スタックベースの
-//! 仮想マシンとして動作します。
+| 対象 | テストがあるファイル |
+| --- | --- |
+| EVMの値、スタック、メモリ | `src/evm_types.zig` |
+| オペコードとEVMエラー | `src/evm.zig` |
+| ブロック中継、EVMトランザクションの送信待ち、JSON変換 | `src/p2p.zig` |
+| 通常トランザクション、ブロック、PoW | `src/main.zig`、`src/blockchain.zig` |
+| テスト全体の組み立て | `build.zig` |
 
-const std = @import("std");
-const logger = @import("logger.zig");
-const evm_types = @import("evm_types.zig");
-// u256型を別名で使用して衝突を回避
-const EVMu256 = evm_types.EVMu256;
-const EvmContext = evm_types.EvmContext;
+本文には、確認に必要な短い部分だけを掲載します。
+テストの正本は、上記の実ファイルです。
 
-/// EVMオペコード定義
-pub const Opcode = struct {
-    // 終了・リバート系
-    pub const STOP = 0x00;
-    pub const RETURN = 0xF3;
-    pub const REVERT = 0xFD;
+## Zig 0.14.0のDockerイメージを準備する
 
-    // スタック操作・算術命令
-    pub const ADD = 0x01;
-    pub const MUL = 0x02;
-    pub const SUB = 0x03;
-    pub const DIV = 0x04;
-    pub const SDIV = 0x05;
-    pub const MOD = 0x06;
-    pub const SMOD = 0x07;
-    pub const ADDMOD = 0x08;
-    pub const MULMOD = 0x09;
-    pub const EXP = 0x0A;
-    pub const LT = 0x10;
-    pub const GT = 0x11;
-    pub const SLT = 0x12;
-    pub const SGT = 0x13;
-    pub const EQ = 0x14;
-    pub const ISZERO = 0x15;
-    pub const AND = 0x16;
-    pub const OR = 0x17;
-    pub const XOR = 0x18;
-    pub const NOT = 0x19;
-    pub const POP = 0x50;
+以降のコマンドは、`BlockChain`リポジトリのルートで実行します。
+Dockerを使うことで、ホストOSにZigを直接インストールせずに検証できます。
 
-    // メモリ操作
-    pub const MLOAD = 0x51;
-    pub const MSTORE = 0x52;
-    pub const MSTORE8 = 0x53;
+### 対象ファイル
 
-    // ストレージ操作
-    pub const SLOAD = 0x54;
-    pub const SSTORE = 0x55;
+- `Dockerfile`
+- `build.zig`
 
-    // 制御フロー
-    pub const JUMP = 0x56;
-    pub const JUMPI = 0x57;
-    pub const PC = 0x58;
-    pub const JUMPDEST = 0x5B;
+### 確認するコード
 
-    // PUSHシリーズ (PUSH1-PUSH32)
-    pub const PUSH1 = 0x60;
-    // 他のPUSH命令も順次増えていく (0x61-0x7F)
+`Dockerfile`は、ビルド引数`ZIG_VERSION`でZigのバージョンを受け取ります。
+本書では、テスト環境をZig 0.14.0へ固定します。
 
-    // DUPシリーズ (DUP1-DUP16)
-    pub const DUP1 = 0x80;
-    // 他のDUP命令も順次増えていく (0x81-0x8F)
-
-    // SWAPシリーズ (SWAP1-SWAP16)
-    pub const SWAP1 = 0x90;
-    // 他のSWAP命令も順次増えていく (0x91-0x9F)
-
-    // 呼び出しデータ関連
-    pub const CALLDATALOAD = 0x35;
-    pub const CALLDATASIZE = 0x36;
-    pub const CALLDATACOPY = 0x37;
-};
-
-/// エラー型定義
-pub const EVMError = error{
-    OutOfGas,
-    StackOverflow,
-    StackUnderflow,
-    InvalidJump,
-    InvalidOpcode,
-    MemoryOutOfBounds,
-};
-
-/// EVMバイトコードを実行する
-///
-/// 引数:
-///     allocator: メモリアロケータ
-///     code: EVMバイトコード
-///     calldata: コントラクト呼び出し時の引数データ
-///     gas_limit: 実行時のガス上限
-///
-/// 戻り値:
-///     []const u8: 実行結果のバイト列
-///
-/// エラー:
-///     様々なEVM実行エラー
-pub fn execute(allocator: std.mem.Allocator, code: []const u8, calldata: []const u8, gas_limit: usize) ![]const u8 {
-    // EVMコンテキストの初期化
-    var context = EvmContext.init(allocator, code, calldata);
-    // ガスリミット設定
-    context.gas = gas_limit;
-    defer context.deinit();
-
-    // メインの実行ループ
-    while (context.pc < context.code.len and !context.stopped) {
-        try executeStep(&context);
-    }
-
-    // 戻り値をコピーして返す
-    const result = try allocator.alloc(u8, context.returndata.items.len);
-    @memcpy(result, context.returndata.items);
-    return result;
-}
-
-/// 単一のEVM命令を実行
-fn executeStep(context: *EvmContext) !void {
-    // 現在のオペコードを取得
-    const opcode = context.code[context.pc];
-
-    // ガス消費（シンプル版 - 本来は命令ごとに異なる）
-    if (context.gas < 1) {
-        context.error_msg = "Out of gas";
-        return EVMError.OutOfGas;
-    }
-    context.gas -= 1;
-
-    // オペコードを解釈して実行
-    switch (opcode) {
-        Opcode.STOP => {
-            context.stopped = true;
-        },
-
-        Opcode.ADD => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const a = try context.stack.pop();
-            const b = try context.stack.pop();
-            try context.stack.push(a.add(b));
-            context.pc += 1;
-        },
-
-        Opcode.MUL => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const a = try context.stack.pop();
-            const b = try context.stack.pop();
-            try context.stack.push(a.mul(b));
-            context.pc += 1;
-        },
-
-        Opcode.SUB => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const a = try context.stack.pop();
-            const b = try context.stack.pop();
-            try context.stack.push(a.sub(b));
-            context.pc += 1;
-        },
-
-        Opcode.DIV => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const a = try context.stack.pop();
-            const b = try context.stack.pop();
-            // 0除算の場合は0を返す
-            if (b.hi == 0 and b.lo == 0) {
-                try context.stack.push(EVMu256.zero());
-            } else {
-                // 簡易版ではu64の範囲のみサポート
-                if (a.hi == 0 and b.hi == 0) {
-                    const result = EVMu256.fromU64(@intCast(a.lo / b.lo));
-                    try context.stack.push(result);
-                } else {
-                    // 本来はより複雑な処理が必要
-                    try context.stack.push(EVMu256.zero());
-                }
-            }
-            context.pc += 1;
-        },
-
-        // PUSH1: 1バイトをスタックにプッシュ
-        Opcode.PUSH1 => {
-            if (context.pc + 1 >= context.code.len) return EVMError.InvalidOpcode;
-            const value = EVMu256.fromU64(context.code[context.pc + 1]);
-            try context.stack.push(value);
-            context.pc += 2; // オペコード＋データで2バイト進む
-        },
-
-        // DUP1: スタックトップの値を複製
-        Opcode.DUP1 => {
-            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
-            const value = context.stack.data[context.stack.sp - 1];
-            try context.stack.push(value);
-            context.pc += 1;
-        },
-
-        // SWAP1: スタックトップと2番目の要素を交換
-        Opcode.SWAP1 => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const a = context.stack.data[context.stack.sp - 1];
-            const b = context.stack.data[context.stack.sp - 2];
-            context.stack.data[context.stack.sp - 1] = b;
-            context.stack.data[context.stack.sp - 2] = a;
-            context.pc += 1;
-        },
-
-        Opcode.MLOAD => {
-            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
-            const offset = try context.stack.pop();
-            // 現在はu64範囲のみサポート
-            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
-            const value = try context.memory.load32(@intCast(offset.lo));
-            try context.stack.push(value);
-            context.pc += 1;
-        },
-
-        Opcode.MSTORE => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const offset = try context.stack.pop();
-            const value = try context.stack.pop();
-            // 現在はu64範囲のみサポート
-            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
-            try context.memory.store32(@intCast(offset.lo), value);
-            context.pc += 1;
-        },
-
-        Opcode.SLOAD => {
-            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
-            const key = try context.stack.pop();
-            const value = context.storage.load(key);
-            try context.stack.push(value);
-            context.pc += 1;
-        },
-
-        Opcode.SSTORE => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const key = try context.stack.pop();
-            const value = try context.stack.pop();
-            try context.storage.store(key, value);
-            context.pc += 1;
-        },
-
-        Opcode.CALLDATALOAD => {
-            if (context.stack.depth() < 1) return EVMError.StackUnderflow;
-            const offset = try context.stack.pop();
-            if (offset.hi != 0) return EVMError.MemoryOutOfBounds;
-
-            var result = EVMu256.zero();
-            const off = @as(usize, @intCast(offset.lo));
-
-            // calldataから32バイトをロード（範囲外は0埋め）
-            for (0..32) |i| {
-                const byte_pos = off + i;
-                if (byte_pos < context.calldata.len) {
-                    const byte_val = context.calldata[byte_pos];
-                    if (i < 16) {
-                        // 上位16バイト
-                        result.hi |= @as(u128, byte_val) << @intCast((15 - i) * 8);
-                    } else {
-                        // 下位16バイト
-                        result.lo |= @as(u128, byte_val) << @intCast((31 - i) * 8);
-                    }
-                }
-            }
-
-            try context.stack.push(result);
-            context.pc += 1;
-        },
-
-        Opcode.RETURN => {
-            if (context.stack.depth() < 2) return EVMError.StackUnderflow;
-            const offset = try context.stack.pop();
-            const length = try context.stack.pop();
-
-            // 現在はu64範囲のみサポート
-            if (offset.hi != 0 or length.hi != 0) return EVMError.MemoryOutOfBounds;
-
-            const off = @as(usize, @intCast(offset.lo));
-            const len = @as(usize, @intCast(length.lo));
-
-            try context.memory.ensureSize(off + len);
-            if (len > 0) {
-                try context.returndata.resize(len);
-                for (0..len) |i| {
-                    if (off + i < context.memory.data.items.len) {
-                        context.returndata.items[i] = context.memory.data.items[off + i];
-                    } else {
-                        context.returndata.items[i] = 0;
-                    }
-                }
-            }
-
-            context.stopped = true;
-        },
-
-        else => {
-            logger.debugLog("未実装のオペコード: 0x{x:0>2}", .{opcode});
-            context.error_msg = "未実装または無効なオペコード";
-            return EVMError.InvalidOpcode;
-        },
-    }
-}
-
-/// EVMバイトコードの逆アセンブル（デバッグ用）
-pub fn disassemble(code: []const u8, writer: anytype) !void {
-    var pc: usize = 0;
-    while (pc < code.len) {
-        const opcode = code[pc];
-        try writer.print("0x{x:0>4}: ", .{pc});
-
-        switch (opcode) {
-            Opcode.STOP => try writer.print("STOP", .{}),
-            Opcode.ADD => try writer.print("ADD", .{}),
-            Opcode.MUL => try writer.print("MUL", .{}),
-            Opcode.SUB => try writer.print("SUB", .{}),
-            Opcode.DIV => try writer.print("DIV", .{}),
-            Opcode.MLOAD => try writer.print("MLOAD", .{}),
-            Opcode.MSTORE => try writer.print("MSTORE", .{}),
-            Opcode.SLOAD => try writer.print("SLOAD", .{}),
-            Opcode.SSTORE => try writer.print("SSTORE", .{}),
-            Opcode.JUMP => try writer.print("JUMP", .{}),
-            Opcode.JUMPI => try writer.print("JUMPI", .{}),
-            Opcode.JUMPDEST => try writer.print("JUMPDEST", .{}),
-            Opcode.RETURN => try writer.print("RETURN", .{}),
-
-            Opcode.PUSH1 => {
-                if (pc + 1 < code.len) {
-                    const value = code[pc + 1];
-                    try writer.print("PUSH1 0x{x:0>2}", .{value});
-                    pc += 1;
-                } else {
-                    try writer.print("PUSH1 <データ不足>", .{});
-                }
-            },
-
-            Opcode.DUP1 => try writer.print("DUP1", .{}),
-            Opcode.SWAP1 => try writer.print("SWAP1", .{}),
-            Opcode.CALLDATALOAD => try writer.print("CALLDATALOAD", .{}),
-
-            else => {
-                if (opcode >= 0x60 and opcode <= 0x7F) {
-                    // PUSH1-PUSH32
-                    const push_bytes = opcode - 0x5F;
-                    if (pc + push_bytes < code.len) {
-                        try writer.print("PUSH{d} ", .{push_bytes});
-                        for (0..push_bytes) |i| {
-                            try writer.print("0x{x:0>2}", .{code[pc + 1 + i]});
-                        }
-                        pc += push_bytes;
-                    } else {
-                        try writer.print("PUSH{d} <データ不足>", .{push_bytes});
-                        pc = code.len;
-                    }
-                } else if (opcode >= 0x80 and opcode <= 0x8F) {
-                    // DUP1-DUP16
-                    try writer.print("DUP{d}", .{opcode - 0x7F});
-                } else if (opcode >= 0x90 and opcode <= 0x9F) {
-                    // SWAP1-SWAP16
-                    try writer.print("SWAP{d}", .{opcode - 0x8F});
-                } else {
-                    // その他の未実装オペコード
-                    try writer.print("UNKNOWN 0x{x:0>2}", .{opcode});
-                }
-            },
-        }
-
-        try writer.print("\n", .{});
-        pc += 1;
-    }
-}
-
-// シンプルなEVM実行テスト
-test "Simple EVM execution" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // シンプルなバイトコード: PUSH1 0x05, PUSH1 0x03, ADD, PUSH1 0x00, MSTORE, PUSH1 0x20, PUSH1 0x00, RETURN
-    // 意味: 5 + 3 = 8 を計算し、メモリに格納して返す
-    const bytecode = [_]u8{
-        0x60, 0x05, // PUSH1 5
-        0x60, 0x03, // PUSH1 3
-        0x01, // ADD
-        0x60, 0x00, // PUSH1 0
-        0x52, // MSTORE
-        0x60, 0x20, // PUSH1 32
-        0x60, 0x00, // PUSH1 0
-        0xf3, // RETURN
-    };
-
-    const calldata = [_]u8{};
-
-    // EVMを実行し、戻り値を取得
-    const result = try execute(allocator, &bytecode, &calldata, 100000);
-    defer allocator.free(result);
-
-    // 結果をEVMu256形式で解釈
-    var value = EVMu256{ .hi = 0, .lo = 0 };
-    if (result.len >= 32) {
-        // 上位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i];
-            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-
-        // 下位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i + 16];
-            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-    }
-
-    // 結果が8（5+3）になっていることを確認
-    try std.testing.expect(value.hi == 0);
-    try std.testing.expect(value.lo == 8);
-}
-
-// 乗算のテスト
-test "EVM multiplication" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // バイトコード: PUSH1 0x07, PUSH1 0x06, MUL, PUSH1 0x00, MSTORE, PUSH1 0x20, PUSH1 0x00, RETURN
-    // 意味: 7 * 6 = 42 を計算し、メモリに格納して返す
-    const bytecode = [_]u8{
-        0x60, 0x07, // PUSH1 7
-        0x60, 0x06, // PUSH1 6
-        0x02, // MUL
-        0x60, 0x00, // PUSH1 0
-        0x52, // MSTORE
-        0x60, 0x20, // PUSH1 32
-        0x60, 0x00, // PUSH1 0
-        0xf3, // RETURN
-    };
-
-    const calldata = [_]u8{};
-    const result = try execute(allocator, &bytecode, &calldata, 100000);
-    defer allocator.free(result);
-
-    // 結果をEVMu256形式で解釈
-    var value = EVMu256{ .hi = 0, .lo = 0 };
-    if (result.len >= 32) {
-        // 上位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i];
-            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-
-        // 下位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i + 16];
-            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-    }
-
-    // 結果が42（7*6）になっていることを確認
-    try std.testing.expect(value.hi == 0);
-    try std.testing.expect(value.lo == 42);
-}
-
-// ストレージ操作のテスト
-test "EVM storage operations" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // バイトコード:
-    // PUSH1 0x2A, PUSH1 0x01, SSTORE, // キー1に42を保存
-    // PUSH1 0x01, SLOAD,               // キー1の値をロード
-    // PUSH1 0x00, MSTORE,              // メモリに保存
-    // PUSH1 0x20, PUSH1 0x00, RETURN   // 戻り値を返す
-    const bytecode = [_]u8{
-        0x60, 0x2A, // PUSH1 42
-        0x60, 0x01, // PUSH1 1
-        0x55, // SSTORE
-        0x60, 0x01, // PUSH1 1
-        0x54, // SLOAD
-        0x60, 0x00, // PUSH1 0
-        0x52, // MSTORE
-        0x60, 0x20, // PUSH1 32
-        0x60, 0x00, // PUSH1 0
-        0xf3, // RETURN
-    };
-
-    const calldata = [_]u8{};
-    const result = try execute(allocator, &bytecode, &calldata, 100000);
-    defer allocator.free(result);
-
-    // 結果をEVMu256形式で解釈
-    var value = EVMu256{ .hi = 0, .lo = 0 };
-    if (result.len >= 32) {
-        // 上位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i];
-            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-
-        // 下位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i + 16];
-            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-    }
-
-    // 結果が42になっていることを確認
-    try std.testing.expect(value.hi == 0);
-    try std.testing.expect(value.lo == 42);
-}
-
-// 複数のオペコード実行テスト
-test "EVM multiple operations" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // バイトコード:
-    // PUSH1 0x0A, PUSH1 0x0B, ADD,    // 10 + 11 = 21
-    // PUSH1 0x03, MUL,                // 21 * 3 = 63
-    // PUSH1 0x02, SWAP1, DIV,         // 63 / 2 = 31 (スワップしてスタックを調整)
-    // PUSH1 0x00, MSTORE,             // 結果をメモリに保存
-    // PUSH1 0x20, PUSH1 0x00, RETURN  // 戻り値を返す
-    const bytecode = [_]u8{
-        0x60, 0x0A, // PUSH1 10
-        0x60, 0x0B, // PUSH1 11
-        0x01, // ADD
-        0x60, 0x03, // PUSH1 3
-        0x02, // MUL
-        0x60, 0x02, // PUSH1 2
-        0x90, // SWAP1
-        0x04, // DIV
-        0x60, 0x00, // PUSH1 0
-        0x52, // MSTORE
-        0x60, 0x20, // PUSH1 32
-        0x60, 0x00, // PUSH1 0
-        0xf3, // RETURN
-    };
-
-    const calldata = [_]u8{};
-    const result = try execute(allocator, &bytecode, &calldata, 100000);
-    defer allocator.free(result);
-
-    // 結果をEVMu256形式で解釈
-    var value = EVMu256{ .hi = 0, .lo = 0 };
-    if (result.len >= 32) {
-        // 上位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i];
-            value.hi |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-
-        // 下位16バイトを解析
-        for (0..16) |i| {
-            const byte_val = result[i + 16];
-            value.lo |= @as(u128, byte_val) << @as(u7, @intCast((15 - i) * 8));
-        }
-    }
-
-    // 結果が31（(10+11)*3/2）になっていることを確認
-    try std.testing.expect(value.hi == 0);
-    try std.testing.expect(value.lo == 31);
-}
-```
-
-## Solidity形式のコントラクト呼び出し
-
-ここまでで、本章で扱う基本オペコード範囲のEVM実装ができました。次は、Solidityコントラクトの呼び出しで使われるcalldataの形式を見てみましょう。
-
-### Solidityコントラクトのコンパイルとデプロイ
-
-まず、Solidityで書かれた簡単な加算コントラクトをコンパイルします。`contract/SimpleAdder2.sol`に以下のコントラクトがあります。
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
-contract SimpleAdder {
-    function add(uint256 a, uint256 b) external pure returns (uint256) {
-        unchecked {
-            return a + b;
-        }
-    }
-}
-```
-
-このコントラクトをコンパイルするには、Solidityコンパイラ（solc）を使用します。以下のコマンドでバイトコードとABIを生成できます。
+### テストコマンド
 
 ```bash
-solc --bin --abi contract/SimpleAdder2.sol
+docker build \
+  --build-arg ZIG_VERSION=0.14.0 \
+  -t zig-blockchain-book .
 ```
 
-コンパイル結果のバイトコードは、コントラクトのデプロイコード（コンストラクタ）とランタイムコード（実際の関数実装）の両方を含みます。
+### 期待する結果
 
-### 関数セレクタとABI
+イメージ`zig-blockchain-book`のビルドが終了コード0で完了します。
+以降は、このイメージに含まれる完成形のソースをテストします。
 
-EVMでスマートコントラクトの関数を呼び出す際は、**関数セレクタ**という仕組みを使います。関数セレクタは、関数シグネチャ（関数名と引数の型）のKeccak-256ハッシュの最初の4バイトです。
+## `EVMu256`の演算を確認する
 
-例えば、`add(uint256,uint256)`の関数セレクタは`0x771602f7`です。これは以下のように計算されます。
+EVMの値は256ビットです。
+この実装では、上位128ビットを`hi`、下位128ビットを`lo`に保持します。
 
-1. 関数シグネチャ: `add(uint256,uint256)`
-2. Keccak-256ハッシュ: `771602f70e831cbc32b27580e53e6e4b1aa9aec52a62c2329c181691bcd0720f`
-3. 最初の4バイト: `0x771602f7`
+### 対象ファイル
 
-関数を呼び出す際のcalldataは以下の構造になります。
+- `src/evm_types.zig`
 
-- 最初の4バイト: 関数セレクタ
-- 続く32バイト: 第1引数（uint256）
-- 続く32バイト: 第2引数（uint256）
+### 確認するコード
 
-### アセンブリ版の実装
-
-EVMの動作をより深く理解するために、Solidityのインラインアセンブリを使った実装も見てみましょう。`contract/SimpleAdderAssembly.sol`：
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
-contract SimpleAdderAssembly {
-    fallback() external payable {
-        assembly {
-            // calldataが68バイト以上あることを確認
-            if lt(calldatasize(), 68) {
-                revert(0, 0)
-            }
-
-            // 関数セレクタを読み込み（最初の4バイト）
-            let selector := shr(224, calldataload(0))
-
-            // 第1引数を読み込み（オフセット4から32バイト）
-            let a := calldataload(4)
-
-            // 第2引数を読み込み（オフセット36から32バイト）
-            let b := calldataload(36)
-
-            // 加算を実行
-            let result := add(a, b)
-
-            // 結果をメモリのアドレス0に格納
-            mstore(0, result)
-
-            // メモリのアドレス0から32バイトを返す
-            return(0, 32)
-        }
-    }
-}
-```
-
-### EVMでのコントラクト実行テスト
-
-では、ABI形式のcalldataをEVMで読むテストを追加します。
-本章の掲載エンジンは、関数ディスパッチに必要な`SHR`、`EQ`、`JUMPI`、`PUSH4`まではまだ扱いません。
-そのため、ここでは関数セレクタの照合を省き、実装済みの基本オペコードだけで`add(uint256,uint256)`相当の計算を確認します。
-`src/evm.zig`の最後に以下のテストを追加します。
+テストは、通常の加減算と乗算、下位128ビットからの桁上がり、256ビット全体のラップを確認します。
 
 ```zig
-// ABI calldataを使った加算テスト
-test "Execute ABI encoded add calldata" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+const max_u128 = EVMu256{ .hi = 0, .lo = std.math.maxInt(u128) };
+const one = EVMu256.fromU64(1);
+const overflow_sum = max_u128.add(one);
+try std.testing.expect(overflow_sum.hi == 1);
+try std.testing.expect(overflow_sum.lo == 0);
 
-    // 本章で実装済みのオペコードだけを使う簡略版。
-    // 関数セレクタの検証はせず、calldataの第1引数と第2引数を加算する。
-    const runtime_bytecode = [_]u8{
-        0x60, 0x04, // PUSH1 0x04
-        0x35, // CALLDATALOAD (第1引数)
-        0x60, 0x24, // PUSH1 0x24
-        0x35, // CALLDATALOAD (第2引数)
-        0x01, // ADD
-        0x60, 0x00, // PUSH1 0x00
-        0x52, // MSTORE
-        0x60, 0x20, // PUSH1 0x20
-        0x60, 0x00, // PUSH1 0x00
-        0xf3, // RETURN
-    };
-
-    // 関数呼び出しのcalldata
-    // 0x771602f7 (関数セレクタ) + 0x0000...0005 (a=5) + 0x0000...0003 (b=3)
-    var calldata = std.ArrayList(u8).init(allocator);
-    defer calldata.deinit();
-
-    // 関数セレクタ
-    try calldata.appendSlice(&[_]u8{ 0x77, 0x16, 0x02, 0xf7 });
-
-    // 第1引数: 5 (32バイト、右詰め)
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(5);
-
-    // 第2引数: 3 (32バイト、右詰め)
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(3);
-
-    // EVMを実行
-    const result = try execute(allocator, &runtime_bytecode, calldata.items, 100000);
-    defer allocator.free(result);
-
-    // 結果をチェック（5 + 3 = 8）
-    try std.testing.expectEqual(@as(usize, 32), result.len);
-
-    try std.testing.expectEqual(@as(u8, 8), result[31]);
-}
-```
-
-### EVMデバッグツール
-
-EVM実行をデバッグするために、`src/evm_debug.zig`にデバッグ用のユーティリティを実装します。これにより、EVMの実行状態やスタックの内容を確認できます。
-
-```zig
-//! EVMデバッグユーティリティ
-
-const std = @import("std");
-const evm_types = @import("evm_types.zig");
-const EvmContext = evm_types.EvmContext;
-const Opcode = @import("evm.zig").Opcode;
-
-/// コンテキストの現在位置付近のオペコードを逆アセンブルするヘルパー関数
-pub fn disassembleContext(context: *EvmContext, writer: anytype) !void {
-    // PC前後の限定された範囲のオペコードを逆アセンブル
-    const startPc = if (context.pc > 10) context.pc - 10 else 0;
-    const endPc = if (context.pc + 10 < context.code.len) context.pc + 10 else context.code.len;
-    var pc = startPc;
-
-    while (pc < endPc) {
-        const opcode = context.code[pc];
-        if (pc == context.pc) {
-            try writer.print("[0x{x:0>4}]: ", .{pc}); // 現在のPCをマーク
-        } else {
-            try writer.print("0x{x:0>4}: ", .{pc});
-        }
-
-        // オペコードに応じた出力
-        switch (opcode) {
-            Opcode.STOP => try writer.print("STOP", .{}),
-            Opcode.ADD => try writer.print("ADD", .{}),
-            Opcode.MUL => try writer.print("MUL", .{}),
-            // ... 他のオペコード
-
-            Opcode.PUSH1 => {
-                if (pc + 1 < context.code.len) {
-                    const value = context.code[pc + 1];
-                    try writer.print("PUSH1 0x{x:0>2}", .{value});
-                    pc += 1;
-                } else {
-                    try writer.print("PUSH1 <データ不足>", .{});
-                }
-            },
-
-            else => {
-                try writer.print("UNKNOWN 0x{x:0>2}", .{opcode});
-            },
-        }
-
-        try writer.print("\n", .{});
-        pc += 1;
-    }
-}
-
-/// スタックの内容をダンプする
-pub fn dumpStack(context: *EvmContext, writer: anytype) !void {
-    try writer.print("Stack (depth: {}):\n", .{context.stack.depth()});
-
-    var i: usize = 0;
-    while (i < context.stack.sp) : (i += 1) {
-        const value = context.stack.data[context.stack.sp - 1 - i];
-        try writer.print("  [{d}]: 0x{x}\n", .{ i, value });
-    }
-}
-
-/// EVMの実行状態を表示する
-pub fn dumpContext(context: *EvmContext, writer: anytype) !void {
-    try writer.print("=== EVM State ===\n", .{});
-    try writer.print("PC: 0x{x:0>4}\n", .{context.pc});
-    try writer.print("Gas: {d}\n", .{context.gas});
-    try writer.print("Stopped: {}\n", .{context.stopped});
-
-    if (context.error_msg) |msg| {
-        try writer.print("Error: {s}\n", .{msg});
-    }
-
-    try writer.print("\n", .{});
-    try dumpStack(context, writer);
-    try writer.print("\n", .{});
-    try disassembleContext(context, writer);
-}
-```
-
-### EVMトレースの実装
-
-EVMの実行をステップごとに追跡できるトレース機能も追加しましょう。これにより、各オペコードの実行前後のスタック状態やメモリの変化を記録できます。
-
-```zig
-/// EVMトレースログ
-pub const TraceLog = struct {
-    pc: usize,
-    opcode: u8,
-    gas: usize,
-    stack_before: []const evm_types.EVMu256,
-    stack_after: []const evm_types.EVMu256,
-    memory_size: usize,
-    allocator: std.mem.Allocator,
-
-    pub fn deinit(self: *TraceLog) void {
-        self.allocator.free(self.stack_before);
-        self.allocator.free(self.stack_after);
-    }
+const max_u256 = EVMu256{
+    .hi = std.math.maxInt(u128),
+    .lo = std.math.maxInt(u128),
 };
+try std.testing.expect(max_u256.add(one).eql(EVMu256.zero()));
+try std.testing.expect(EVMu256.zero().sub(one).eql(max_u256));
 
-/// トレース機能付きEVM実行
-pub fn executeWithTrace(
-    allocator: std.mem.Allocator,
-    code: []const u8,
-    calldata: []const u8,
-    gas_limit: usize
-) !struct { result: []const u8, trace: []TraceLog } {
-    var context = EvmContext.init(allocator, code, calldata);
-    context.gas = gas_limit;
-    defer context.deinit();
-
-    var trace_logs = std.ArrayList(TraceLog).init(allocator);
-    defer trace_logs.deinit();
-
-    // 実行ループ
-    while (context.pc < context.code.len and !context.stopped) {
-        // 実行前のスタック状態を記録
-        var stack_before = try allocator.alloc(evm_types.EVMu256, context.stack.sp);
-        @memcpy(stack_before, context.stack.data[0..context.stack.sp]);
-
-        const opcode = context.code[context.pc];
-        const gas_before = context.gas;
-
-        // ステップ実行
-        try executeStep(&context);
-
-        // 実行後のスタック状態を記録
-        var stack_after = try allocator.alloc(evm_types.EVMu256, context.stack.sp);
-        @memcpy(stack_after, context.stack.data[0..context.stack.sp]);
-
-        // トレースログを追加
-        try trace_logs.append(TraceLog{
-            .pc = context.pc,
-            .opcode = opcode,
-            .gas = gas_before - context.gas,
-            .stack_before = stack_before,
-            .stack_after = stack_after,
-            .memory_size = context.memory.data.items.len,
-            .allocator = allocator,
-        });
-    }
-
-    // 結果をコピー
-    const result = try allocator.alloc(u8, context.returndata.items.len);
-    @memcpy(result, context.returndata.items);
-
-    return .{
-        .result = result,
-        .trace = try trace_logs.toOwnedSlice(),
-    };
-}
+const crosses_half = (EVMu256{
+    .hi = 0,
+    .lo = @as(u128, 1) << 127,
+}).mul(EVMu256.fromU64(2));
+try std.testing.expect(crosses_half.eql(.{ .hi = 1, .lo = 0 }));
 ```
 
-## ブロックチェインへのEVM統合
+最初のケースでは桁が`hi`へ移ります。`max_u256 + 1`と`0 - 1`はEVMの規則どおりmod 2^256でラップします。乗算も128ビット境界を越える結果を保持します。
 
-ここまでで独立したEVM実装ができました。次は、これを前章までで作成したブロックチェインに統合します。
+### テストコマンド
 
-### スマートコントラクトのデプロイと実行
-
-ブロックチェインでスマートコントラクトを扱うには、以下の2つの操作が必要です。
-
-1. **デプロイ**: コントラクトのバイトコードをブロックチェインに保存
-2. **実行**: デプロイされたコントラクトの関数を呼び出す
-
-これらの操作を`src/blockchain.zig`に追加します。
-
-```zig
-/// スマートコントラクトのデプロイ
-pub fn deployContract(
-    self: *Blockchain,
-    deployer: []const u8,
-    bytecode: []const u8,
-    gas_limit: usize
-) ![]const u8 {
-    // コントラクトアドレスを生成（簡易版：デプロイヤーアドレス + nonce）
-    var hasher = std.crypto.hash.sha3.Sha3_256.init(.{});
-    hasher.update(deployer);
-    hasher.update(&[_]u8{self.contracts.count()});
-    var hash: [32]u8 = undefined;
-    hasher.final(&hash);
-
-    // アドレスは最後の20バイト
-    const contract_address = hash[12..];
-
-    // EVMでコンストラクタを実行
-    const runtime_code = try evm.execute(
-        self.allocator,
-        bytecode,
-        &[_]u8{},  // コンストラクタ引数なし
-        gas_limit
-    );
-
-    // コントラクトコードを保存
-    try self.contracts.put(
-        try self.allocator.dupe(u8, contract_address),
-        try self.allocator.dupe(u8, runtime_code)
-    );
-
-    return contract_address;
-}
-
-/// スマートコントラクトの呼び出し
-pub fn callContract(
-    self: *Blockchain,
-    contract_address: []const u8,
-    calldata: []const u8,
-    gas_limit: usize
-) ![]const u8 {
-    // コントラクトコードを取得
-    const code = self.contracts.get(contract_address) orelse
-        return error.ContractNotFound;
-
-    // EVMで実行
-    return try evm.execute(
-        self.allocator,
-        code,
-        calldata,
-        gas_limit
-    );
-}
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm_types.zig --test-filter "EVMu256 operations"
 ```
 
-### トランザクションタイプの拡張
+### 期待する結果
 
-スマートコントラクト関連のトランザクションを扱うため、トランザクション構造を拡張します。
+`EVMu256 operations`が`OK`になり、選択したテストがすべて成功します。
+
+このテストで、通常値、128ビット境界、256ビット境界を固定します。
+簡易実装の256ビット乗算全体を保証するものではありません。
+
+## スタックのLIFO動作と境界エラーを確認する
+
+EVMスタックは、後から積んだ値を先に取り出すLIFO構造です。
+この実装では、最大要素数を1024に固定しています。
+
+### 対象ファイル
+
+- `src/evm_types.zig`
+
+### 確認するコード
+
+テストは、`10`、`20`の順に値を積みます。
+取り出す順番は`20`、`10`です。
+空のスタックと満杯のスタックでは、対応するエラーを期待します。
 
 ```zig
-pub const TransactionType = enum {
-    Transfer,        // 通常の送金
-    ContractDeploy,  // コントラクトデプロイ
-    ContractCall,    // コントラクト呼び出し
-};
+try std.testing.expectError(error.StackUnderflow, stack.pop());
 
-pub const Transaction = struct {
-    from: []const u8,
-    to: ?[]const u8,      // デプロイ時はnull
-    amount: u64,
-    data: []const u8,     // コントラクトコードまたはcalldata
-    tx_type: TransactionType,
-    gas_limit: u64,
-    gas_price: u64,
-    nonce: u64,
-    signature: ?[]const u8,
+for (0..1024) |i| {
+    try stack.push(EVMu256.fromU64(@intCast(i)));
+}
+try std.testing.expectError(
+    error.StackOverflow,
+    stack.push(EVMu256.fromU64(1025)),
+);
+```
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm_types.zig --test-filter "EvmStack operations"
+```
+
+### 期待する結果
+
+`EvmStack operations`が`OK`になります。
+`StackUnderflow`と`StackOverflow`は、テストが期待している正常な検証結果です。
+
+## メモリの拡張と32バイトの往復を確認する
+
+EVMメモリは、必要な位置へアクセスしたときに拡張されます。
+`store32`と`load32`は、256ビット値を32バイトとして読み書きします。
+
+### 対象ファイル
+
+- `src/evm_types.zig`
+
+### 確認するコード
+
+テストは、最初に64バイトまで拡張します。
+次に値`42`を書き込み、同じ値を読み戻します。
+オフセット100からの読み込みでは、必要な大きさまで再び拡張されることも確認します。
+
+```zig
+try memory.ensureSize(64);
+try std.testing.expectEqual(@as(usize, 64), memory.data.items.len);
+
+const value = EVMu256.fromU64(42);
+try memory.store32(0, value);
+const loaded_value = try memory.load32(0);
+try std.testing.expect(loaded_value.hi == value.hi);
+try std.testing.expect(loaded_value.lo == value.lo);
+
+_ = try memory.load32(100);
+try std.testing.expect(memory.data.items.len >= 132);
+```
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm_types.zig --test-filter "EvmMemory operations"
+```
+
+### 期待する結果
+
+`EvmMemory operations`が`OK`になります。
+書き込んだ256ビット値を読み戻せて、後方の読み込みに応じてメモリが拡張されます。
+
+## オペコードの正常系を確認する
+
+オペコードのテストは、バイトコードを`execute`へ渡し、戻り値を検証します。
+ここでは、加算から`RETURN`までの最小経路を確認します。
+
+### 対象ファイル
+
+- `src/evm.zig`
+- `src/evm_types.zig`
+
+### 確認するコード
+
+次のバイトコードは、`5 + 3`を計算します。
+結果をメモリの先頭へ保存し、32バイトを返します。
+
+```zig
+const bytecode = [_]u8{
+    0x60, 0x05,
+    0x60, 0x03,
+    0x01,
+    0x60, 0x00,
+    0x52,
+    0x60, 0x20,
+    0x60, 0x00,
+    0xf3,
 };
 ```
 
-## 実践的な使用例
+テストは返された32バイトを`EVMu256`として読み、下位値が`8`であることを確認します。
 
-最後に、完成したEVM統合ブロックチェインの使用例を示します。以下のコードは、Solidityで書かれた`SimpleAdder`コントラクトをデプロイし、`add(5, 3)`を呼び出して結果を取得するものです。
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm.zig --test-filter "Simple EVM execution"
+```
+
+### 期待する結果
+
+`Simple EVM execution`が`OK`になります。
+同じファイルには、乗算、ストレージ、比較、シフト、ジャンプ、`CODECOPY`のテストもあります。
+
+256ビットシフトは、128ビットずつの`hi`/`lo`境界で誤りやすいため、0、1、63、64、127、128、224、255、256ビットをまとめて確認します。
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm.zig --test-filter "EVM 256-bit shift boundaries"
+```
+
+このテストが`OK`になれば、`SHL`、`SHR`、`SAR`の境界と、ABIセレクタ抽出に使う`SHR 224`を同じ実装で扱えています。
+
+## `REVERT`と不正ジャンプを確認する
+
+失敗系では、「失敗したこと」そのものが期待結果です。
+テストが`error.Revert`や`InvalidJump`を受け取れれば、失敗契約を守れています。
+
+### 対象ファイル
+
+- `src/evm.zig`
+- `build.zig`
+
+### 確認するコード
+
+`REVERT`のテストは、オフセット0から32バイトをリバートデータとして指定します。
 
 ```zig
-// メインプログラムでの使用例
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+const bytecode = [_]u8{
+    0x60, 0x20,
+    0x60, 0x00,
+    0xFD,
+};
 
-    // ブロックチェインの初期化
-    var blockchain = try Blockchain.init(allocator);
-    defer blockchain.deinit();
+const calldata = [_]u8{};
+const result = execute(allocator, &bytecode, &calldata, 100000);
+try std.testing.expectError(EVMError.Revert, result);
+```
 
-    // SimpleAdderコントラクトのバイトコード（コンパイル済み）
-    const contract_bytecode = [_]u8{
-        // ... Solidityコンパイラで生成されたバイトコード
-    };
+`REVERT`を`RETURN`と同じ成功として扱ってはいけません。
+このテストは、`execute`が`EVMError.Revert`を返すことを確認します。
+ストレージの巻き戻しやガスの精密な扱いまでは検証していません。
 
-    // コントラクトをデプロイ
-    const deployer = "0x1234567890123456789012345678901234567890";
-    const contract_address = try blockchain.deployContract(
-        deployer,
-        &contract_bytecode,
-        1_000_000  // ガスリミット
-    );
+不正ジャンプのテストは、`JUMPDEST`ではない位置へ移動しようとします。
+`executeWithErrorInfo`の結果は`success == false`となります。
+さらに、`error_type`が`InvalidJump`であることも確認します。
 
-    std.debug.print("コントラクトアドレス: 0x", .{});
-    for (contract_address) |byte| {
-        std.debug.print("{x:0>2}", .{byte});
-    }
-    std.debug.print("\n", .{});
+```zig
+const bytecode = [_]u8{
+    0x60, 0x01,
+    0x56,
+};
 
-    // add(5, 3)を呼び出すcalldataを作成
-    var calldata = std.ArrayList(u8).init(allocator);
-    defer calldata.deinit();
+const calldata = [_]u8{};
+const bytecode_slice = bytecode[0..];
+const calldata_slice = calldata[0..];
+const result = executeWithErrorInfo(
+    allocator,
+    bytecode_slice,
+    calldata_slice,
+    100000,
+);
+try std.testing.expect(!result.success);
+try std.testing.expect(result.error_type.? == EVMError.InvalidJump);
+```
 
-    // 関数セレクタ: 0x771602f7
-    try calldata.appendSlice(&[_]u8{ 0x77, 0x16, 0x02, 0xf7 });
+### テストコマンド
 
-    // 引数1: 5
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(5);
+`REVERT`だけを確認する場合は、テスト名で絞り込みます。
+実装は診断情報をデバッグログへ記録し、テストは返されたエラー値を検証します。
 
-    // 引数2: 3
-    try calldata.appendNTimes(0, 31);
-    try calldata.append(3);
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm.zig --test-filter "EVM REVERT operation"
+```
 
-    // コントラクトを実行
-    const result = try blockchain.callContract(
-        contract_address,
-        calldata.items,
-        100_000  // ガスリミット
-    );
-    defer allocator.free(result);
+不正ジャンプは、次のコマンドで確認します。
 
-    // 結果を表示（8が返るはず）
-    if (result.len >= 32) {
-        const value = result[31];
-        std.debug.print("結果: {d}\n", .{value});
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/evm.zig --test-filter "EVM execution with error info"
+```
+
+### 期待する結果
+
+`EVM REVERT operation`が`OK`になり、コマンドは終了コード0で完了します。
+これはリバートが発生しなかったという意味ではありません。
+期待した`EVMError.Revert`を取得できたという意味です。
+
+不正ジャンプのテストも`OK`になり、エラー種別と失敗位置が保持されます。
+
+## ブロック中継の重複を防ぐ
+
+接続直後には、送信側の待機ブロック配信と受信側の全チェイン同期が重複し得ます。
+同じハッシュのブロックを2回保持せず、受信済みブロックを再送キューへ戻さないことをテストします。
+
+### 対象ファイル
+
+- `src/blockchain.zig`
+- `src/p2p.zig`
+
+`addBlock`は保存済みハッシュを先に確認します。
+
+```zig
+for (chain_store.items) |existing_block| {
+    if (std.mem.eql(u8, &existing_block.hash, &new_block.hash)) {
+        return;
     }
 }
 ```
+
+`broadcastBlock`は、ローカル生成ブロックだけを待機キューへ入れます。`from_peer`があるブロックは受信済みなので、送信先がなくても再キューしません。
+
+```zig
+if (from_peer == null and (available_peers == 0 or !sent)) {
+    pending_blocks.append(blk) catch return;
+}
+```
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/blockchain.zig --test-filter "重複追加しない"
+
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig --test-filter "relayed block is not queued"
+```
+
+両方が`OK`になれば、全チェイン同期とリアルタイム中継が重なってもチェイン高が水増しされません。
+
+## ピア未接続時のEVMトランザクションを確認する
+
+EVMトランザクションを送る時点でピアがいない場合、データを失ってはいけません。
+実装は、シリアライズ済みのペイロードを`pending_evm_txs`へ保存します。
+
+### 対象ファイル
+
+- `src/p2p.zig`
+- `src/parser.zig`
+- `src/types.zig`
+
+### 確認するコード
+
+テストはピア一覧と保留キューを空にしてから、EVMトランザクションを送ります。
+送信後はピア数が0のままで、保留件数だけが1になります。
+
+```zig
+try broadcastEvmTransaction(tx1);
+try std.testing.expectEqual(@as(usize, 0), peer_list.items.len);
+try std.testing.expectEqual(@as(usize, 1), pending_evm_txs.items.len);
+
+const expected_payload_tx1 = try parser.serializeTransaction(allocator, tx1);
+defer allocator.free(expected_payload_tx1);
+try std.testing.expect(std.mem.eql(
+    u8,
+    expected_payload_tx1,
+    pending_evm_txs.items[0],
+));
+```
+
+その後、実ソケットの代わりにモックライターへ送ります。
+テストは`EVM_TX:`プレフィックスと改行を含む送信内容を比較し、キューが空になることを確認します。
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig --test-filter "EVM transaction queuing and flushing"
+```
+
+### 期待する結果
+
+ピアがいないことを示す警告の後、`EVM transaction queuing and flushing`が`OK`になります。
+このテストはモックライターを使うため、実ネットワークには接続しません。
+
+## EVMトランザクションのJSON往復変換を確認する
+
+送信側と受信側でJSONの解釈が違うと、トランザクションを実行できません。
+そこで、シリアライズした値を再びパースし、元の値と比較します。
+
+### 対象ファイル
+
+- `src/p2p.zig`
+- `src/parser.zig`
+- `src/types.zig`
+
+### 確認するコード
+
+比較するのは、送信者、受信者、金額、トランザクション種別、ガス上限、ガス価格です。
+`evm_data`はJSON化するときに16進化され、パース時に元のバイト列へ戻ります。
+
+```zig
+try std.testing.expectEqualStrings(tx2.sender, parsed_tx.sender);
+try std.testing.expectEqualStrings(tx2.receiver, parsed_tx.receiver);
+try std.testing.expectEqual(tx2.amount, parsed_tx.amount);
+try std.testing.expectEqual(tx2.tx_type, parsed_tx.tx_type);
+try std.testing.expectEqual(tx2.gas_limit, parsed_tx.gas_limit);
+try std.testing.expectEqual(tx2.gas_price, parsed_tx.gas_price);
+
+if (tx2.evm_data) |original_data| {
+    try std.testing.expect(parsed_tx.evm_data != null);
+    if (parsed_tx.evm_data) |parsed_data| {
+        try std.testing.expect(std.mem.eql(u8, original_data, parsed_data));
+    }
+} else {
+    try std.testing.expect(parsed_tx.evm_data == null);
+}
+```
+
+このテストは、`tx_type`の数値をそのまま保てることを確認します。
+デプロイやコールの意味を判定するテストではありません。
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/p2p.zig \
+  --test-filter "EVM transaction JSON format consistency"
+```
+
+### 期待する結果
+
+`EVM transaction JSON format consistency (serialize/parse)`が`OK`になります。
+特に、`evm_data`が16進文字列のまま残らず、元のバイト列へ戻ることが重要です。
+
+## 通常トランザクションとPoWを確認する
+
+EVMを追加した後も、元からあるブロックチェインの基本機能を守る必要があります。
+`src/main.zig`には、通常トランザクションとPoWの回帰テストがあります。
+
+### 対象ファイル
+
+- `src/main.zig`
+- `src/types.zig`
+- `src/blockchain.zig`
+
+### 確認するコード
+
+4つのテストが、次の契約を確認します。
+
+- トランザクションの送信者、受信者、金額を初期化できる
+- ブロックのトランザクション配列へ1件追加できる
+- トランザクションの金額を変更するとブロックハッシュが変わる
+- 難易度1で採掘したハッシュの先頭1バイトが`0`
+
+PoWテストの最後のアサーションは次のとおりです。
+
+```zig
+block.hash = blockchain.calculateHash(&block);
+blockchain.mineBlock(&block, 1);
+try std.testing.expectEqual(@as(u8, 0), block.hash[0]);
+```
+
+ナンスやハッシュ全体は採掘条件から決まります。
+このテストでは特定のナンスを固定せず、難易度条件だけを検証します。
+
+### テストコマンド
+
+```bash
+docker run --rm --entrypoint zig zig-blockchain-book \
+  test src/main.zig
+```
+
+### 期待する結果
+
+次のテストがすべて`OK`になります。
+
+- `トランザクションの初期化テスト`
+- `ブロックにトランザクションを追加`
+- `トランザクションの変更でブロックハッシュが変わる`
+- `マイニングが先頭1バイト0のハッシュを生成できる`
+
+## Dockerで完成形の全テストを実行する
+
+最後に、ファイル単体ではなく完成形全体をテストします。
+この手順が、本章の完了条件です。
+
+### 対象ファイル
+
+- `Dockerfile`
+- `build.zig`
+- `src/*.zig`
+
+### 確認するコード
+
+`build.zig`は、`src`内の13モジュールを個別のテストルートとして登録します。
+これにより、`evm_types.zig`、`evm.zig`、`p2p.zig`、`main.zig`などのテストをまとめて実行します。
+
+### テストコマンド
+
+ソースを変更した場合は、最初にイメージを作り直します。
+
+```bash
+docker build \
+  --build-arg ZIG_VERSION=0.14.0 \
+  -t zig-blockchain-book .
+
+docker run --rm zig-blockchain-book \
+  zig build test --summary all
+```
+
+### 期待する結果
+
+現在の完成形では、`27/27 steps succeeded; 83/83 tests passed`と表示されます。
+`83`は13個のテストルートで実行された件数の合計です。Zigではimport先のテストも各テストルートから実行されるため、一意な`test`宣言数とは一致しません。
+コマンドは終了コード0で完了します。
+`REVERT`のような失敗系テストも、期待したエラーを検証できれば成功です。
+
+テストが失敗した場合は、最初に失敗したファイル単体のコマンドへ戻ります。
+値、オペコード、P2P、ブロックチェインのどの境界で壊れたかを切り分けられます。
 
 ## まとめ
 
-この章では、Zigを使用してEthereum Virtual Machine (EVM)の簡易版を実装しました。実装した主な要素は以下の通りです。
+本章では、新しい実装を重ねる代わりに、完成形のテストを仕様として読みました。
 
-1. 256ビット整数型: EVMの基本データ型を独自に実装
-2. スタック・メモリ・ストレージ: EVMの3つの主要なデータ領域を実装
-3. オペコード実行エンジン: バイトコードを解釈・実行する仮想マシン
-4. Solidity形式のcalldata実行: 本章の基本オペコード範囲に限定して引数を読み取る
-5. ブロックチェインへの統合: コントラクトのデプロイと実行をサポート
+- `EVMu256`では、値の演算と桁上がりを確認した
+- スタックでは、LIFOと上下限のエラーを確認した
+- メモリでは、動的拡張と32バイトの往復を確認した
+- オペコードでは、正常な`RETURN`と失敗する`REVERT`を区別した
+- P2Pでは、未送信キューとJSONの往復変換を確認した
+- 通常トランザクションとPoWが、EVM追加後も動くことを確認した
+- 最後に、Zig 0.14.0のDocker環境で全体テストを実行した
 
-この実装により、スマートコントラクトがどのように動作するかを深く理解できました。実際のEthereumのEVMはより多くの機能（全オペコード、ガス計算、プリコンパイルコントラクトなど）を持ちますが、基本的な仕組みは同じです。
-
-次章では、Solidityで書いたシンプルなコントラクトをコンパイルし、この簡易EVM上で実行する流れを確認します。
+テストを通すだけでなく、各テストが何を保証し、何を保証しないかを読むことが重要です。
+この境界が分かれば、次に機能を追加するときも、壊れた場所を小さく切り分けられます。

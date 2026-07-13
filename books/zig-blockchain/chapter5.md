@@ -38,7 +38,7 @@ src/
 
 ## データ型定義の実装
 
-```types.zig
+```zig
 const std = @import("std");
 
 //------------------------------------------------------------------------------
@@ -63,7 +63,7 @@ pub const Block = struct {
 
 ## エラー定義の実装
 
-```errors.zig
+```zig
 pub const ChainError = error{
     InvalidHexLength,
     InvalidHexChar,
@@ -73,7 +73,7 @@ pub const ChainError = error{
 
 ## ユーティリティ関数の実装
 
-```utils.zig
+```zig
 const std = @import("std");
 const ChainError = @import("errors.zig").ChainError;
 
@@ -114,21 +114,20 @@ pub fn toBytesU64(value: u64) [8]u8 {
 }
 
 // publicにする: main.zigから呼べるようにする
-pub fn toBytes(comptime T: type, value: T) []const u8 {
+pub fn toBytes(comptime T: type, value: T) [@sizeOf(T)]u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value))[0..];
+        return toBytesU32(@as(u32, value));
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value))[0..];
+        return toBytesU64(@as(u64, value));
     } else {
-        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-        return bytes[0..];
+        @compileError("toBytes supports only u32 and u64");
     }
 }
 ```
 
 ## ログ周りの実装
 
-```logger.zig
+```zig
 const std = @import("std");
 
 pub const debug_logging = false;
@@ -145,7 +144,7 @@ pub fn debugLog(comptime format: []const u8, args: anytype) void {
 
 ## ブロックチェインの本体の実装
 
-```blockchain.zig
+```zig
 const std = @import("std");
 const crypto = std.crypto.hash;
 const Sha256 = crypto.sha2.Sha256;
@@ -179,9 +178,11 @@ pub fn calculateHash(block: *const types.Block) [32]u8 {
     }
 
     // ブロック番号 (u32) をバイト列に変換して追加
-    hasher.update(utils.toBytes(u32, block.index));
+    const index_bytes = utils.toBytes(u32, block.index);
+    hasher.update(&index_bytes);
     // タイムスタンプ (u64) をバイト列に変換して追加
-    hasher.update(utils.toBytes(u64, block.timestamp));
+    const timestamp_bytes = utils.toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
     // nonce のバイト列を追加
     hasher.update(nonce_bytes[0..]);
     // 前ブロックのハッシュ(32バイト)を追加
@@ -232,7 +233,7 @@ pub fn mineBlock(block: *types.Block, difficulty: u8) void {
 
 ## エントリポイントの実装
 
-```main.zig
+```zig
 // main.zig
 
 const std = @import("std");

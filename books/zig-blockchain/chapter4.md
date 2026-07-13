@@ -58,20 +58,24 @@ fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
 
     // index と timestamp
-    hasher.update(toBytes(u32, block.index));
-    hasher.update(toBytes(u64, block.timestamp));
+    const index_bytes = toBytes(u32, block.index);
+    hasher.update(&index_bytes);
+    const timestamp_bytes = toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
 
     // 前のブロックのハッシュ
     hasher.update(block.prev_hash[0..]);
 
     // ここで nonce を加える
-    hasher.update(toBytes(u64, block.nonce));
+    const nonce_bytes = toBytes(u64, block.nonce);
+    hasher.update(&nonce_bytes);
 
     // トランザクションの各要素をまとめてハッシュ
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
-        hasher.update(toBytes(u64, tx.amount));
+        const amount_bytes = toBytes(u64, tx.amount);
+        hasher.update(&amount_bytes);
     }
 
     // 既存コードとの互換を保つため、data もハッシュに含める
@@ -115,13 +119,9 @@ const Block = struct {
     hash: [32]u8,
 };
 
-/// toBytes関数は、任意の型Tの値をそのメモリ表現に基づく固定長のバイト配列に再解釈し、
-/// その全要素を含むスライス([]const u8)として返します。
-fn toBytes(comptime T: type, value: T) []const u8 {
-    // 左辺で返り値の型を [@sizeOf(T)]u8 として指定する
-    const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-    // 固定長配列を全体スライスとして返す
-    return bytes[0..@sizeOf(T)];
+/// 値のバイト表現を、呼び出し側が所有する固定長配列として返します。
+fn toBytes(comptime T: type, value: T) [@sizeOf(T)]u8 {
+    return @bitCast(value);
 }
 
 /// calculateHash関数
@@ -130,11 +130,14 @@ fn calculateHash(block: *const Block) [32]u8 {
     var hasher = Sha256.init(.{});
 
     // indexとtimestampをバイト列へ変換
-    hasher.update(toBytes(u32, block.index));
-    hasher.update(toBytes(u64, block.timestamp));
+    const index_bytes = toBytes(u32, block.index);
+    hasher.update(&index_bytes);
+    const timestamp_bytes = toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
 
     // nonceもハッシュに含める
-    hasher.update(toBytes(u64, block.nonce));
+    const nonce_bytes = toBytes(u64, block.nonce);
+    hasher.update(&nonce_bytes);
 
     // 前のブロックのハッシュは配列→スライスで渡す
     hasher.update(block.prev_hash[0..]);
@@ -143,7 +146,8 @@ fn calculateHash(block: *const Block) [32]u8 {
     for (block.transactions.items) |tx| {
         hasher.update(tx.sender);
         hasher.update(tx.receiver);
-        hasher.update(toBytes(u64, tx.amount));
+        const amount_bytes = toBytes(u64, tx.amount);
+        hasher.update(&amount_bytes);
     }
 
     // 既存コードとの互換を保つため、dataもハッシュに含める
@@ -366,17 +370,14 @@ fn toBytesU64(value: u64) [8]u8 {
     return bytes;
 }
 
-/// toBytes:
-/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
-/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
-fn toBytes(comptime T: type, value: T) []const u8 {
+/// toBytes: u32, u64 をリトルエンディアンの固定長配列に変換する。
+fn toBytes(comptime T: type, value: T) [@sizeOf(T)]u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value))[0..];
+        return toBytesU32(@as(u32, value));
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value))[0..];
+        return toBytesU64(@as(u64, value));
     } else {
-        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-        return bytes[0..];
+        @compileError("toBytes supports only u32 and u64");
     }
 }
 ```
@@ -428,9 +429,11 @@ fn calculateHash(block: *const Block) [32]u8 {
     }
 
     // ブロック番号 (u32) をバイト列に変換して追加
-    hasher.update(toBytes(u32, block.index));
+    const index_bytes = toBytes(u32, block.index);
+    hasher.update(&index_bytes);
     // タイムスタンプ (u64) をバイト列に変換して追加
-    hasher.update(toBytes(u64, block.timestamp));
+    const timestamp_bytes = toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
     // nonce のバイト列を追加
     hasher.update(nonce_bytes[0..]);
     // 前ブロックのハッシュ(32バイト)を追加
@@ -560,17 +563,14 @@ fn toBytesU64(value: u64) [8]u8 {
     return bytes;
 }
 
-/// toBytes:
-/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
-/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
-fn toBytes(comptime T: type, value: T) []const u8 {
+/// toBytes: u32, u64 をリトルエンディアンの固定長配列に変換する。
+fn toBytes(comptime T: type, value: T) [@sizeOf(T)]u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value))[0..];
+        return toBytesU32(@as(u32, value));
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value))[0..];
+        return toBytesU64(@as(u64, value));
     } else {
-        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-        return bytes[0..];
+        @compileError("toBytes supports only u32 and u64");
     }
 }
 
@@ -600,9 +600,11 @@ fn calculateHash(block: *const Block) [32]u8 {
     }
 
     // ブロック番号 (u32) をバイト列に変換して追加
-    hasher.update(toBytes(u32, block.index));
+    const index_bytes = toBytes(u32, block.index);
+    hasher.update(&index_bytes);
     // タイムスタンプ (u64) をバイト列に変換して追加
-    hasher.update(toBytes(u64, block.timestamp));
+    const timestamp_bytes = toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
     // nonce のバイト列を追加
     hasher.update(nonce_bytes[0..]);
     // 前ブロックのハッシュ(32バイト)を追加
@@ -691,8 +693,8 @@ pub fn main() !void {
 
     // ブロックの初期ハッシュを計算
     genesis_block.hash = calculateHash(&genesis_block);
-    // 難易度 1(先頭1バイトが 0)になるまで nonce を探索する
-    mineBlock(&genesis_block, 1);
+    // 難易度 2(先頭2バイトが 0)になるまで nonce を探索する
+    mineBlock(&genesis_block, 2);
 
     // 結果を標準出力に表示
     try stdout.print("Block index: {d}\n", .{genesis_block.index});
@@ -715,7 +717,7 @@ pub fn main() !void {
 
 ## 実行結果
 
-実行すると、`nonce`が0から始まり、**ハッシュが先頭2バイト「00 00」になるまで**試行します。見つかればそこで終了し、`nonce`が大きな値になることもあります。
+このチェックポイントは `references/chapter3/step4-2` と同じ `difficulty = 2` です。`nonce`が0から始まり、**ハッシュの先頭2バイトが「00 00」になるまで**試行します。
 
 ```bash
 ❯ zig build run
@@ -769,7 +771,7 @@ node3 exited with code 0
 ```
 
 - ビットコインでは**先頭の0ビット**を難易度として扱い、だいたい毎回10分で見つかるぐらいに調整しています。
-- この例のようにバイト単位で先頭2バイトを0にするだけでも、運が悪いと何十万,何百万回と試行することがあり得ます。
+- 先頭1バイトを0にする場合でも試行回数は毎回変わります。先頭2バイトなら期待試行回数は約65,536回となり、運が悪ければさらに多くの試行が必要です。
 - 難易度を1や2程度にしておけば比較的すぐにハッシュが見つかるはずです。
 
 ---
@@ -1033,17 +1035,14 @@ fn toBytesU64(value: u64) [8]u8 {
     return bytes;
 }
 
-/// toBytes:
-/// 任意の型 T の値をそのメモリ表現に基づいてバイト列(スライス)に変換する。
-/// u32, u64 の場合は専用の関数を呼び出し、それ以外は @bitCast で固定長配列に変換します。
-fn toBytes(comptime T: type, value: T) []const u8 {
+/// toBytes: u32, u64 をリトルエンディアンの固定長配列に変換する。
+fn toBytes(comptime T: type, value: T) [@sizeOf(T)]u8 {
     if (T == u32) {
-        return toBytesU32(@as(u32, value))[0..];
+        return toBytesU32(@as(u32, value));
     } else if (T == u64) {
-        return toBytesU64(@as(u64, value))[0..];
+        return toBytesU64(@as(u64, value));
     } else {
-        const bytes: [@sizeOf(T)]u8 = @bitCast(value);
-        return bytes[0..];
+        @compileError("toBytes supports only u32 and u64");
     }
 }
 
@@ -1073,9 +1072,11 @@ fn calculateHash(block: *const Block) [32]u8 {
     }
 
     // ブロック番号 (u32) をバイト列に変換して追加
-    hasher.update(toBytes(u32, block.index));
+    const index_bytes = toBytes(u32, block.index);
+    hasher.update(&index_bytes);
     // タイムスタンプ (u64) をバイト列に変換して追加
-    hasher.update(toBytes(u64, block.timestamp));
+    const timestamp_bytes = toBytes(u64, block.timestamp);
+    hasher.update(&timestamp_bytes);
     // nonce のバイト列を追加
     hasher.update(nonce_bytes[0..]);
     // 前ブロックのハッシュ(32バイト)を追加

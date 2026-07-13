@@ -1,106 +1,219 @@
 ---
-title: "Solidityスマートコントラクトを自作EVM上で実行する"
+title: "完成した学習用ノードを受け入れ確認する"
 free: true
 ---
 
-## はじめに
+ここまでに、ブロック、PoW、P2P、簡易EVM、Solidityコントラクトの実行を組み立てました。本章では新しい機能を足しません。完成版に対して同じ検証をやり直し、「どこまで動き、どこから先は実装していないか」を確定します。
 
-この章では、Solidityで書いたスマートコントラクトを作成したEVMで実行してみます。
+> **対象コード:** `BlockChain`リポジトリ直下の`src/`、`contract/`、`build.zig`です。章の途中状態ではなく、すべてを統合した完成版を使います。
 
-## サンプルコントラクト実行の流れ
+## 受け入れ条件
 
-SimpleAdder.solのようなシンプルなSolidityコントラクトをEVMで実行する基本的な流れは次のとおりです。
+次の条件をすべて満たした時点を、本書の完成とします。
 
-- コントラクトのコンパイル - SolidityコードをEVMバイトコードにコンパイル
-- バイトコードの解析 - バイトコードを読み込み、実行可能な形式に変換
-- 実行コンテキストの準備 - 関数呼び出しに必要なcalldataの作成
-- EVM実行 - バイトコードをステップバイステップで実行
-- 結果の取得 - returndataを取得して結果を解釈
+| 対象 | 受け入れ条件 | 検証場所 |
+| --- | --- | --- |
+| ブロック | トランザクションを含むSHA-256ハッシュを計算できる | `src/main.zig`のテスト |
+| PoW | 難易度で指定した先頭ゼロバイトを持つnonceを探索できる | `src/main.zig`のテスト |
+| EVMの型 | u256、スタック、メモリ、ストレージの成功・失敗を検証できる | `src/evm_types.zig`のテスト |
+| EVM命令 | 算術、メモリ、ジャンプ、RETURN、REVERTなど本書のサブセットを実行できる | `src/evm.zig`のテスト |
+| P2P | 未送信EVMトランザクションをキューへ入れ、JSONを往復できる | `src/p2p.zig`のテスト |
+| Solidity | `Adder.add`のcreation bytecodeをデプロイし、ABI calldataで呼べる | 第12章の実行手順 |
+| 教材コード | 提供済みの章・節チェックポイントをすべてビルドできる | `scripts/verify-book-code.sh` |
 
-### 簡易EVMでの実行
+この表にないEthereum互換性やネットワークの安全性は、受け入れ条件へ含めません。
 
-Zig側で、コンパイルして得たバイトコードと、関数呼び出しの入力データを用意します。完成形コードでは、`evm.execute(allocator, code, calldata, gas_limit)`に渡して実行します。一般にコントラクトの関数を呼び出す際、EVMに与える入力データ（call data）は以下のように構成されます。
+## 提供済みの全チェックポイントを検証する
 
-- 最初の4バイト - 呼び出す関数を表す関数セレクタ（関数識別子）。関数名と引数型から計算される固定の識別子です。
-- 残り - 各引数の値を32バイトにエンコードしたものを順番に並べたもの。
-
-今回の`add(uint256,uint256)`関数の場合、関数セレクタは`"add(uint256,uint256)"`という文字列のKeccak-256ハッシュの先頭4バイトで決まります。計算すると`0x771602f7`という値になります。続いて、例えば引数`a = 10`、`b = 32`を与えたい場合、それぞれ32バイトにパディングされた表現を付加します。10は16進で`0x0a`、32は`0x20`ですので、32バイト表現ではそれぞれ`0x000...00a`（最後の1バイトが0×0a）と`0x000...020`になります。つまり、呼び出しデータ全体を16進で表すと次のようになります。
-
-```bash
-0x771602f7 000000000000000000000000000000000000000000000000000000000000000a
-0000000000000000000000000000000000000000000000000000000000000020
-```
-
-（スペースは見やすさのため。実際には詰めて68バイトのデータ）。このデータを`evm.execute`の`calldata`に渡せば、関数`add(10,32)`を実行したのと同じ効果が得られるはずです。
-
-では、Zigの`main`関数内で具体的に実行してみます。Zigでの16進データの扱いとして、ここでは簡単のため入力データをバイト配列リテラルとして直接埋め込んでいます。先ほどのバイトコードもコピーしてバイト列として渡します。
-
-```zig
-const std = @import("std");
-const evm = @import("evm.zig");
-
-pub fn main() !void {
-    const bytecode = &[_]u8{
-        // ここにAdderコントラクトのバイトコードを16進で並べる（長いため省略）
-        0x60,0x80,0x60,0x40,0x52,0x34,0x80,0x15,0x60,0x0f,0x57,0x60,0x00,0x80,0xfd,0x5b,
-        0x50,0x60,0x15,0x00,0x56,0xfe,0xa2,0x64,0x69,0x70,0x66,0x73,0x58,0x22,0x12,0x20,
-        // （中略: 実際にはバイトコード全体をここに貼り付け）
-    };
-    const input_data = &[_]u8{
-        // 関数セレクタ 0x771602f7
-        0x77, 0x16, 0x02, 0xf7,
-        // 引数a=10の32バイト表現（31バイトの0の後に0x0a）
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,
-        // 引数b=32の32バイト表現（31バイトの0の後に0x20）
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,
-    };
-
-    const allocator = std.heap.page_allocator;
-    const result = try evm.execute(allocator, bytecode, input_data, 100000);
-    defer allocator.free(result);
-
-    // 結果を16進数で出力
-    std.debug.print("Return data (hex): ", .{});
-    for (result) |byte| {
-        std.debug.print("{02x}", .{byte});
-    }
-    std.debug.print("\n", .{});
-}
-```
-
-上記の`main`では、`bytecode`にコンパイルして得たAdderコントラクトのバイトコード（ランタイム部分も含む）をバイト列として定義しています。次に`input_data`を、先ほど説明した関数セレクタ＋引数の形式で構築しています。そして`try evm.execute(allocator, bytecode, input_data, 100000)`を呼び出し、その戻り値（バイト列）を取得しています。
-
-最後に、その`result`バイト列を16進で出力しています。EVM上の関数戻り値は32バイト長のデータ（今回なら計算結果の整数を32バイトにエンコードしたもの）なので、それをそのまま表示する形です。
-
-ただし、上のコードはバイトコードを途中で省略しています。次のログは、このまま実行した結果ではありません。完全なバイトコードを貼り付けた場合の期待値の例です。
-
-Zigファイルを`evm_main.zig`とすると、以下のようにコンパイル＆実行します。
+リポジトリ直下で検証スクリプトを実行します。
 
 ```bash
-$ zig build-exe evm_main.zig
-$ ./evm_main
-Return data (hex): 000000000000000000000000000000000000000000000000000000000000002a
+sh scripts/verify-book-code.sh
 ```
 
-出力された`Return data`がずらっと並ぶ0と`2a`という値になっていることがわかります。`0x2a`は10進数で42に相当します。元の関数呼び出しは`add(10, 32)`でしたので、戻り値が42となるのが期待される挙動です。
+スクリプトは、完成版と`references/`配下の自己完結したプロジェクトを順にビルドし、`test`ステップがある場合はテストも実行します。macOSではDocker、Zig 0.14.0を利用できるLinuxではローカルのZigを使います。
 
-完成形リポジトリで再現する場合は、`solc --bin`でバイトコードを生成し、`zig build run -- --deploy ... --call ...`の流れで確認できます。
-この手順は、完成形リポジトリのREADMEにあるSimpleAdderの実行例に合わせたものです。
+各ディレクトリの最後に`PASS`が並び、終了コードが`0`なら成功です。途中で失敗した場合、最初に表示されたディレクトリが問題のチェックポイントです。
 
-このようにして、Solidityで書いたスマートコントラクト（の一部機能）を、実装したEVMエンジン上で実行する流れを確認できます。もちろん、実際のEthereumノードが行っている処理のごく一部を真似ただけですが、EVMバイトコードの動作原理を体験できます。
+特定の章だけを再確認できます。
 
-## EVMの拡張と発展的な話題
+```bash
+sh scripts/verify-book-code.sh references/chapter3/step2
+sh scripts/verify-book-code.sh references/chapter8
+sh scripts/verify-book-code.sh references/EVMchapter
+```
 
-### zkEVMとEVMの進化
+## 決定的なEVMスモークテスト
 
-近年注目されている技術トピックとして**zkEVM**があります。zkEVMとは、**Zero-Knowledge Proof（ゼロ知識証明）**を統合したEVM互換の実行環境のことです。 [Kakarot zkEVM の詳細解説：Starknet の EVM 互換の道 - ChainCatcher](https://www.chaincatcher.com/ja/article/2097197)。具体的には、通常は全ノードがEVMを実行してトランザクションを検証するところを、EVMの実行プロセス自体を暗号学的証明（有効性証明）によって保証しようという試みで。これにより、ブロックチェイン上の全検証者が逐一EVM計算を再現しなくても、証明を検証するだけで正しい結果であることを確認できるようになります。
+ネットワークや実時刻を使わず、`5 + 3 = 8`だけを計算します。対象は`src/evm.zig`の実行ループです。
 
-zkEVMは主にLayer2（レイヤー2）のスケーリングソリューションとして期待されています。代表的なプロジェクトにPolygon zkEVMやScroll、StarkWareの**Kakarot**などがあります。例えばKakarotはStarknet上にCairo言語で実装されたEVM互換機です。CairoスマートコントラクトとしてEVMのスタックやメモリ、命令実行をシミュレートするものになっています。zkEVMによってLayer2上でEVMをそのまま動かしつつ、各トランザクションの有効性をロールアップします。そうすることで、Ethereumメインネットよりも高速・安価な処理を実現できます。
+```bash
+zig build run -- --evm 600560030160005260206000f3 --gas 100000
+```
 
-Ethereum自体の進化という点では、イスタンブールやロンドンといったハードフォークでEVMのガスコスト調整や新命令の追加してきました。直近では`RETURNDATA`系命令の導入や`CREATE2`命令の追加などがありました。また将来的な提案として、EVMのバイトコードフォーマットを改良する**EVM Object Format (EOF)**や、高レベル命令セットへの置き換えなどもあります。しかし互換性の問題から、EthereumメインネットのEVMは慎重にアップグレードが進められています。現在はEthereum2.0移行に伴いコンセンサス層が大きく変わりましたが、実行層としてのEVMは従来の仕組みを維持しています。その意味で、EVMは依然としてEthereumエコシステムの根幹であり続けています。
+バイトコードを分解すると次の処理になります。
 
-### おわりに
+```text
+PUSH1 0x05
+PUSH1 0x03
+ADD
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+```
 
-本記事では、Zig言語を使ってEVMの簡易実装に挑戦し、Solidityスマートコントラクトの実行を確認しました。EVMの仕組み（スタックマシン、バイトコード、ガスモデルなど）を低レベルから体験することで、Solidityを書くときにもその裏側をイメージできるようになったのではないでしょうか。
+期待する結果は32バイトの整数`8`です。16進表示では末尾が`08`、u256表示では`8`になります。
+
+macOSでは、リポジトリ直下のDockerfileからZig 0.14.0の実行イメージを作り、同じスモークテストを実行します。
+
+```bash
+docker build -t zig-blockchain-book:0.14.0 .
+docker run --rm zig-blockchain-book:0.14.0 \
+  zig build run -- --evm 600560030160005260206000f3 --gas 100000
+```
+
+この確認が失敗した場合は、P2PやSolidityへ進まず、次のテストを個別に実行します。
+
+```bash
+zig test src/evm_types.zig
+zig test src/evm.zig --test-filter "Simple EVM execution"
+```
+
+## 失敗を成功として扱わない
+
+完成確認では、正常な戻り値だけでなく停止理由も区別します。
+
+### スタック不足
+
+空のスタックに対する`POP`や、引数が足りない算術命令は`StackUnderflow`です。0を補って実行を続けてはいけません。
+
+### 不正なジャンプ
+
+`JUMP`と`JUMPI`の宛先は、有効な`JUMPDEST`でなければ`InvalidJump`です。バイト列の途中へ自由にジャンプさせてはいけません。
+
+### REVERT
+
+`REVERT`はEVMを異常終了させる命令ですが、テストの観点では「期待した`Revert`エラーを返せた」ことが成功条件です。
+
+```bash
+zig test src/evm.zig --test-filter "EVM REVERT operation"
+```
+
+### 未知のオペコード
+
+本書で実装していない命令は`InvalidOpcode`として停止します。Ethereumが定義するすべての命令を、この簡易EVMが実行できるわけではありません。
+
+## Solidityの受け入れ確認
+
+第12章で作った`DATA`を使い、`Adder.add(2, 3)`をもう一度実行します。
+
+Linuxで`solc` 0.8.24をインストールしている場合は次を実行します。
+
+```bash
+mkdir -p /tmp/zig-book-out
+solc --bin contract/SimpleAdder.sol -o /tmp/zig-book-out --overwrite
+SEL=$(solc --hashes contract/SimpleAdder.sol | awk '/add\(uint256,uint256\)/{print $1}' | sed 's/://')
+A=$(printf "%064x" 2)
+B=$(printf "%064x" 3)
+DATA="0x${SEL}${A}${B}"
+```
+
+macOSでは`solc`もDockerで実行します。
+
+```bash
+mkdir -p .zig-book-out
+docker run --rm \
+  -w /sources \
+  -v "$PWD/contract:/sources:ro" \
+  -v "$PWD/.zig-book-out:/out" \
+  ethereum/solc:0.8.24 \
+  --bin SimpleAdder.sol -o /out --overwrite
+
+SEL=$(docker run --rm \
+  -w /sources \
+  -v "$PWD/contract:/sources:ro" \
+  ethereum/solc:0.8.24 \
+  --hashes SimpleAdder.sol \
+  | awk '/add\(uint256,uint256\)/{print $1}' | sed 's/://')
+A=$(printf "%064x" 2)
+B=$(printf "%064x" 3)
+DATA="0x${SEL}${A}${B}"
+```
+
+1ノードでデプロイとコールを続けて実行します。
+
+```bash
+zig build run -- \
+  --listen 9000 \
+  --deploy "$(cat /tmp/zig-book-out/Adder.bin)" 0x000000000000000000000000000000000000abcd \
+  --call 0x000000000000000000000000000000000000abcd "$DATA" \
+  --gas 3000000 \
+  --sender 0x000000000000000000000000000000000000dead
+```
+
+次の4点をログで確認します。
+
+1. creation bytecodeの実行が成功する。
+2. runtime codeが`contract_storage`へ保存される。
+3. デプロイブロックがPoW条件を満たして追加される。
+4. コール結果の32バイト値が`5`になる。
+
+確認後は`Ctrl+C`でノードを終了します。
+
+macOSでは、第12章で作った実行イメージへbytecodeと`DATA`を渡します。
+
+```bash
+docker run --rm -it \
+  -e DATA="$DATA" \
+  -v "$PWD/.zig-book-out:/contract:ro" \
+  zig-blockchain-book:0.14.0 \
+  sh -ec 'exec zig build run -- \
+    --listen 9000 \
+    --deploy "$(cat /contract/Adder.bin)" 0x000000000000000000000000000000000000abcd \
+    --call 0x000000000000000000000000000000000000abcd "$DATA" \
+    --gas 3000000 \
+    --sender 0x000000000000000000000000000000000000dead'
+```
+
+結果を確認したら`Ctrl+C`で停止し、生成物を削除します。
+
+```bash
+rm -rf .zig-book-out
+```
+
+## コードと本文のドリフトを防ぐ
+
+本文のコードを変更したときは、対応する`references/`またはルート`src/`も変更し、次の順で確認します。
+
+```bash
+zig fmt --check .
+sh scripts/verify-book-code.sh
+```
+
+原稿リポジトリでは、MarkdownとZennの構文も検証します。
+
+```bash
+pnpm lint
+pnpm exec zenn list:books
+```
+
+本文へ新しいCLI、ファイル名、期待結果を書く場合、実コードに同じ名前が存在するかを確認してください。擬似コードを掲載する場合は、実行可能なコードと誤認されないよう「設計案」と明示し、本編の完成手順には混ぜません。
+
+## 完成版の限界
+
+本書で完成するのは、仕組みを観察するための学習用ノードです。次の性質は持ちません。
+
+- `addBlock`は本格的なフォーク選択や全状態遷移を検証しない。
+- 同期は、信頼できない相手からのチェインを安全に採用する合意プロトコルではない。
+- ブロックハッシュはトランザクションの全フィールドやコントラクト状態を確約しない。
+- EVMでは、命令別ガス、永続ストレージ、外部コール、ログ、暗号プリコンパイルが完全ではない。
+- トランザクション署名、アカウント残高、nonce、手数料市場は実装していない。
+- ネットワーク入力に対する認証、帯域制御、永続DB、クラッシュ復旧は実装していない。
+
+この境界を保ったまま、ブロック生成、PoW、伝播、同期、バイトコード実行、コントラクトのデプロイとコールを1つのプログラムで追えることが、本書の到達点です。
+
+## まとめ
+
+完成版の受け入れ確認では、ユニットテスト、章チェックポイント、決定的なEVMスモークテスト、Solidityのデプロイとコールを順に実行しました。失敗ケースと実装範囲も固定したので、「動いたこと」と「本番利用できること」を混同せず、ここから先の改良へ進めます。

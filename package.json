@@ -6,6 +6,8 @@
   "scripts": {
     "lint": "npx textlint ./**/*.md ./books/**/*.md",
     "lint:fix": "npx textlint --fix ./**/*.md ./books/**/*.md",
+    "validate:books": "zenn list:books",
+    "verify:zig-book": "sh scripts/verify-zig-book.sh",
     "preview": "npx zenn preview",
     "lint-staged": "lint-staged",
     "husky": "husky"

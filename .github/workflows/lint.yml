@@ -35,5 +35,5 @@ jobs:
         run: |
           make install
 
-      - name: Lint
-        run: make lint
+      - name: Lint and validate books
+        run: make before_commit
