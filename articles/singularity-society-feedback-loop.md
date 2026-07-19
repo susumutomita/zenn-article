@@ -3,7 +3,7 @@ title: "ブートキャンプに参加してみたら質の高いフィードバ
 emoji: "🛰️"
 type: "idea"
 topics: [コミュニティ, 個人開発, スタートアップ, プロダクト開発]
-published: false
+published: true
 publication_name: singularity
 ---
 
