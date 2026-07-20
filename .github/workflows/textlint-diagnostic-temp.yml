@@ -6,14 +6,17 @@ on:
       - articles/tenkacloud-ai-agent-harness
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: articles/tenkacloud-ai-agent-harness
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -33,22 +36,23 @@ jobs:
       - name: Capture textlint output and auto-fix result
         shell: bash
         run: |
+          mkdir -p .textlint-diagnostic-temp
           set +e
-          pnpm exec textlint articles/tenkacloud-ai-agent-harness.md > textlint-output.txt 2>&1
+          pnpm exec textlint articles/tenkacloud-ai-agent-harness.md > .textlint-diagnostic-temp/textlint-output.txt 2>&1
           status=$?
-          printf '\nexit_code=%s\n' "$status" >> textlint-output.txt
-          cp articles/tenkacloud-ai-agent-harness.md article-before-fix.md
-          pnpm exec textlint --fix articles/tenkacloud-ai-agent-harness.md > textlint-fix-output.txt 2>&1
-          printf '\nexit_code=%s\n' "$?" >> textlint-fix-output.txt
-          cp articles/tenkacloud-ai-agent-harness.md article-after-fix.md
+          printf '\nexit_code=%s\n' "$status" >> .textlint-diagnostic-temp/textlint-output.txt
+          cp articles/tenkacloud-ai-agent-harness.md .textlint-diagnostic-temp/article-before-fix.md
+          pnpm exec textlint --fix articles/tenkacloud-ai-agent-harness.md > .textlint-diagnostic-temp/textlint-fix-output.txt 2>&1
+          printf '\nexit_code=%s\n' "$?" >> .textlint-diagnostic-temp/textlint-fix-output.txt
+          cp articles/tenkacloud-ai-agent-harness.md .textlint-diagnostic-temp/article-after-fix.md
+          git restore articles/tenkacloud-ai-agent-harness.md
           exit 0
 
-      - name: Upload diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: textlint-diagnostic
-          path: |
-            textlint-output.txt
-            textlint-fix-output.txt
-            article-before-fix.md
-            article-after-fix.md
+      - name: Commit diagnostics to the branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .textlint-diagnostic-temp
+          git commit -m "chore: capture temporary textlint diagnostics"
+          git push
