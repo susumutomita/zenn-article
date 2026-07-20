@@ -1,58 +1,14 @@
-name: textlint-diagnostic-temp
+name: textlint-diagnostic-temp-disabled
 
 on:
-  push:
-    branches:
-      - articles/tenkacloud-ai-agent-harness
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  diagnose:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
+    if: false
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          ref: articles/tenkacloud-ai-agent-harness
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Capture textlint output and auto-fix result
-        shell: bash
-        run: |
-          mkdir -p .textlint-diagnostic-temp
-          set +e
-          pnpm exec textlint articles/tenkacloud-ai-agent-harness.md > .textlint-diagnostic-temp/textlint-output.txt 2>&1
-          status=$?
-          printf '\nexit_code=%s\n' "$status" >> .textlint-diagnostic-temp/textlint-output.txt
-          cp articles/tenkacloud-ai-agent-harness.md .textlint-diagnostic-temp/article-before-fix.md
-          pnpm exec textlint --fix articles/tenkacloud-ai-agent-harness.md > .textlint-diagnostic-temp/textlint-fix-output.txt 2>&1
-          printf '\nexit_code=%s\n' "$?" >> .textlint-diagnostic-temp/textlint-fix-output.txt
-          cp articles/tenkacloud-ai-agent-harness.md .textlint-diagnostic-temp/article-after-fix.md
-          git restore articles/tenkacloud-ai-agent-harness.md
-          exit 0
-
-      - name: Commit diagnostics to the branch
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .textlint-diagnostic-temp
-          git commit -m "chore: capture temporary textlint diagnostics"
-          git push
+      - run: echo disabled
