@@ -1,0 +1,12 @@
+
+/home/runner/work/zenn-article/zenn-article/articles/tenkacloud-ai-agent-harness.md
+  13:24  error    【dict6】 "変更を実行"は冗長な表現です。"変更する"など簡潔な表現にすると文章が明瞭になります。
+解説: https://github.com/textlint-ja/textlint-rule-ja-no-redundant-expression#dict6  ja-technical-writing/ja-no-redundant-expression
+  13:77  ✓ error  インターフェース => インタフェース                                                              spellcheck-tech-word
+
+✖ 2 problems (2 errors, 0 warnings, 0 infos)
+✓ 1 fixable problem.
+Try to run: $ textlint --fix [file]
+
+
+exit_code=1
