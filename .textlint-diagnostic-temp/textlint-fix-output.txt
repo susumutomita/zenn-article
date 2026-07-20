@@ -1,9 +1,2 @@
 
-/home/runner/work/zenn-article/zenn-article/articles/tenkacloud-ai-agent-harness.md
-  13:77  ✔   インターフェース => インタフェース  spellcheck-tech-word
-
-✔ Fixed 1 problem
-✖ Remaining 1 error, 0 warnings, 0 infos
-
-
-exit_code=1
+exit_code=0
