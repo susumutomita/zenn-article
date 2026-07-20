@@ -1,0 +1,54 @@
+name: textlint-diagnostic-temp
+
+on:
+  push:
+    branches:
+      - articles/tenkacloud-ai-agent-harness
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Capture textlint output and auto-fix result
+        shell: bash
+        run: |
+          set +e
+          pnpm exec textlint articles/tenkacloud-ai-agent-harness.md > textlint-output.txt 2>&1
+          status=$?
+          printf '\nexit_code=%s\n' "$status" >> textlint-output.txt
+          cp articles/tenkacloud-ai-agent-harness.md article-before-fix.md
+          pnpm exec textlint --fix articles/tenkacloud-ai-agent-harness.md > textlint-fix-output.txt 2>&1
+          printf '\nexit_code=%s\n' "$?" >> textlint-fix-output.txt
+          cp articles/tenkacloud-ai-agent-harness.md article-after-fix.md
+          exit 0
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: textlint-diagnostic
+          path: |
+            textlint-output.txt
+            textlint-fix-output.txt
+            article-before-fix.md
+            article-after-fix.md
