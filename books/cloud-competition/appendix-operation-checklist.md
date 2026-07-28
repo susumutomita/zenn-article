@@ -51,6 +51,17 @@ free: true
 - [ ] `systemctl start nginx`で復旧する
 - [ ] revertで自動復旧する
 
+## ローカル問題
+
+- [ ] `runtime.entry`が実在するCompose fileを指している
+- [ ] 攻略対象と`/verify`を別のportで提供している
+- [ ] 公開portを`127.0.0.1`へbindしている
+- [ ] flagを実行ごとの`FLAG_SEED`から生成している
+- [ ] 不正解時に`/verify`が答えを漏らさない
+- [ ] `make local PROBLEM=sqli-demo`で起動できる
+- [ ] Participant Portalから正答と誤答を確認した
+- [ ] `make local-down`で終了した
+
 ## 当日
 
 - [ ] 全チームがParticipant Portalへログインした

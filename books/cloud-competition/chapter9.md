@@ -30,7 +30,6 @@ make agent-gate
 - READMEの必須ファイルがある
 - Challengeの点数とヒント減点が規定どおりである
 - `index.json`とcost reportに差分がない
-- Simulator向け定義が契約に一致する
 
 ## hello-worldで確認したい接続
 

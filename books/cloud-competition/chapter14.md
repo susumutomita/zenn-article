@@ -1,9 +1,9 @@
 ---
-title: "2つの問題をイベントへ登録する"
+title: "作った競技を複数チームへ配る"
 free: true
 ---
 
-TenkaCloud Liteをデプロイしたら、参加チームのAWSアカウントを接続し、イベントを作ります。
+TenkaCloud Liteをデプロイしただけでは、まだ参加者は競技を遊べません。チーム用AWSアカウントを接続し、イベントへ2問を登録し、各チームへ問題環境を配ります。
 
 流れは次のとおりです。
 
@@ -19,7 +19,7 @@ flowchart LR
     Bootstrap --> Register --> Event --> Problems --> Deploy --> Login
 ```
 
-## 競技者用AWSアカウントを準備する
+## チーム用AWSアカウントを接続する
 
 各チームのAWSアカウントへ、TenkaCloudが問題stackを作るためのRoleが必要です。
 
@@ -31,6 +31,8 @@ TenkaCloudリポジトリの`infrastructure/templates/competitor-bootstrap.yaml`
 - イベント運営側で設定した`ExternalId`
 
 競技者アカウント側で作成されたRole ARNを、Application Admin Consoleへ登録します。
+
+このRoleを使う理由と`ExternalId`の働きは、「TenkaCloudがチームのAWSへアクセスする仕組み」で説明しました。コードまで確認したい場合は、[クロスアカウント設計の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)も参照してください。
 
 ## イベントを作る
 

@@ -3,7 +3,7 @@ title: "READMEと構成図を仕上げる"
 free: true
 ---
 
-TenkaCloudChallengeでは、各問題に`README.md`と`README.ja.md`が必要です。`metadata.json`がTenkaCloudの表示と採点の正本であるのに対し、READMEは問題作者、レビュー担当者、イベント運営者が設計を確認する文書です。
+TenkaCloudChallengeでは、各問題に`README.md`と`README.ja.md`が必要です。`metadata.json`はTenkaCloudが読み取る表示と採点の定義で、READMEは問題作者、レビュー担当者、イベント運営者が設計を確認する文書です。
 
 ## READMEに書く内容
 
@@ -65,10 +65,4 @@ flowchart LR
 
 構成図へ正解値や、参加者が発見すべき情報を書きません。リソースの関係と操作の流れを短く見せます。
 
-## simulation.jsonの扱い
-
-`simulation.json`は、CloudFormation、採点、障害定義からSimulatorが読み取れない要件だけを補います。答え、flag、秘密情報は書きません。
-
-既存問題を複製して新しい問題を作る場合、`simulation.json`をそのまま残さないでください。自分の問題に本当に必要かを確認し、不要なら`metadata.json`の`simulationOverlay`とファイルを外します。
-
-次章では、作成したChallengeをファイル単位で確認します。
+次章では、作成したChallengeを参加者の操作順に通して確認します。

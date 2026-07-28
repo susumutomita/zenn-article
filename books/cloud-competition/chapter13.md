@@ -1,9 +1,9 @@
 ---
-title: "TenkaCloud LiteをAWSへデプロイする"
+title: "TenkaCloud LiteでAWS競技を開く"
 free: true
 ---
 
-ここまでで、TenkaCloudChallengeに2問を作りました。次は、問題をチームへ配り、採点するTenkaCloud LiteをAWSへデプロイします。
+ここからは、作成したAWS問題を参加者へ届ける運営側の作業です。`hello-world`と`hello-world-battle`をチームへ配り、採点するため、TenkaCloud LiteをAWSへデプロイします。
 
 TenkaCloud Liteは、1人の主催者が1つのイベントを運営するための構成です。Application Admin Console、Participant Portal、問題デプロイ用のbackendをAWSへ作ります。
 
@@ -13,7 +13,7 @@ TenkaCloudのランディングページには、AWS上へTenkaCloud Liteをデ�
 
 [deploy-tenkacloud-liteを開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
-この問題は、ローカルモードの問題とは別です。自分のAWSアカウントへTenkaCloud Liteを作り、最初のイベントまで進めます。
+この問題は、自分のAWSアカウントへTenkaCloud Liteを作るための案内です。前章で作ったDocker問題を動かすローカルモードとは別の入口です。
 
 問題は、次の4段階で構成されています。
 
@@ -22,7 +22,7 @@ TenkaCloudのランディングページには、AWS上へTenkaCloud Liteをデ�
 3. 競技者用AWSアカウントを接続する
 4. 最初のイベントを作る
 
-本章では全体像を説明します。画面上の最新手順と入力値は、LPの問題を正本にしてください。
+本章では、作成されるものと操作の意味を説明します。画面上の最新手順と入力値は、LPから開くデプロイ問題を確認してください。
 
 ## launcherとTenkaCloud Liteを分けて考える
 

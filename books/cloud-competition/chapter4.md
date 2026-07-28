@@ -1,9 +1,9 @@
 ---
-title: "問題カタログを準備する"
+title: "問題を置く場所と作成手順を知る"
 free: true
 ---
 
-ここから、TenkaCloudChallengeへ問題ファイルを作ります。最初にリポジトリの規約、品質確認のコマンド、Claude Codeの問題作成スキルを確認します。
+ここから、前章で設計した競技をTenkaCloudChallengeへ実装します。コードを書く前に、問題をどこへ置き、どのファイルが何を担当するのかを確認します。
 
 ## リポジトリを準備する
 
@@ -13,7 +13,7 @@ cd TenkaCloudChallenge
 make install
 ```
 
-`make install`は、このリポジトリが定めた依存関係の導入コマンドです。直接`bun install`を実行する必要はありません。
+`make install`は、このリポジトリが定めた依存関係の導入コマンドです。
 
 問題を編集する前に、リポジトリ直下の`AGENT.md`を読みます。
 
@@ -40,16 +40,14 @@ challenges/hello-world/
 ├── template.yaml
 ├── README.md
 ├── README.ja.md
-├── diagram.svg
-└── simulation.json
+└── diagram.svg
 
 battles/hello-world-battle/
 ├── metadata.json
 ├── template.yaml
 ├── README.md
 ├── README.ja.md
-├── diagram.svg
-└── simulation.json
+└── diagram.svg
 ```
 
 各ファイルの役割は次のとおりです。
@@ -61,9 +59,8 @@ battles/hello-world-battle/
 | `README.md` | 問題作者と利用者向けの英語説明 |
 | `README.ja.md` | READMEの日本語版 |
 | `diagram.svg` | Participant Portalへ表示する構成図 |
-| `simulation.json` | Simulatorの自動読取で不足する情報だけを補う定義 |
 
-最初に必要なのは`metadata.json`、`template.yaml`、2つのREADMEです。`diagram.svg`は複数リソースの関係を見せたい場合に追加します。`simulation.json`は既存ファイルを無条件にコピーせず、Simulator側で不足する情報がある場合だけ使います。
+AWS問題に必要なのは`metadata.json`、`template.yaml`、2つのREADMEです。`diagram.svg`は、複数リソースの関係をParticipant Portalで見せるために追加します。
 
 ## Claude Codeで新しい問題を作る
 
@@ -95,7 +92,7 @@ Battleを作る場合は、次のように入力します。
 
 引数を省略すると、ChallengeかBattleかを聞かれます。その後、slug、題材、難易度、想定時間、採点方式を答えます。
 
-このスキルは新規問題専用です。既存の`hello-world`や`hello-world-battle`を編集するときには使いません。`AGENT.md`を読み、対象ファイルを直接編集します。
+このスキルは、新しい題材から問題を作るときに使います。カテゴリを選んだ後も、題材、参加者に持ち帰ってほしいこと、ストーリー、採点方式を自分で決める必要があります。スキルは競技の内容を代わりに決めるものではなく、決めた内容をリポジトリの形式へ変換する補助です。
 
 ## Claude Codeを使わない場合
 
@@ -108,4 +105,6 @@ cp -R battles/hello-world-battle battles/<新しいslug>
 
 その後、`id`、表示文、AWSリソース、採点、Output、READMEを自分の題材へ変更します。ChallengeとBattleを同時に作る必要はありません。学習目標に合う形式を1つ選び、1問を1つのPull Requestで追加します。
 
-本書では複製による新規問題作成より前に、スターターとなる2問を構成要素から理解します。次章では、`hello-world`の`template.yaml`を作ります。
+本書では、前章までに決めた設計から`hello-world`と`hello-world-battle`を一から組み立てます。完成後に別の題材へ発展させるとき、ここで説明したスキルとstarterを使います。
+
+次章では、`hello-world`の参加者体験をAWS上に作るため、`template.yaml`を書きます。

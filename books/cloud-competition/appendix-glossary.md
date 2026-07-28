@@ -3,6 +3,10 @@ title: "付録B｜用語集"
 free: true
 ---
 
+## クラウド競技
+
+参加者がクラウド運用を模した状況で環境を調査、設定、復旧し、その結果を採点する実践型の演習です。
+
 ## Challenge
 
 参加者が自分のペースで解く問題形式です。`flag`、`verify`、`multi-verify`などの採点方式があります。
@@ -30,6 +34,10 @@ TenkaCloudが読み込む公開問題カタログです。1問を1ディレク�
 ## TenkaCloud Lite
 
 1人の主催者が1つのイベントを開催するための、単一tenant構成です。
+
+## ローカルモード
+
+TenkaCloudの採点API、Participant Portal、Docker問題を手元で動かす構成です。AWSアカウントやAWS認証情報を使いません。
 
 ## Problem Pack
 
@@ -67,6 +75,10 @@ TenkaCloudが競技者アカウントのRoleを引き受けるときに使う追
 
 Battleで参加者が登録するURLの入力枠です。採点定義はslot名を使って対象URLを参照します。
 
+## endpoint
+
+TenkaCloudがHTTP要求を送り、サービスの状態を確認するURLです。参加者がParticipant Portalから登録する場合があります。
+
 ## `uptime-flat`
 
 複数のendpointを個別に確認し、正常状態を継続的に採点する方式です。
@@ -74,6 +86,10 @@ Battleで参加者が登録するURLの入力枠です。採点定義はslot名�
 ## disruption
 
 運営がBattle中に実行する障害です。実際の処理を`action`へ書き、元へ戻す処理を`revert`へ書きます。
+
+## レッドチーム
+
+Battle中に、問題へ定義済みの障害や攻撃を対象チームへ実行する運営側の役割です。本書のBattleでは、対象チームのnginxを停止します。
 
 ## revert
 
@@ -94,3 +110,11 @@ TenkaCloud LiteをデプロイするCodeBuild projectを作るCloudFormation sta
 ## `destroy-all`
 
 TenkaCloud Liteのstack、保持されたDynamoDB table、問題デプロイ用logを完全削除する操作です。
+
+## `runtime`
+
+ローカル問題をどのDocker Compose fileで起動し、どのURLを参加者と採点へ公開するかを`metadata.json`で定義する項目です。
+
+## `/verify`
+
+ローカル問題が提出内容を判定するloopback APIです。TenkaCloudは正解を保持せず、提出内容をこのAPIへ渡して`correct`の結果を受け取ります。

@@ -3,7 +3,7 @@ title: "hello-worldの問題文と採点を書く"
 free: true
 ---
 
-`metadata.json`は、TenkaCloudが問題を表示して採点するための定義です。CloudFormationがAWS環境の正本なら、`metadata.json`は参加者体験と採点の正本です。
+`metadata.json`は、TenkaCloudが問題を表示して採点するための定義です。`template.yaml`にAWS環境を書き、`metadata.json`に参加者へ見せる内容と採点方法を書きます。
 
 完成形は[metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/metadata.json)で確認できます。
 
@@ -29,11 +29,7 @@ free: true
   "i18n": {
     "en": {}
   },
-  "scoring": {},
-  "simulationOverlay": {
-    "schemaVersion": "1",
-    "entry": "simulation.json"
-  }
+  "scoring": {}
 }
 ```
 
@@ -138,6 +134,6 @@ TenkaCloudは`__RANDOM_PASSWORD__`をデプロイごとのランダム値へ置�
 }
 ```
 
-英語側のヒントIDは、日本語側と同じにします。採点点数と減点値はトップレベルが正本なので、英語側へ重複して書きません。
+英語側のヒントIDは、日本語側と同じにします。採点点数と減点値はトップレベルだけに書き、英語側へ重複させません。
 
 次章では、READMEと構成図を仕上げます。

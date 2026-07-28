@@ -141,7 +141,7 @@ InstanceRole:
     - !Sub "arn:aws:ssm:${AWS::Region}::document/SSM-SessionManagerRunShell"
 ```
 
-完成形には、Consoleで自分のEC2を表示する権限と、セッションを終了・再開する権限も含まれます。権限の全文は完成形の`ParticipantViewerRole`を正本にしてください。
+公開中の実装には、Consoleで自分のEC2を表示する権限と、セッションを終了・再開する権限も含まれます。権限の全文は、公開中の`ParticipantViewerRole`で確認してください。
 
 ## UserDataで2つのサービスを起動する
 
