@@ -13,7 +13,9 @@ PRをmainへmergeした後は、上のbranchを`main`へ読み替えてくださ
 
 ## Challenge
 
-初期状態ではPython APIは正常ですが、nginxは停止しています。参加者はSSM Session Managerで接続し、systemdとjournalを確認してnginxを復旧します。`/recovery`はlocalhostのnginxがHTTP 200を返すまでHTTP 503を返し、正常化するとデプロイごとのflagを返します。
+初期状態ではPython APIは正常ですが、nginxは停止しています。参加者はSSMセッションマネージャーで接続します。その後、systemdとjournalを確認してnginxを復旧します。
+
+`/recovery`は、localhostのnginxがHTTP 200を返すまでHTTP 503を返します。正常化するとデプロイごとのflagを返します。
 
 ## Battle
 
