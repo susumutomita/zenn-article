@@ -1,27 +1,15 @@
 ---
-title: "flagと自動採点を実装する"
+title: "復旧に結び付くflag採点を実装する"
 free: true
 ---
 
-Challengeの最小採点は、参加者が提出した値とCloudFormation Outputを比較する`flag`方式です。
+Challengeの採点には`flag`方式を使います。ただし、固定文字列を入力するだけでは、serviceを復旧した証拠になりません。
 
-ただし、flagは何にでも付ければよいわけではありません。Cloud Rescue本体の成功条件は「サービスが正常であり続けること」なので、後半ではendpoint監視を使います。本章ではその前に、デプロイ、AWS操作、提出、加点の経路を確認する小さなChallengeを作ります。
+Cloud Rescueでは、デプロイごとのflagを作ります。さらに、nginxが正常になるまでAPIの`/recovery`から返さない構成にします。
 
-## 固定flagが弱い理由
+## デプロイごとに値を変える
 
-次のようなflagは避けます。
-
-```text
-TC{cloud-rescue}
-```
-
-リポジトリ、記事、過去の参加者から答えを知れば、AWS環境を触らずに得点できるためです。
-
-TenkaCloudChallengeの`hello-world`では、デプロイごとのランダム値を`FlagSeed`として注入し、SSM Parameterへ保存します。参加者は実際にParameter Storeを読む必要があります。
-
-## cfnParametersからランダム値を受け取る
-
-`metadata.json`へ次を追加します。
+`metadata.json`は、random valueの注入を要求します。
 
 ```json
 {
@@ -31,98 +19,64 @@ TenkaCloudChallengeの`hello-world`では、デプロイごとのランダム値
 }
 ```
 
-`__RANDOM_PASSWORD__`は、デプロイ経路が実値へ置き換えるための予約値です。作者が生成した固定passwordをGitへ置くのではありません。
-
-`template.yaml`では、対応するParameterを宣言します。
-
-```yaml
-Parameters:
-  FlagSeed:
-    Type: String
-    NoEcho: true
-    MinLength: 8
-    MaxLength: 64
-    AllowedPattern: "^[A-Za-z0-9]+$"
-```
-
-## 参加者が操作して初めて見つかる場所へ置く
-
-最小例では、SSM Parameterを作ります。
-
-```yaml
-Resources:
-  RescueFlagParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub "/${NamePrefix}/rescue-flag"
-      Type: String
-      Value: !Sub "TC{${FlagSeed}}"
-      Tier: Standard
-```
-
-参加者roleには、この問題のパスだけを読む権限を与えます。
-
-```yaml
-- Sid: ReadOwnRescueFlag
-  Effect: Allow
-  Action:
-    - ssm:GetParameter
-    - ssm:GetParameters
-    - ssm:GetParametersByPath
-  Resource: !Sub "arn:aws:ssm:*:*:parameter/${NamePrefix}/*"
-```
-
-参加者は次のように値を取得します。
-
-```bash
-aws ssm get-parameter \
-  --name "/<NamePrefix>/rescue-flag" \
-  --query Parameter.Value \
-  --output text
-```
-
-この問題の学習目標がParameter Storeの利用であれば、これで十分です。一方、サービス復旧を学ばせたい問題で、最初からParameterを読めるようにすると、復旧せずにflagだけ取れます。
-
-そのため、本書では役割を分けます。
-
-- `cloud-rescue-onboarding`: flag提出までの経路を確認する小問題
-- `cloud-rescue-battle`: endpointの正常状態を継続採点する本番問題
-
-採点方式を学習目標に合わせることが重要です。
-
-## canonical answerをOutputへ出す
-
-採点engineが参照する値をCloudFormation Outputへ出します。
+`template.yaml`は、採点用の値をOutputへ出します。
 
 ```yaml
 Outputs:
-  RescueFlagValue:
-    Description: Canonical answer used by the scoring engine.
-    Value: !GetAtt RescueFlagParameter.Value
+  RecoveryFlag:
+    Description: Canonical flag used by the scoring engine.
+    Value: !Sub "TC{${FlagSeed}}"
 ```
 
-参加者へ`cloudformation:DescribeStacks`を広く許可すると、このOutputから直接答えを見られる可能性があります。Outputは採点側から参照し、参加者は意図したAWSサービスからflagを発見する権限設計にします。
+TenkaCloudは、このOutputをcanonical answerとして比較します。
 
-## scoring.kindをflagにする
+## 復旧するまでAPIから返さない
 
-`metadata.json`へ採点を追加します。
+Python APIの`/recovery`は、localhostのnginxへ接続します。
+
+```python
+if self.path == "/recovery":
+    if self.client_address[0] not in ("127.0.0.1", "::1"):
+        return forbidden()
+
+    frontend_ok = probe("http://127.0.0.1/")
+    if not frontend_ok:
+        return unavailable("frontend-unhealthy")
+
+    return text(RECOVERY_FLAG)
+```
+
+実装では標準libraryだけを使います。外部からの`/recovery`呼び出しはHTTP 403です。EC2内から呼び出しても、nginxが停止中ならHTTP 503になります。
+
+参加者は復旧後に次を実行します。
+
+```bash
+curl -fsS http://localhost:8080/recovery
+```
+
+## scoringを宣言する
 
 ```json
 {
   "scoring": {
     "kind": "flag",
-    "flagOutputKey": "RescueFlagValue",
+    "flagOutputKey": "RecoveryFlag",
     "points": 100,
     "wrongAnswerPenalty": 5,
     "hints": [
       {
         "id": "hint-1",
-        "content": "Stack OutputのParameter名を確認し、SSM Parameter Storeの実値を読みます。",
-        "penalty": 20
+        "content": "frontendとAPIの状態を比較する",
+        "penalty": 10
       },
       {
         "id": "hint-2",
-        "content": "AWS CLIでは `aws ssm get-parameter --name <parameter-name> --query Parameter.Value --output text` を使えます。",
+        "content": "systemctlとjournalctlで確認する",
+        "penalty": 20
+      },
+      {
+        "id": "hint-3",
+        "content": "frontendを復旧してrecovery endpointを確認する",
         "penalty": 30
       }
     ]
@@ -130,32 +84,24 @@ Outputs:
 }
 ```
 
-`flagOutputKey`は、`template.yaml`のOutput名と一致させます。
+`flagOutputKey`は、CloudFormation Outputの`RecoveryFlag`と一致させます。difficulty 2の標準得点に合わせて100点にします。
 
-## 答えが漏れる経路を確認する
+## flagを秘密境界と考えない
 
-実装後は、正規解法が動くことだけでなく、意図しない取得経路も確認します。
+参加者は、EC2内でsudoを使えます。したがって、このflagは悪意のあるroot利用者から秘密を守る仕組みではありません。
 
-- `NamePrefix`からflagを推測できないか
-- Gitに実値が残っていないか
-- Participant PortalのHTMLやJavaScriptに答えが含まれないか
-- 参加者roleでCloudFormation Outputを直接読めないか
-- 他チームのParameterを一覧またはパス指定で読めないか
-- エラーログにflagが出ないか
+Challengeの目的は、症状の比較、SSM接続、systemd調査、復旧、確認という流れを作ることです。正常状態を維持できるかは、Battle版の外形監視で評価します。
 
-ランダム値でも、秘密が保たれるとは限りません。権限、表示、ログを含む経路全体を確認します。
+## 確認する経路
 
-## 提出テスト
+実AWSでは次を確認します。
 
-実AWSへデプロイしたら、参加者roleで次を行います。
+1. nginx停止中の`/recovery`がHTTP 503になる
+2. 外部からの`/recovery`がHTTP 403になる
+3. nginx復旧後、localhostからデプロイ固有flagを取得できる
+4. 正しいflagで100点を得る
+5. 誤答で5点を失う
+6. 別teamのflagを提出できない
+7. 再デプロイ後にflagが変わる
 
-1. flagを取得する
-2. 正しいflagを提出して加点される
-3. 同じflagを再提出したときの挙動を確認する
-4. 誤答時のペナルティを確認する
-5. 別チームのflagが通らないことを確認する
-6. stackを再デプロイし、flagが変わることを確認する
-
-この小問題が通れば、TenkaCloudのデプロイから採点までの基本経路を独立して確認できます。
-
-次章では、正解を直接教えずに完走率を上げるヒントと解説を設計します。
+次章では、答えを直接書かずに完走率を上げるヒントを設計します。

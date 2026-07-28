@@ -3,17 +3,23 @@ title: "壊れたAWS環境をCloudFormationで作る"
 free: true
 ---
 
-競技環境は、正常なシステムを作ってから意図的に壊します。最初から壊れたテンプレートを書くと、作者自身も「意図した障害」と「単なる構築失敗」を区別できません。
+競技環境は、正常なシステムを作ってから意図的に壊します。最初から壊れたtemplateを書くと、構築失敗と競技用の障害を区別できません。
 
-本書では`battles/hello-world-battle`を基準にします。このサンプルは、VPC、公開subnet、EC2、nginx、Python API、SSM接続を含む最小のWeb stackです。
+本章の正本は`challenges/cloud-rescue/template.yaml`です。EC2、nginx、Python API、SSM接続経路を作ります。セットアップの成功を確認した後、nginxだけを停止します。
+
+## 最小サンプルから始める
+
+Cloud Rescueは、既存の`hello-world-battle`を複製して作りました。
 
 ```bash
-bun run new battles cloud-rescue-battle --from hello-world-battle
+bun run new challenges cloud-rescue --from hello-world-battle
 ```
 
-## template.yamlが受け取る3つの共通値
+複製直後は、両serviceが正常に動く状態を保ちます。ID、説明、採点を一度に変更せず、差分ごとに検証します。
 
-TenkaCloudからデプロイされる問題templateでは、少なくとも次の値を扱います。
+## 共通parameterを受け取る
+
+TenkaCloudからデプロイするtemplateは、少なくとも次を受け取ります。
 
 ```yaml
 Parameters:
@@ -33,128 +39,90 @@ Parameters:
     MinLength: 16
 ```
 
-`NamePrefix`は、同じAWSアカウントやリージョンで複数チームのリソース名が衝突しないように使います。`TenkaCloudAccountId`と`ExternalId`は、TenkaCloud側から参加者用roleをAssumeRoleするために使います。
+`NamePrefix`は、teamごとのresource名を分離します。`TenkaCloudAccountId`と`ExternalId`は、参加者用roleの信頼条件に使います。作者が固定値を入れず、デプロイ経路から注入します。
 
-これらを作者が固定値にしないでください。デプロイ経路が注入します。
+## Challenge固有のflag seed
 
-## ParticipantViewerRoleを問題単位に絞る
-
-参加者へ管理者権限を渡すのは簡単ですが、競技の安全境界がなくなります。参加者roleには、問題を解くための操作だけを許可します。
-
-Cloud Rescueでは、次の操作が必要です。
-
-- 対象EC2の情報を見る
-- `SSM Session Manager`で接続する
-- 自分の問題に必要なログを読む
-- 必要なサービスを起動・停止する
-
-信頼ポリシーは、TenkaCloud operator accountとExternalIdを条件にします。
+Challengeは、デプロイごとに異なる値も受け取ります。
 
 ```yaml
-ParticipantViewerRole:
-  Type: AWS::IAM::Role
-  Properties:
-    AssumeRolePolicyDocument:
-      Version: "2012-10-17"
-      Statement:
-        - Effect: Allow
-          Principal:
-            AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
-          Action: sts:AssumeRole
-          Condition:
-            StringEquals:
-              sts:ExternalId: !Ref ExternalId
-    MaxSessionDuration: 3600
+FlagSeed:
+  Type: String
+  NoEcho: true
+  MinLength: 8
+  MaxLength: 64
+  AllowedPattern: "^[A-Za-z0-9]+$"
 ```
 
-実際の権限ポリシーは、複製元の`hello-world-battle/template.yaml`を基準にします。AWS Consoleが内部で呼ぶlist系APIはresource単位に絞れない場合があります。単に`AccessDenied`が出たから`Resource: "*"`を増やすのではなく、専用アカウント境界と実際のConsole呼び出しを確認して判断します。
+`metadata.json`の`__RANDOM_PASSWORD__`を、デプロイ処理が実値へ置き換えます。Gitには固定flagを置きません。
 
-## 正常系を先に確認する
+## participant roleを問題へ限定する
 
-Cloud Rescueの正常状態は次です。
+`ParticipantViewerRole`は、TenkaCloud側のaccountだけを信頼します。さらに、`ExternalId`を必須にします。
 
-- EC2が起動している
-- SSM Agentが接続可能
-- nginxが80番ポートで`/`を返す
-- Python APIが8080番ポートで`/healthz`を返す
-- Security Groupが必要な通信だけを許可する
-
-まず、複製元を変更せずにデプロイし、正常系を確認します。
-
-```bash
-curl -fsS "http://<EC2_PUBLIC_DNS>/"
-curl -fsS "http://<EC2_PUBLIC_DNS>:8080/healthz"
+```yaml
+AssumeRolePolicyDocument:
+  Version: "2012-10-17"
+  Statement:
+    - Effect: Allow
+      Principal:
+        AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
+      Action: sts:AssumeRole
+      Condition:
+        StringEquals:
+sts:ExternalId: !Ref ExternalId
 ```
 
-両方が成功する状態を基準にします。
+参加者は、自分のEC2を確認してSSMセッションを開始できます。SSHの22番portは公開しません。serviceの操作は、接続後のOS上で行います。
 
-## 壊す場所は一つにする
+## 正常系を作ってから止める
 
-最初のChallengeでは、nginxを停止した状態から開始します。ネットワーク、IAM、EC2起動自体は正常に保ちます。
-
-UserDataの最後に、競技開始状態を作る処理を置く方法があります。
+UserDataは、nginxとAPIを構築します。nginxを一度起動し、localhostからHTTP 200を確認します。その後に初期障害を注入します。
 
 ```bash
-systemctl enable nginx
-systemctl start nginx
-systemctl enable tenkacloud-api
-systemctl start tenkacloud-api
+systemctl enable --now nginx
+curl -fsS http://127.0.0.1/ >/dev/null
+echo "frontend verified before incident injection"   | systemd-cat -t cloud-rescue-setup
 
-# Cloud Rescueの開始状態: frontendだけ停止
 systemctl stop nginx
+echo "initial incident injected: nginx stopped"   | systemd-cat -t cloud-rescue-setup
 ```
 
-ただし、UserDataが途中で失敗して停止したのか、意図的に停止したのかを区別できるようにします。たとえばセットアップ完了をログへ残します。
+この順序により、参加者は「セットアップが失敗した」のではなく、「正常だったserviceが停止した」と判断できます。
 
-```bash
-echo "cloud-rescue setup completed" | systemd-cat -t cloud-rescue-setup
-systemctl stop nginx
+## APIは正常なまま残す
+
+Python APIは8080番portで動きます。
+
+```text
+GET /healthz   -> HTTP 200
+GET /recovery  -> nginxが未復旧ならHTTP 503
 ```
 
-参加者が観察できる状態は次のようになります。
+frontendだけを止めるため、network全体の障害ではないと切り分けられます。
 
-- EC2はrunning
-- SSM接続は成功する
-- APIは正常
-- frontendだけ接続に失敗する
-- `systemctl status nginx`でinactiveを確認できる
+## Outputを導線として使う
 
-原因空間が狭く、最初の問題として扱いやすい構成です。
-
-## Outputは参加者の導線になる
-
-CloudFormation Outputsは、単なるデバッグ情報ではなく、参加者を対象リソースへ導くUIの一部です。
+Challenge版は、次のOutputを持ちます。
 
 ```yaml
 Outputs:
+  FrontendUrl:
+    Value: !Sub "http://${Ec2.PublicDnsName}"
+  ApiUrl:
+    Value: !Sub "http://${Ec2.PublicDnsName}:8080"
   InstanceId:
-    Value: !Ref AppInstance
-
-  Ec2HostHint:
-    Value: !GetAtt AppInstance.PublicDnsName
-
+    Value: !Ref Ec2
   SsmStartSessionCommand:
-    Value: !Sub "aws ssm start-session --target ${AppInstance}"
-
-  ParticipantViewerRoleArn:
-    Value: !GetAtt ParticipantViewerRole.Arn
+    Value: !Sub "aws ssm start-session --target ${Ec2}"
+  RecoveryFlag:
+    Value: !Sub "TC{${FlagSeed}}"
 ```
 
-答えそのものは出しません。接続対象やConsole deep linkのように、迷いを減らす情報だけを出します。
+`FrontendUrl`と`ApiUrl`は症状の比較に使います。`SsmStartSessionCommand`は接続の摩擦を減らします。`RecoveryFlag`は採点engineが参照する正解です。
 
-## participantが新しいリソースを作らなくてよい設計
+## 削除できる構成にする
 
-問題を解く操作は、既存リソースの変更に限定します。
+参加者には、新しいEC2やElastic IPを作らせません。既存serviceの状態だけを修正させます。CloudFormation stackを削除すれば、EC2、VPC、subnet、Internet Gateway、Security Group、IAM roleを回収できます。
 
-- nginxを再起動する
-- systemd unitを確認する
-- ログを読む
-- 必要なら既存設定を修正する
-
-新しいEC2、Load Balancer、Elastic IPを作らせると、stack削除で回収できない可能性があります。「作る問題」より「直す問題」の方が、イベント終了後の安全性を管理しやすくなります。
-
-## Secretsをtemplateへ埋め込まない
-
-固定flag、固定password、長期credentialをGitへ置きません。Challengeでflagが必要な場合は、デプロイ時にランダム値を注入し、参加者が意図した操作をしたときだけ取得できる場所へ保存します。
-
-次章では、作成したAWS環境を`metadata.json`からカタログ、採点、ポータルへ接続します。
+次章では、この環境を`metadata.json`からTenkaCloudへ接続します。
