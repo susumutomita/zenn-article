@@ -5,6 +5,8 @@ free: true
 
 クラウド競技は、得点を止めただけでは終わりません。問題stack、TenkaCloud Lite、launcherを削除し、課金対象が残っていないことを確認して完了です。
 
+画面に沿って作業する場合は、ランディングページの[TenkaCloud Liteを片付ける](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0M0CLEANUPTENKA0001)を開きます。本章では、何をどの順番で削除するのかを説明します。
+
 ## 問題stackを削除する
 
 最初に、各チームへデプロイした`hello-world`と`hello-world-battle`をApplication Admin Consoleから削除します。

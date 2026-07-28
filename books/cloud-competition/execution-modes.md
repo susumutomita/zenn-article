@@ -101,7 +101,13 @@ Application Admin Console
   → 結果を採点
 ```
 
-複数チームへAWS問題を配るときは、TenkaCloud Liteを運営者のAWSアカウントへデプロイします。TenkaCloud Liteは、Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かす構成です。
+複数チームへAWS問題を配るときは、TenkaCloud Liteを運営者のAWSアカウントへデプロイします。
+
+TenkaCloud Liteは、1人の運営者が自分のAWSアカウントで競技を開くための、単一テナント構成です。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。
+
+「Lite」は、ローカルで動く簡易デモという意味ではありません。実際のAWSへデプロイします。複数の利用組織を管理するSaaS向けの管理基盤とテナント作成パイプラインを省き、1つのテナントで完結させたことを表します。詳しい違いは、AWSへデプロイする章で説明します。
+
+ローカルモードと異なり、TenkaCloud Liteの運営基盤と各チームの問題環境にはAWS利用料が発生します。デプロイ前に費用の対象と削除手順を確認し、イベント終了後は問題環境と運営基盤を片付けます。
 
 TenkaCloud LiteをAWSへ作る手順は、ランディングページの問題として公開しています。
 
