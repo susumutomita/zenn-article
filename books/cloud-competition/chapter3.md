@@ -165,4 +165,4 @@ nginxまたはAPIサービスを停止する。対象は1チームのEC2のみ�
 CloudFormation stackとTenkaCloud環境を削除し、残存リソースを確認する。
 ```
 
-仕様が固まったので、次章からTenkaCloudChallengeで問題を作ります。
+次章では、採点が参加者の行動へ与える影響を整理します。その後、TenkaCloudChallengeで実装を始めます。

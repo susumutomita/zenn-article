@@ -1,5 +1,5 @@
 ---
-title: "TenkaCloudをAWSへデプロイする"
+title: "Part 5｜イベントを開催する"
 free: true
 ---
 

@@ -1,5 +1,5 @@
 ---
-title: "TenkaCloudの問題開発環境を準備する"
+title: "Part 3｜Challengeを実装する"
 free: true
 ---
 
