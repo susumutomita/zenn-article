@@ -5,9 +5,6 @@ on:
   pull_request:
     branches: ['main']
 
-permissions:
-  contents: write
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -38,40 +35,5 @@ jobs:
         run: |
           make install
 
-      - name: Apply cloud competition prose fixes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/book/cloud-competition-draft'
-        run: |
-          pnpm run lint:fix || true
-          python scripts/fix-cloud-competition-draft.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add books/cloud-competition
-          if ! git diff --cached --quiet; then
-            git commit -m "docs: fix cloud competition prose lint"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-
       - name: Lint and validate books
-        run: |
-          set +e
-          make before_commit > /tmp/before-commit.log 2>&1
-          status=$?
-          cat /tmp/before-commit.log
-          exit "$status"
-
-      - name: Generate textlint diagnostics
-        if: failure()
-        run: |
-          set +e
-          cp -R books/cloud-competition /tmp/cloud-competition-current
-          tar -czf /tmp/cloud-competition-diagnostics.tar.gz \
-            -C /tmp before-commit.log cloud-competition-current
-
-      - name: Upload lint diagnostics
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: cloud-competition-lint-diagnostics
-          path: /tmp/cloud-competition-diagnostics.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+        run: make before_commit
