@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: ['main']
 
+permissions:
+  contents: write
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -35,26 +38,51 @@ jobs:
         run: |
           make install
 
+      - name: Apply final cloud competition lint rewrites
+        if: github.event_name == 'push' && github.ref == 'refs/heads/book/cloud-competition-draft'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "books/cloud-competition/chapter1.md": [
+                  (
+                      "境界は厳密ではありません。良質な競技では、CTFにある発見の楽しさ、障害訓練の現実性、ハンズオンの学びやすさを組み合わせます。",
+                      "形式の境界を厳密に分ける必要はありません。良質な競技では、CTFにある発見の楽しさ、障害訓練の現実性、ハンズオンの学びやすさを組み合わせます。",
+                  ),
+              ],
+              "books/cloud-competition/chapter3.md": [
+                  (
+                      "問題環境では、作成より削除が難しくなることがあります。参加者がトップレベルリソースを新規作成すると、CloudFormation stackを削除してもそのリソースは残ります。",
+                      "問題環境では、作成より削除の方が難しくなります。参加者がトップレベルリソースを新規作成すると、CloudFormation stackを削除してもそのリソースは残ります。",
+                  ),
+                  (
+                      "- 対象を1つのチーム、一つのリソースへ限定する",
+                      "- 対象を1つのチーム、1つのリソースへ限定する",
+                  ),
+              ],
+              "books/cloud-competition/chapter15.md": [
+                  (
+                      "社内研修でscoreを人事評価へ直結させると、参加者間の情報共有が減る可能性があります。また、学習より防御的な行動を選びやすくなります。開催目的に合わせてscoreの用途を決めます。",
+                      "社内研修でscoreを人事評価へ直結させると、参加者間の情報共有を減らすおそれがあります。また、学習より防御的な行動を選びやすくなります。開催目的に合わせてscoreの用途を決めます。",
+                  ),
+              ],
+          }
+
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              content = path.read_text(encoding="utf-8")
+              for before, after in pairs:
+                  content = content.replace(before, after)
+              path.write_text(content, encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add books/cloud-competition
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: resolve remaining cloud competition lint"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
       - name: Lint and validate books
-        run: |
-          set +e
-          make before_commit > /tmp/before-commit.log 2>&1
-          status=$?
-          cat /tmp/before-commit.log
-          exit "$status"
-
-      - name: Package lint diagnostics
-        if: failure()
-        run: |
-          cp -R books/cloud-competition /tmp/cloud-competition-current
-          tar -czf /tmp/cloud-competition-diagnostics.tar.gz \
-            -C /tmp before-commit.log cloud-competition-current
-
-      - name: Upload lint diagnostics
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: cloud-competition-lint-diagnostics
-          path: /tmp/cloud-competition-diagnostics.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+        run: make before_commit
