@@ -1,11 +1,12 @@
 name: debug-restructure-lint
 
 on:
-  push:
+  pull_request:
     branches:
-      - book/cloud-competition-draft
+      - main
     paths:
       - .github/workflows/debug-restructure-lint.yml
+      - books/cloud-competition/**
 
 jobs:
   debug:
