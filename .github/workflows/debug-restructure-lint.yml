@@ -25,26 +25,26 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Setup safe-chain
+        run: |
+          pnpm add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
+          safe-chain setup-ci
+
       - name: Install dependencies
         run: pnpm install
 
-      - name: Capture focused lint output
+      - name: Capture full validation output
         shell: bash
         run: |
           set +e
-          pnpm exec textlint \
-            books/cloud-competition/battle-experience.md \
-            books/cloud-competition/good-problems.md \
-            books/cloud-competition/scoring-design.md \
-            books/cloud-competition/event-metrics.md \
-            > restructure-validation.txt 2>&1
-          echo $? > restructure-status.txt
+          make before_commit > cloud-book-validation.txt 2>&1
+          echo $? > cloud-book-validation-status.txt
           exit 0
 
       - name: Upload validation output
         uses: actions/upload-artifact@v4
         with:
-          name: restructure-validation-output-v2
+          name: cloud-book-validation-output-final
           path: |
-            restructure-validation.txt
-            restructure-status.txt
+            cloud-book-validation.txt
+            cloud-book-validation-status.txt
