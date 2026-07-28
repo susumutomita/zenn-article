@@ -1,9 +1,9 @@
 name: debug-chapter1-lint
 
 on:
-  push:
+  pull_request:
     branches:
-      - book/cloud-competition-draft
+      - main
 
 jobs:
   debug:
