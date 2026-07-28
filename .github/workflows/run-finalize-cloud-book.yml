@@ -1,0 +1,173 @@
+name: run-finalize-cloud-book
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/run-finalize-cloud-book.yml
+      - .github/workflows/finalize-cloud-competition-ja.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout book branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: book/cloud-competition-draft
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install
+      - name: Connect manuscript to Cloud Rescue implementation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path("books/cloud-competition")
+
+          chapter1 = root / "chapter1.md"
+          text = chapter1.read_text(encoding="utf-8")
+          begin = text.index("ただし、ゼロから巨大なtemplateを書くのではありません。")
+          end = text.index("\n\nこの進め方には利点があります。", begin)
+          block = """本書で説明する設計は、TenkaCloudChallengeに実在する次の問題として実装しています。
+
+          - Challenge: `challenges/cloud-rescue`
+          - Battle: `battles/cloud-rescue-battle`
+
+          Challengeでは、同じEC2上でAPIだけが正常、nginxだけが停止した状態から始めます。参加者は`SSM Session Manager`で接続し、systemdとjournalの証拠からfrontendを復旧します。復旧後にだけ`/recovery`がデプロイごとのflagを返します。
+
+          Battleでは、frontendとAPIを1分ごとに継続採点します。運営はnginxまたはAPIをチーム単位で停止でき、各障害には10分後の自動revertがあります。本文のコード断片より、これらの実ファイルを実行時の正本とします。"""
+          block = "\n".join(line.removeprefix("          ") for line in block.splitlines())
+          chapter1.write_text(text[:begin] + block + text[end:], encoding="utf-8")
+
+          guide = root / "code-guide.md"
+          text = guide.read_text(encoding="utf-8")
+          begin = text.index("## 本書の通し題材")
+          end = text.index("## 1つの章を進める手順", begin)
+          block = """## 本書の通し題材
+
+          本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**を通し題材として扱います。実装の正本はTenkaCloudChallengeの次の2ディレクトリです。
+
+          - Challenge: `challenges/cloud-rescue`
+          - Battle: `battles/cloud-rescue-battle`
+
+          Challengeは、EC2、network、Python APIが正常で、nginxだけが停止した状態から始まります。APIの`/recovery`はlocalhostのnginxがHTTP 200を返した場合だけ、デプロイごとのflagを返します。
+
+          Battleは、nginx frontendとPython APIを継続採点します。`frontend-down`と`api-down`を対象チームのEC2だけへ注入し、どちらも10分後に自動revertします。operator向けのtargeting規律と中止条件は`redteam/README.md`へ分離しています。
+
+          ## 検証状態を3段階に分ける
+
+          本書では、実装済み、静的検証済み、実AWS検証済みを同じ意味で使いません。
+
+          ### 実装済み
+
+          - 日英のmetadataとREADME
+          - ChallengeのCloudFormationとflag採点
+          - Battleの継続採点
+          - nginx/APIの障害注入と自動revert
+          - ParticipantViewerRoleとSSM接続経路
+          - simulation capability宣言
+          - operator向けrunbook
+
+          ### 静的検証
+
+          TenkaCloudChallengeのCIで、schema、CloudFormation参照、security checks、catalog test、indexとcostのdrift、course drift、Simulator compatibilityを検査します。
+
+          ### 実AWS検証
+
+          CloudFormation作成、participant権限でのSSM接続、実endpointの採点、disruptionとrevert、削除後の残存resource、実費用、初見者の所要時間はCIだけでは証明できません。実AWSで取得していない画面、log、時間は本文へ記載しません。
+
+          """
+          block = "\n".join(line.removeprefix("          ") for line in block.splitlines())
+          text = text[:begin] + block + text[end:]
+          text = text.replace("`battles/hello-world-battle/template.yaml`", "`challenges/cloud-rescue/template.yaml`")
+          text = text.replace("`challenges/hello-world`", "`challenges/cloud-rescue/metadata.json`と`template.yaml`")
+          text = text.replace("`battles/hello-world-battle/metadata.json`", "`battles/cloud-rescue-battle/metadata.json`")
+          text = text.replace("`hello-world-battle`、`microservice-migration-battle`、`stackstack`", "`cloud-rescue-battle`、`microservice-migration-battle`、`stackstack`")
+          guide.write_text(text, encoding="utf-8")
+
+          appendix = root / "appendix-first-battle.md"
+          text = appendix.read_text(encoding="utf-8")
+          text = text.replace("TenkaCloudChallengeに既に存在する`hello-world-battle`", "本書のために実装した`cloud-rescue-battle`")
+          text = text.replace("`hello-world-battle`", "`cloud-rescue-battle`")
+          text = text.replace("battles/hello-world-battle/", "battles/cloud-rescue-battle/")
+          text = text.replace("運営側はnginx停止のdisruptionを実行できます。", "運営側はnginx停止またはAPI停止のdisruptionを実行できます。")
+          text = text.replace("    Fire[運営がnginx停止]", "    Fire[運営がfrontendまたはAPIを停止]")
+          text = text.replace("├── README.ja.md\n└── OPERATOR.md", "├── README.ja.md\n├── simulation.json\n└── redteam/README.md")
+          appendix.write_text(text, encoding="utf-8")
+
+          status = root / "implementation-status.md"
+          status.write_text("""---
+          title: "実装と検証の現在地"
+          free: true
+          ---
+
+          Cloud Rescueは説明用の架空コードではありません。TenkaCloudChallengeにChallenge版とBattle版を実装しています。
+
+          - [Challenge実装](https://github.com/susumutomita/TenkaCloudChallenge/tree/feat/cloud-rescue-book/challenges/cloud-rescue)
+          - [Battle実装](https://github.com/susumutomita/TenkaCloudChallenge/tree/feat/cloud-rescue-book/battles/cloud-rescue-battle)
+          - [実装PR #318](https://github.com/susumutomita/TenkaCloudChallenge/pull/318)
+
+          PRをmainへmergeした後は、上のbranchを`main`へ読み替えてください。
+
+          ## Challenge
+
+          初期状態ではPython APIは正常ですが、nginxは停止しています。参加者はSSM Session Managerで接続し、systemdとjournalを確認してnginxを復旧します。`/recovery`はlocalhostのnginxがHTTP 200を返すまでHTTP 503を返し、正常化するとデプロイごとのflagを返します。
+
+          ## Battle
+
+          frontendの`/`とAPIの`/healthz`を継続採点します。`frontend-down`はnginxを、`api-down`は`tenkacloud-api`を停止します。どちらも600秒後に自動revertします。障害のtargeting規律と中止条件は`redteam/README.md`へ分離しています。
+
+          ## CIで証明する範囲
+
+          metadata、CloudFormation参照、security checks、catalog test、index、cost report、course drift、Simulator compatibilityを機械検証します。
+
+          ## 公開前に実AWSで記録すること
+
+          ```text
+          TenkaCloud commit:
+          TenkaCloudChallenge commit:
+          AWS region:
+          Challenge deploy:
+          participant SSM接続:
+          初期状態 frontend/API:
+          復旧後 frontend/API:
+          flag採点:
+          Battle継続採点:
+          frontend disruption/revert:
+          API disruption/revert:
+          stack削除:
+          残存課金resource:
+          初見者の所要時間:
+          ```
+
+          空欄を推測で埋めず、実AWSで確認した値だけを画面、log、所要時間とともに反映します。
+          """.replace("          ", ""), encoding="utf-8")
+
+          config = root / "config.yaml"
+          text = config.read_text(encoding="utf-8")
+          if "  - implementation-status\n" not in text:
+              text = text.replace("  - code-guide\n", "  - code-guide\n  - implementation-status\n", 1)
+          config.write_text(text, encoding="utf-8")
+      - name: Validate book
+        run: make before_commit
+      - name: Commit final manuscript state
+        run: |
+          rm -f .github/workflows/finalize-cloud-competition-ja.yml
+          rm -f .github/workflows/run-finalize-cloud-book.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add books/cloud-competition .github/workflows/finalize-cloud-competition-ja.yml .github/workflows/run-finalize-cloud-book.yml
+          git commit -m "docs: connect Japanese book to Cloud Rescue implementation"
+          git push origin HEAD:book/cloud-competition-draft
