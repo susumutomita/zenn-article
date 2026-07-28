@@ -1,11 +1,13 @@
 ---
-title: "何を採点するか決める"
+title: "AWS Challengeの採点を設計する"
 free: true
 ---
 
-採点は、参加者に取ってほしい行動が完了したことを確認する仕組みです。点数を増やすことより、学びと判定条件が一致していることを優先します。
+採点は、参加者に取ってほしい行動が完了したことを確認する仕組みです。本章では`hello-world`だけを対象に、SSM Parameterから発見した値をどう採点するか決めます。
 
-## Challengeは発見した値を採点する
+Battleの継続採点は、AWS Challengeを完成させてから別の章で設計します。
+
+## 発見した値を採点する
 
 `hello-world`では、問題環境を作るたびに異なるランダム値をSSM Parameterへ保存します。
 
@@ -34,27 +36,10 @@ flowchart LR
 
 このように、発見した値を提出して一度だけ判定する方式を`flag`と呼びます。難易度1のChallengeなので、正答は100点、誤答は5点減点とします。ヒントは20点と30点の減点にし、両方を開いても50点が残ります。
 
-## Battleは状態を繰り返し採点する
+正答は100点、誤答は5点減点とします。ヒントは2段階に分け、20点と30点を減点します。両方のヒントを開いても50点が残るため、行き詰まった参加者が競技を続けられます。
 
-`hello-world-battle`では、次の2か所を確認します。
+採点条件は、次の一文で確定します。
 
-- frontend: `/`がHTTP 200
-- api: `/healthz`がHTTP 200
+> 参加者の提出値が、問題stackの`ParameterValue` Outputと一致したら100点を記録する。
 
-複数のURLを個別に繰り返し確認する方式を`uptime-flat`と呼びます。1分ごとの確認で両方が正常なら100点を加え、どちらかが失敗したら100点を引きます。
-
-URLは問題環境から自動登録しません。参加者がParticipant Portalへ登録してから採点を開始します。問題環境を作っただけで得点が増える状態を防ぎ、URL登録も学習体験へ含めるためです。
-
-## ChallengeとBattleを使い分ける
-
-| 確認したいこと | 向いている形式 |
-| --- | --- |
-| ある値を発見したか | Challengeの`flag` |
-| ある修正を一度完了したか | Challengeの`flag`または`verify` |
-| サービスを正常に保てるか | Battleの`uptime-flat` |
-| 複数サービスが同時に正常か | Battleの`uptime-multi` |
-| 時間帯で採点条件を変えたいか | Battleの`phased-polling` |
-
-本書では最小構成を理解するため、`flag`と`uptime-flat`だけを使います。
-
-次章から、TenkaCloudChallengeリポジトリへ実際のファイルを作ります。
+次章では、この採点に必要なSSM Parameter、ランダム値、参加者用IAM Role、CloudFormation Outputを`template.yaml`へ実装します。

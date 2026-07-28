@@ -3,7 +3,7 @@ title: "自分の題材で新しい問題を作る"
 free: true
 ---
 
-本書では、AWSのChallenge、AWSのBattle、Dockerで動くローカルChallengeを一から作りました。最後に、自分の題材をTenkaCloudChallengeへ追加する手順を整理します。
+本書では、Dockerで動くローカルChallenge、AWS Challenge、AWS Battleを順番に一から作りました。最後に、自分の題材をTenkaCloudChallengeへ追加する手順を整理します。
 
 ## コマンドを実行する前に決める
 
@@ -67,6 +67,27 @@ TenkaCloudChallengeのルートをClaude Codeで開き、作りたい形式を�
 
 題材を聞かれたら、前節で書いた参加者体験とストーリーを渡します。「S3の問題を作って」のようなサービス名だけでは、何を学ぶ競技か決まりません。
 
+## ローカルChallengeを作る
+
+AWSを使わない問題は、Challengeを選び、採点方式として`verify`または`multi-verify`を指定します。
+
+- `verify`: 1つの提出を`/verify`で判定する
+- `multi-verify`: 複数のcheckpointを個別に判定する
+
+1つのflagを提出する問題なら、`challenges/sqli-demo`がstarterです。複数のcheckpointを持つ問題なら、`challenges/wp-exposed-backup`をstarterとして使います。
+
+ローカル問題では、次の内容を自分の題材へ置き換えます。
+
+1. `runtime.entry`が指すCompose file
+2. Participant Portalに表示する`challengeEndpoints`
+3. 採点を受ける`verifyUrl`
+4. `local/Dockerfile`と問題アプリ
+5. `/verify`の判定処理
+6. loopbackだけへbindするport
+7. 実行ごとに変わる秘密値
+
+攻撃対象と採点APIを同じ画面へ公開しません。`/verify`はloopbackに限定し、不正解時に答えを返さないようにします。
+
 ## AWS Challengeを作る
 
 値の発見や、一度の修正完了を採点したい場合はChallengeを選びます。採点方式は`flag`です。
@@ -109,27 +130,6 @@ Battleでは、次の内容を決めます。
 - 障害を自動で元へ戻すrevert
 
 実際に障害を起こすには、`disruptions[].action`へ実行方法を書きます。説明文だけでは動きません。`action`には必ず`revert`を付けます。
-
-## ローカルChallengeを作る
-
-AWSを使わない問題は、Challengeを選び、採点方式として`verify`または`multi-verify`を指定します。
-
-- `verify`: 1つの提出を`/verify`で判定する
-- `multi-verify`: 複数のcheckpointを個別に判定する
-
-1つのflagを提出する問題なら、`challenges/sqli-demo`がstarterです。複数のcheckpointを持つ問題なら、`challenges/wp-exposed-backup`をstarterとして使います。
-
-ローカル問題では、次の内容を自分の題材へ置き換えます。
-
-1. `runtime.entry`が指すCompose file
-2. Participant Portalに表示する`challengeEndpoints`
-3. 採点を受ける`verifyUrl`
-4. `local/Dockerfile`と問題アプリ
-5. `/verify`の判定処理
-6. loopbackだけへbindするport
-7. 実行ごとに変わる秘密値
-
-攻撃対象と採点APIを同じ画面へ公開しません。`/verify`はloopbackに限定し、不正解時に答えを返さないようにします。
 
 ## 手動で作る場合
 

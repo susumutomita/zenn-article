@@ -220,4 +220,6 @@ make local-down
 - [docker-compose.yml](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/sqli-demo/local/docker-compose.yml)
 - [server.mjs](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/sqli-demo/local/app/server.mjs)
 
-これで、AWS問題とローカル問題の両方を作れるようになりました。次章では、AWS上へTenkaCloud Liteをデプロイし、最初に作ったChallengeとBattleを複数チームへ届けます。
+これで、1問目のローカルChallengeが完成しました。問題文、Docker環境、`/verify`、Participant Portalへの提出を1つの流れとして作れました。
+
+次章からは2問目へ進みます。AWS Challengeの`hello-world`について、参加者の学び、ストーリー、勝利条件、安全境界を新しく設計します。

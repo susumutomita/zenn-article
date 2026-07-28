@@ -157,4 +157,4 @@ BattleのREADMEには、次を明記します。
 
 完成形は[README.ja.md](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/battles/hello-world-battle/README.ja.md)で確認できます。
 
-これで、ChallengeとBattleのAWS問題が完成しました。次章では、ここまで混同しやすかったTenkaCloud Lite、AWS問題、ローカルモードの違いを整理します。
+これで、3問目のAWS Battleが完成しました。ローカルChallenge、AWS Challenge、AWS Battleを順番に作り終えたため、次章からは作成したAWS問題を複数チームへ届ける運営側の作業へ進みます。

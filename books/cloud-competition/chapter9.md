@@ -52,4 +52,4 @@ make agent-gate
 - コストと削除方法
 - `make agent-gate`の結果
 
-`hello-world`はこれで完成です。次章から、継続採点と障害注入を持つ`hello-world-battle`を作ります。
+`hello-world`はこれで完成です。次章から3問目の`hello-world-battle`へ進みます。実装を始める前に、参加者の学び、ストーリー、勝利条件、安全境界をBattle用に設計します。

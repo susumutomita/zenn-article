@@ -1,9 +1,9 @@
 ---
-title: "問題を置く場所と作成手順を知る"
+title: "最初のローカル問題を置く場所を作る"
 free: true
 ---
 
-ここから、前章で設計した競技をTenkaCloudChallengeへ実装します。コードを書く前に、問題をどこへ置き、どのファイルが何を担当するのかを確認します。
+ここから、前章で設計した`sqli-demo`をTenkaCloudChallengeへ実装します。本章ではリポジトリを準備し、ローカル問題に必要なディレクトリを作ります。
 
 ## リポジトリを準備する
 
@@ -21,90 +21,75 @@ make install
 less AGENT.md
 ```
 
-`AGENT.md`には、問題作者の守る契約が書かれています。次の項目は、見た目の好みではなくTenkaCloudとの接続条件です。
+`AGENT.md`には、問題作者向けの契約が書かれています。ローカル問題では、特に次を確認します。
 
 - `metadata.json`が`SCHEMA.json`に一致する
-- `metadata.json`から参照するCloudFormation Outputが存在する
-- `ParticipantViewerRole`へ必須の認証権限を付ける
-- EC2関連リソースへ`TenkaCloud:NamePrefix`タグを付ける
-- Challengeの点数とヒント減点を規定へ合わせる
-- Battleでは、参加者の操作前から自動加点しない
+- `runtime.entry`が実在するCompose fileを指す
+- 攻略対象と採点用`/verify`を分離する
+- 公開portをloopbackへ限定する
+- 実行ごとの秘密値からflagを作る
+- READMEの日本語版と英語版を用意する
 
-## 1問のディレクトリ
+## ローカルChallengeのディレクトリ
 
-Challengeは`challenges/`、Battleは`battles/`へ置きます。
+Challengeは`challenges/`へ置きます。`sqli-demo`には、次のファイルを作ります。
 
 ```text
-challenges/hello-world/
+challenges/sqli-demo/
 ├── metadata.json
-├── template.yaml
 ├── README.md
 ├── README.ja.md
-└── diagram.svg
-
-battles/hello-world-battle/
-├── metadata.json
-├── template.yaml
-├── README.md
-├── README.ja.md
-└── diagram.svg
+└── local/
+    ├── Dockerfile
+    ├── docker-compose.yml
+    └── app/
+        └── server.mjs
 ```
 
 各ファイルの役割は次のとおりです。
 
 | ファイル | 役割 |
 | --- | --- |
-| `metadata.json` | カタログ表示、問題文、採点、ヒント、endpoint、障害 |
-| `template.yaml` | チームのAWSアカウントへ作るCloudFormation stack |
+| `metadata.json` | 問題文、Dockerの起動情報、採点、ヒント |
+| `local/docker-compose.yml` | コンテナ、環境変数、port、health check |
+| `local/Dockerfile` | 問題アプリのimage |
+| `local/app/server.mjs` | 攻略対象のWeb画面と採点用`/verify` |
 | `README.md` | 問題作者と利用者向けの英語説明 |
 | `README.ja.md` | READMEの日本語版 |
-| `diagram.svg` | Participant Portalへ表示する構成図 |
 
-AWS問題に必要なのは`metadata.json`、`template.yaml`、2つのREADMEです。`diagram.svg`は、複数リソースの関係をParticipant Portalで見せるために追加します。
+AWS問題で使う`template.yaml`は、まだ作りません。ローカル問題の環境は、DockerfileとCompose fileが担当します。
 
-## Claude Codeで新しい問題を作る
+## 空のディレクトリから始める
 
-TenkaCloudChallengeには、Claude Code用の`new-problem`スキルがあります。
+本書では、完成済みの`sqli-demo`を複製して説明するのではなく、前章の設計から必要なファイルを順に作ります。
 
-人間向けの使い方は、次のファイルにあります。
+最初に、問題を置くディレクトリを作ります。
 
-```text
-.claude/skills/new-problem/README.md
+```bash
+mkdir -p challenges/sqli-demo/local/app
 ```
 
-Claude Codeが読む作成手順は、次のファイルです。
+次章で`metadata.json`、その次の章でDockerfile、Compose file、`server.mjs`を作ります。READMEは、実装した環境、採点、安全境界が確定してから仕上げます。
 
-```text
-.claude/skills/new-problem/SKILL.md
-```
+完成結果は、次のディレクトリと同じ構成になります。
 
-Challengeを作る場合は、Claude Codeで次のように入力します。
+[sqli-demoの完成形](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/sqli-demo)
+
+## Claude Codeを使う場合
+
+TenkaCloudChallengeには、Claude Code用の`new-problem`スキルがあります。ローカルChallengeの土台を作る場合は、次のように開始します。
 
 ```text
 /new-problem challenge
 ```
 
-Battleを作る場合は、次のように入力します。
+採点方式を聞かれたら`verify`を選びます。題材、参加者に持ち帰ってほしいこと、ストーリーには、前章までに決めた内容を渡します。
 
-```text
-/new-problem battle
-```
+スキルは、ディレクトリと必須項目を作る作業を補助します。競技の内容を代わりに決めるものではありません。本書では、生成される各項目の意味が分かるように、ファイルを1つずつ説明します。
 
-引数を省略すると、ChallengeかBattleかを聞かれます。その後、slug、題材、難易度、想定時間、採点方式を答えます。
+人間向けの使い方と、Claude Codeが読む手順は次の場所で確認できます。
 
-このスキルは、新しい題材から問題を作るときに使います。カテゴリを選んだ後も、題材、参加者に持ち帰ってほしいこと、ストーリー、採点方式を自分で決める必要があります。スキルは競技の内容を代わりに決めるものではなく、決めた内容をリポジトリの形式へ変換する補助です。
+- [new-problemの使い方](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/README.md)
+- [new-problemの作問手順](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/SKILL.md)
 
-## Claude Codeを使わない場合
-
-手動で新しい問題を作る場合は、近い完成例を複製します。
-
-```bash
-cp -R challenges/hello-world challenges/<新しいslug>
-cp -R battles/hello-world-battle battles/<新しいslug>
-```
-
-その後、`id`、表示文、AWSリソース、採点、Output、READMEを自分の題材へ変更します。ChallengeとBattleを同時に作る必要はありません。学習目標に合う形式を1つ選び、1問を1つのPull Requestで追加します。
-
-本書では、前章までに決めた設計から`hello-world`と`hello-world-battle`を一から組み立てます。完成後に別の題材へ発展させるとき、ここで説明したスキルとstarterを使います。
-
-次章では、`hello-world`の参加者体験をAWS上に作るため、`template.yaml`を書きます。
+次章では、設計したストーリー、勝利条件、安全境界を`metadata.json`へ記述します。
