@@ -1,0 +1,96 @@
+name: restructure-cloud-book
+
+on:
+  push:
+    branches:
+      - book/cloud-competition-draft
+    paths:
+      - .github/workflows/restructure-cloud-book.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restructure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: book/cloud-competition-draft
+          fetch-depth: 0
+
+      - name: Restructure existing chapters
+        shell: python
+        run: |
+          from pathlib import Path
+
+          replacements = {
+              "books/cloud-competition/chapter1.md": [
+                  (
+                      'title: "自分たちのクラウド競技を作ろう"',
+                      'title: "Part 1｜クラウド競技という教材"',
+                  ),
+                  (
+                      "ここでいうクラウド競技とは、参加者ごとに用意されたクラウド環境で問題を解き、回答やシステムの状態に応じて得点する実践型の演習です。競技形式にすることで、座学では見えにくい判断力、調査力、復旧力を観察できます。\n\n## TenkaCloudとは",
+                      "ここでいうクラウド競技とは、参加者ごとに用意されたクラウド環境で問題を解き、回答やシステムの状態に応じて得点する実践型の演習です。競技形式にすることで、座学では見えにくい判断力、調査力、復旧力を観察できます。\n\n本書の主役は、TenkaCloudの操作方法ではありません。学習目標から競技を設計し、実装し、開催し、改善する方法が主役です。TenkaCloudは、その設計を実際に動かすための基盤として使います。\n\n## TenkaCloudとは",
+                  ),
+                  (
+                      "次章では、最初にコードを書くのではなく、学習目標から問題を逆算します。",
+                      "次章では、良い問題と悪い問題の違いから、競技設計の基準を作ります。",
+                  ),
+              ],
+              "books/cloud-competition/chapter2.md": [
+                  (
+                      'title: "学習目標から問題を逆算する"',
+                      'title: "Part 2｜学習目標から競技を設計する"',
+                  ),
+              ],
+              "books/cloud-competition/chapter3.md": [
+                  (
+                      "仕様が固まったので、次章からTenkaCloudChallengeで問題を作ります。",
+                      "次章では、採点が参加者の行動へ与える影響を整理します。その後、TenkaCloudChallengeで実装を始めます。",
+                  ),
+              ],
+              "books/cloud-competition/chapter4.md": [
+                  (
+                      'title: "TenkaCloudの問題開発環境を準備する"',
+                      'title: "Part 3｜Challengeを実装する"',
+                  ),
+              ],
+              "books/cloud-competition/chapter13.md": [
+                  (
+                      'title: "TenkaCloudをAWSへデプロイする"',
+                      'title: "Part 5｜イベントを開催する"',
+                  ),
+              ],
+              "books/cloud-competition/chapter16.md": [
+                  (
+                      "次章では、完成した問題をOSS、社内教材、Problem Packとして再利用し、問題カタログを育てます。",
+                      "次章では、スコア、ヒント利用、復旧時間を分析し、開催結果を次の問題改善へ戻します。",
+                  ),
+              ],
+              "books/cloud-competition/chapter17.md": [
+                  (
+                      'title: "問題を公開し、教材資産にする"',
+                      'title: "Part 6｜競技を資産にする"',
+                  ),
+              ],
+          }
+
+          for filename, file_replacements in replacements.items():
+              path = Path(filename)
+              source = path.read_text(encoding="utf-8")
+              for before, after in file_replacements:
+                  if before not in source:
+                      raise RuntimeError(f"Expected text not found in {filename}: {before}")
+                  source = source.replace(before, after, 1)
+              path.write_text(source, encoding="utf-8")
+
+      - name: Commit the restructure
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add books/cloud-competition
+          git commit -m "docs: restructure cloud competition book into six parts"
+          git push origin HEAD:book/cloud-competition-draft
