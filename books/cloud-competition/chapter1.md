@@ -89,18 +89,23 @@ AWSを使わないDocker形式の問題は、GitHub Codespacesまたはローカ
 
 本書の後半では、このイベント環境の構築、リハーサル、当日運営、完全削除まで扱います。
 
-### 本書で使う2つのOSS
+### TenkaCloudと問題カタログ
 
 本書では、競技運営と問題定義を別のOSSで管理します。
 
-| OSS | 役割 |
-| --- | --- |
-| [TenkaCloud](https://www.tenkacloud.com/?lang=ja)（[ソースコード](https://github.com/susumutomita/TenkaCloud)） | イベント、チーム、デプロイ、採点、Participant Portal、障害注入を提供するプラットフォーム |
-| [`susumutomita/TenkaCloudChallenge`](https://github.com/susumutomita/TenkaCloudChallenge) | 公開問題のカタログ。1問題を1ディレクトリで管理する |
+- **[TenkaCloud](https://www.tenkacloud.com/?lang=ja)**は、イベント、チーム、デプロイ、採点、Participant Portal、障害注入を管理します。[ソースコードはGitHub](https://github.com/susumutomita/TenkaCloud)で公開しています。
+
+- **[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)**は、公開問題のカタログです。1つの問題を1つのディレクトリで管理します。
 
 問題を追加するとき、原則としてTenkaCloud本体は変更しません。問題カタログへ新しいディレクトリを追加し、その問題を読み込んだTenkaCloudをデプロイします。
 
-> 本書およびTenkaCloudは独立したOSSプロジェクトです。Amazon Web Services, Inc.との提携、承認、後援関係はありません。AWSおよび関連する名称はAmazon.com, Inc.またはその関連会社の商標です。本書はAWS公式のGameDayを再現するものではなく、同種の実践型クラウド演習を自作する方法を扱います。
+#### AWSとの関係
+
+本書およびTenkaCloudは独立したOSSプロジェクトであり、Amazon Web Services, Inc.との提携、承認、後援関係はありません。
+
+AWSおよび関連する名称は、Amazon.com, Inc.またはその関連会社の商標です。
+
+本書はAWS公式のGameDayを再現するものではなく、同種の実践型クラウド演習を自作する方法を扱います。
 
 ## ハンズオン、CTF、障害訓練との違い
 
