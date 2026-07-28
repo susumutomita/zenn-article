@@ -1,0 +1,50 @@
+name: debug-restructure-lint
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/debug-restructure-lint.yml
+      - books/cloud-competition/**
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Capture focused lint output
+        shell: bash
+        run: |
+          set +e
+          pnpm exec textlint \
+            books/cloud-competition/battle-experience.md \
+            books/cloud-competition/good-problems.md \
+            books/cloud-competition/scoring-design.md \
+            books/cloud-competition/event-metrics.md \
+            > restructure-validation.txt 2>&1
+          echo $? > restructure-status.txt
+          exit 0
+
+      - name: Upload validation output
+        uses: actions/upload-artifact@v4
+        with:
+          name: restructure-validation-output-v2
+          path: |
+            restructure-validation.txt
+            restructure-status.txt
