@@ -1,113 +1,156 @@
 ---
-title: "フェーズと妨害イベントを入れる"
+title: "hello-world-battleの採点と障害を書く"
 free: true
 ---
 
-継続採点だけでもBattleは成立します。Cloud Rescueは、operatorが手動で発火する2種類の障害を追加します。
+`hello-world-battle/metadata.json`へ、2つのendpoint、継続採点、nginx停止の障害を定義します。完成形は[metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/battles/hello-world-battle/metadata.json)で確認できます。
 
-初版では時間連動のphaseを実装しません。全teamの準備を確認してから、同じ条件で手動発火します。
-
-## frontendを停止する
+## 基本情報
 
 ```json
 {
-  "id": "frontend-down",
-  "name": "frontend停止",
-  "eventDetailType": "OutageDisruptionFired",
-  "defaultAfterMinutes": 10,
-  "operatorEditable": ["afterMinutes"],
-  "publicHint": true,
-  "action": {
-    "kind": "ssm-run-command",
-    "targetRef": "InstanceId",
-    "documentName": "AWS-RunShellScript",
-    "paramTemplate": {
-      "commands": [
-        "systemctl stop nginx || true"
-      ]
+  "$schema": "../../SCHEMA.json",
+  "id": "hello-world-battle",
+  "name": "Hello World Battle (Sample)",
+  "category": "Battle",
+  "status": "ready",
+  "visibility": "public",
+  "onboardingOrder": 1,
+  "difficulty": 1,
+  "estimatedDuration": "30 分",
+  "tags": ["sample", "battle", "uptime", "ec2", "nginx"],
+  "cfnTemplate": "template.yaml",
+  "cfnParameters": {}
+}
+```
+
+`onboardingOrder`は、入門Battleの表示順に使います。
+
+`instructions`には、参加者が最初に行う3段階を書きます。
+
+1. `SsmStartSessionCommand`でEC2へ接続する
+2. `Ec2HostHint`を使って2つのURLを登録する
+3. サービスが停止したら再起動する
+
+## endpointを定義する
+
+```json
+{
+  "endpoints": [
+    {
+      "slot": "frontend",
+      "default": {
+        "from": "cfn-output",
+        "key": "FrontendUrl"
+      },
+      "overridable": true,
+      "label": "Frontend (nginx)",
+      "description": "Ec2HostHintのDNS名でhttp://<host>を登録します。"
     },
-    "revert": {
-      "afterSeconds": 600,
-      "documentName": "AWS-RunShellScript",
-      "paramTemplate": {
-        "commands": [
-"systemctl start nginx || true"
-        ]
-      }
+    {
+      "slot": "api",
+      "default": {
+        "from": "cfn-output",
+        "key": "ApiUrl"
+      },
+      "overridable": true,
+      "label": "API (python http.server)",
+      "description": "Ec2HostHintのDNS名でhttp://<host>:8080を登録します。"
     }
+  ]
+}
+```
+
+`slot`は、採点定義から参照する識別子です。
+
+`default.key`は、`template.yaml`のOutput名と一致させます。Outputの値は空ですが、参照先自体は必要です。
+
+`overridable`を`true`にすると、参加者がParticipant PortalからURLを登録できます。
+
+## 1分ごとの採点を定義する
+
+```json
+{
+  "scoring": {
+    "kind": "uptime-flat",
+    "endpoints": [
+      {
+        "slot": "frontend",
+        "path": "/",
+        "expectStatus": [200]
+      },
+      {
+        "slot": "api",
+        "path": "/healthz",
+        "expectStatus": [200]
+      }
+    ],
+    "pointsPerSuccess": 100,
+    "failurePenalty": -100
   }
 }
 ```
 
-frontend probeだけが失敗するため、参加者はAPIが正常なことを手掛かりにできます。
+採点側の`slot`は、前節の`endpoints[].slot`と一致させます。
 
-## APIを停止する
+APIの登録URLへ`/healthz`を含めません。登録するのは`http://<host>:8080`で、採点エンジンが`path`の`/healthz`を追加します。
 
-2つ目の障害は、`tenkacloud-api`を停止します。
+## nginx停止の障害を定義する
 
 ```json
 {
-  "id": "api-down",
-  "name": "API停止",
-  "action": {
-    "kind": "ssm-run-command",
-    "targetRef": "InstanceId",
-    "documentName": "AWS-RunShellScript",
-    "paramTemplate": {
-      "commands": [
-        "systemctl stop tenkacloud-api || true"
-      ]
-    },
-    "revert": {
-      "afterSeconds": 600,
-      "documentName": "AWS-RunShellScript",
-      "paramTemplate": {
-        "commands": [
-"systemctl start tenkacloud-api || true"
-        ]
+  "disruptions": [
+    {
+      "id": "frontend-down",
+      "name": "frontend停止",
+      "eventDetailType": "OutageDisruptionFired",
+      "defaultAfterMinutes": 10,
+      "operatorEditable": ["afterMinutes"],
+      "publicHint": true,
+      "description": "運営が対象チームのnginxを停止します。参加者はSSM Session Managerから起動します。",
+      "action": {
+        "kind": "ssm-run-command",
+        "targetRef": "InstanceId",
+        "documentName": "AWS-RunShellScript",
+        "paramTemplate": {
+          "commands": ["systemctl stop nginx || true"]
+        },
+        "revert": {
+          "afterSeconds": 600,
+          "documentName": "AWS-RunShellScript",
+          "paramTemplate": {
+            "commands": ["systemctl start nginx || true"]
+          }
+        }
       }
     }
-  }
+  ]
 }
 ```
 
-今度はfrontendが正常なため、同じ調査手順を別serviceへ適用できます。
+`targetRef`の`InstanceId`は、`template.yaml`のOutputです。TenkaCloudは対象チームのstackからEC2 instance IDを取得します。
 
-## revertを必須にする
+`action`が実際の障害を起こし、`revert`が自動復旧を予約します。説明文だけを書いてもnginxは停止しません。
 
-各障害は、600秒後に自動revertします。participantが接続できない場合や、operatorが進行を中止した場合にも、障害を永続化させません。
+同じ障害へ採点上の追加ペナルティを重ねません。nginxが停止すればfrontendのprobeが失敗し、`failurePenalty`が適用されます。障害自体にも減点を設定すると、同じ出来事を二重に減点します。
 
-revertは正解の代行ではありません。参加者が自力で復旧する時間より長く設定した安全網です。
+## 参加者から見える情報
 
-## operator runbookを分離する
+`shortDescription`と`instructions`には、URL登録と復旧という目的を書きます。正確な点数や内部の実行方式は、運営者向けの`description`へ書きます。
 
-`redteam/README.md`と`redteam/README.ja.md`には、次を記載します。
+この問題では`publicHint`を`true`にしているため、障害の存在を参加者へ知らせます。予告なしの仕掛けにしたい問題では`false`を検討しますが、最初のBattleでは復旧体験を分かりやすくすることを優先します。
 
-- endpoint登録と初回得点を確認してから発火する
-- `InstanceId`が対象teamのstackに属するか確認する
-- 同じ障害のrevert待機中に再発火しない
-- team、disruption ID、時刻、結果、revert予定を記録する
-- SSM失敗、誤target、想定外の両系停止では追加発火を止める
+## READMEと構成図
 
-participant向けREADMEに、未公開の発火予定は書きません。
+BattleのREADMEには、次を明記します。
 
-## 公平性を決める
+- AWSへの接続方法
+- Participant Portalへ登録する2つのURL
+- 採点が始まる条件
+- 障害発生時の復旧コマンド
+- 作成されるAWSリソース
+- コストと削除方法
 
-Cloud Rescueの初回イベントは、全teamの準備完了後に同じ障害を手動発火します。
+完成形は[README.ja.md](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/battles/hello-world-battle/README.ja.md)で確認できます。
 
-```text
-0〜15分: endpoint登録と正常状態の確認
-15〜30分: frontend-down
-30〜45分: api-down
-45〜60分: どちらかを再発
-```
-
-この時刻はrunbook上の進行例です。metadataに自動phaseとして実装した値ではありません。
-
-## phaseは必要になってから追加する
-
-`phased-polling`を使うと、時間によって採点条件を変えられます。たとえば、前半はfrontendだけ、後半はfrontendとAPIの両方を要求できます。
-
-初版では、継続採点、手動disruption、自動revertを先に実証します。phaseを追加する場合は、条件変更を参加者へ予告し、採点障害と誤認されないようにします。
-
-次章では、作成したChallengeとBattleをTenkaCloudへ読み込み、イベントを開催します。
+これで2問のファイルがそろいました。次章では、TenkaCloud LiteをAWSへデプロイし、問題を複数チームで動かす準備をします。
