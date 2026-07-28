@@ -84,7 +84,7 @@ curl -fsS http://localhost:8080/recovery
 }
 ```
 
-`flagOutputKey`は、CloudFormation Outputの`RecoveryFlag`と一致させます。difficulty 2の標準得点に合わせて100点にします。3つのヒント減点は合計50点です。catalogの規則に従い、満点の50%を超えないようにします。
+`flagOutputKey`は、CloudFormation Outputの`RecoveryFlag`と一致させます。difficulty 2の標準得点に合わせて100点にします。
 
 ## flagを秘密境界と考えない
 
