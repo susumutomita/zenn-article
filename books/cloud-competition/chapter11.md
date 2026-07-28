@@ -110,4 +110,4 @@ Cloud Rescueの初回イベントは、全teamの準備完了後に同じ障害�
 
 初版では、継続採点、手動disruption、自動revertを先に実証します。phaseを追加する場合は、条件変更を参加者へ予告し、採点障害と誤認されないようにします。
 
-次章では、専用UIを追加せず汎用Portalを使う判断を説明します。
+次章では、作成したChallengeとBattleをTenkaCloudへ読み込み、イベントを開催します。

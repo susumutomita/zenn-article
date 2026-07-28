@@ -27,7 +27,7 @@ free: true
 - [ ] 問題IDがkebab-caseである
 - [ ] ディレクトリ名とmetadataのidが一致する
 - [ ] statusがdraftである
-- [ ] `bun run validate`が成功する
+- [ ] `make validate-problems`が成功する
 - [ ] 生成indexを手編集していない
 - [ ] 変更前の基準問題を実行できる
 ```
@@ -152,8 +152,8 @@ free: true
 ## 9. ローカル検証
 
 ```markdown
-- [ ] `bun install`が成功する
-- [ ] `bun run validate`が成功する
+- [ ] `make install`が成功する
+- [ ] `make validate-problems`が成功する
 - [ ] catalog indexのcheckが成功する
 - [ ] JSONとYAMLのsyntaxを確認した
 - [ ] 問題固有serviceのtestが成功する

@@ -1,25 +1,33 @@
 ---
-title: "壊れたAWS環境をCloudFormationで作る"
+title: "template.yamlでAWS環境を定義する"
 free: true
 ---
 
-競技環境は、正常なシステムを作ってから意図的に壊します。最初から壊れたtemplateを書くと、構築失敗と競技用の障害を区別できません。
+`template.yaml`は、各チームのAWSアカウントへ作る環境を定義するCloudFormation templateです。Cloud Rescueでは、VPC、EC2、nginx、Python API、参加者がSSMで接続するためのIAM roleを作ります。
 
-本章の正本は`challenges/cloud-rescue/template.yaml`です。EC2、nginx、Python API、SSM接続経路を作ります。セットアップの成功を確認した後、nginxだけを停止します。
+## template.yamlの全体構造
 
-## 最小サンプルから始める
+CloudFormation templateは、次の4つの部分から読めます。
 
-Cloud Rescueは、既存の`hello-world-battle`を複製して作りました。
+```yaml
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Cloud Rescue Challenge
 
-```bash
-bun run new challenges cloud-rescue --from hello-world-battle
+Parameters:
+  # TenkaCloudやmetadata.jsonから受け取る値
+
+Resources:
+  # AWSへ作成するVPC、EC2、IAM roleなど
+
+Outputs:
+  # TenkaCloudや参加者へ返すURL、ID、flagなど
 ```
 
-複製直後は、両serviceが正常に動く状態を保ちます。ID、説明、採点を一度に変更せず、差分ごとに検証します。
+`Parameters`は外部から受け取る値、`Resources`は作るAWSリソース、`Outputs`は作成後に返す値です。まずこの対応を決めてから、個々のリソースを書きます。
 
-## 共通parameterを受け取る
+## TenkaCloudから受け取るparameter
 
-TenkaCloudからデプロイするtemplateは、少なくとも次を受け取ります。
+Cloud Rescueは、競技運営に必要な共通値を受け取ります。
 
 ```yaml
 Parameters:
@@ -39,71 +47,94 @@ Parameters:
     MinLength: 16
 ```
 
-`NamePrefix`は、teamごとのresource名を分離します。`TenkaCloudAccountId`と`ExternalId`は、参加者用roleの信頼条件に使います。作者が固定値を入れず、デプロイ経路から注入します。
+| parameter | 用途 |
+| --- | --- |
+| `NamePrefix` | チームごとのリソース名を分ける |
+| `TenkaCloudAccountId` | 参加者用roleを引き受けるTenkaCloud側のAWS accountを限定する |
+| `ExternalId` | 別イベントや第三者からの意図しない`AssumeRole`を防ぐ |
 
-## Challenge固有のflag seed
+これらの値をtemplateへ固定してはいけません。TenkaCloudのデプロイ処理が、イベントとチームに対応する値を渡します。
 
-Challengeは、デプロイごとに異なる値も受け取ります。
-
-```yaml
-FlagSeed:
-  Type: String
-  NoEcho: true
-  MinLength: 8
-  MaxLength: 64
-  AllowedPattern: "^[A-Za-z0-9]+$"
-```
-
-`metadata.json`の`__RANDOM_PASSWORD__`を、デプロイ処理が実値へ置き換えます。Gitには固定flagを置きません。
-
-## participant roleを問題へ限定する
-
-`ParticipantViewerRole`は、TenkaCloud側のaccountだけを信頼します。さらに、`ExternalId`を必須にします。
+Challengeのflagには、問題固有のparameterも追加します。
 
 ```yaml
-AssumeRolePolicyDocument:
-  Version: "2012-10-17"
-  Statement:
-    - Effect: Allow
-      Principal:
-        AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
-      Action: sts:AssumeRole
-      Condition:
-        StringEquals:
-sts:ExternalId: !Ref ExternalId
+  FlagSeed:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 64
+    AllowedPattern: "^[A-Za-z0-9]+$"
 ```
 
-参加者は、自分のEC2を確認してSSMセッションを開始できます。SSHの22番portは公開しません。serviceの操作は、接続後のOS上で行います。
+次章で、`metadata.json`から`FlagSeed`へデプロイごとのランダム値を渡します。
 
-## 正常系を作ってから止める
+## Resourcesに環境を書く
 
-UserDataは、nginxとAPIを構築します。nginxを一度起動し、localhostからHTTP 200を確認します。その後に初期障害を注入します。
+Cloud Rescueの主なリソースは次のとおりです。
+
+| logical ID | AWSリソース | 役割 |
+| --- | --- | --- |
+| `Vpc`、`PublicSubnet`、`Igw`、`Rt` | VPCと経路 | EC2へ外部からHTTPで到達できるようにする |
+| `Sg` | Security Group | 80番と8080番だけを許可する |
+| `Ec2` | EC2 instance | nginxとPython APIを動かす |
+| `InstanceRole` | IAM role | EC2をSSM managed nodeとして登録する |
+| `ParticipantViewerRole` | IAM role | 参加者に自チームのEC2へのSSM接続を許可する |
+
+リソース名には`NamePrefix`を使います。
+
+```yaml
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.99.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-vpc"
+```
+
+同じAWS accountとリージョンへ複数チーム分を作っても、名前が衝突しないようにします。
+
+## 参加者の権限を問題へ限定する
+
+`ParticipantViewerRole`はTenkaCloudのAWS accountだけを信頼し、`ExternalId`の一致も要求します。
+
+```yaml
+  ParticipantViewerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+```
+
+実際のtemplateでは、SSM接続先をこの問題のEC2へ限定します。SSHの22番portは公開しません。
+
+## 正常な環境を作ってから壊す
+
+UserDataでは、nginxとAPIを起動して正常性を確認します。その後、競技の開始状態を作るためにnginxだけを停止します。
 
 ```bash
 systemctl enable --now nginx
 curl -fsS http://127.0.0.1/ >/dev/null
-echo "frontend verified before incident injection"   | systemd-cat -t cloud-rescue-setup
+echo "frontend verified before incident injection" \
+  | systemd-cat -t cloud-rescue-setup
 
 systemctl stop nginx
-echo "initial incident injected: nginx stopped"   | systemd-cat -t cloud-rescue-setup
+echo "initial incident injected: nginx stopped" \
+  | systemd-cat -t cloud-rescue-setup
 ```
 
-この順序により、参加者は「セットアップが失敗した」のではなく、「正常だったserviceが停止した」と判断できます。
+最初から起動に失敗する設定を書くと、構築不良と競技用の障害を区別できません。「正常に動いた後で停止した」という証拠をlogへ残します。
 
-## APIは正常なまま残す
-
-Python APIは8080番portで動きます。
-
-```text
-GET /healthz   -> HTTP 200
-GET /recovery  -> nginxが未復旧ならHTTP 503
-```
-
-frontendだけを止めるため、network全体の障害ではないと切り分けられます。
-
-## Outputを導線として使う
-
-Challenge版は、次のOutputを持ちます。
+## Outputsをmetadata.jsonと参加者へ渡す
 
 ```yaml
 Outputs:
@@ -119,10 +150,6 @@ Outputs:
     Value: !Sub "TC{${FlagSeed}}"
 ```
 
-`FrontendUrl`と`ApiUrl`は症状の比較に使います。`SsmStartSessionCommand`は接続の摩擦を減らします。`RecoveryFlag`は採点engineが参照する正解です。
+`FrontendUrl`と`ApiUrl`は参加者が症状を比較するために使います。`SsmStartSessionCommand`はEC2への接続方法です。`RecoveryFlag`は、次章で`metadata.json`の採点設定から参照します。
 
-## 削除できる構成にする
-
-参加者には、新しいEC2やElastic IPを作らせません。既存serviceの状態だけを修正させます。CloudFormation stackを削除すれば、EC2、VPC、subnet、Internet Gateway、Security Group、IAM roleを回収できます。
-
-次章では、この環境を`metadata.json`からTenkaCloudへ接続します。
+CloudFormationで環境を作る方法と、TenkaCloud上で問題として見せる方法は別です。次章では`metadata.json`の形式を確認し、このtemplateを問題文と採点へ接続します。

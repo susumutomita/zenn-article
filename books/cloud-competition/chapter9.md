@@ -1,112 +1,101 @@
 ---
-title: "検証、実機デプロイ、解答テスト"
+title: "作ったChallengeをAWSで解いてみる"
 free: true
 ---
 
-問題は、ファイルが揃った時点では完成していません。静的検証と実AWS検証を分け、証明できた範囲を明示します。
+`metadata.json`と`template.yaml`を書いたら、Cloud RescueをAWSへ作成し、問題文どおりに復旧できるか確認します。この章では、CloudFormationを直接使ってChallenge単体を試します。TenkaCloudからの配布と採点は、イベントを作る章で確認します。
 
-## 現在の実装PR
+## 1. 問題ファイルを検証する
 
-Cloud RescueはTenkaCloudChallengeのPR #318で管理しています。
-
-```text
-Challenge: challenges/cloud-rescue
-Battle:    battles/cloud-rescue-battle
-```
-
-実AWSの通し確認が終わるまで、両問題の`status`は`draft`です。
-
-## 第1層はcatalog contract
-
-repositoryの完了条件を実行します。
+TenkaCloudのルートで実行します。
 
 ```bash
-make agent-gate
+make validate-problems
 ```
 
-このcommandは、次をまとめて検査します。
+エラーが出た場合は、AWSへ進む前に`metadata.json`と`template.yaml`の参照を直します。
 
-- metadataのJSON Schema
-- problem IDとdirectory名
-- CloudFormation Outputへの参照
-- templateのASCIIとsecurity checks
-- catalog test shards
-- `index.json`と`cost-report.json`
-- course drift
+## 2. テスト用stackを作る
 
-Simulatorとのcross-repository contractは、専用workflowで検査します。
-
-## 第2層はCloudFormationの静的確認
-
-AWS CLIを使える場合は、templateも検証します。
+作成先のAWS accountとリージョンを確認します。`AllowedCidr`には、検証端末のパブリックIPアドレスを`/32`で指定します。
 
 ```bash
-aws cloudformation validate-template   --template-body file://challenges/cloud-rescue/template.yaml
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+EXTERNAL_ID=$(openssl rand -hex 16)
+FLAG_SEED=$(openssl rand -hex 16)
 
-aws cloudformation validate-template   --template-body file://battles/cloud-rescue-battle/template.yaml
+aws cloudformation deploy \
+  --stack-name tc-cloud-rescue-test \
+  --template-file problems/challenges/cloud-rescue/template.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    NamePrefix=tc-cloud-rescue-test \
+    AllowedCidr=<your-public-ip>/32 \
+    TenkaCloudAccountId="$ACCOUNT_ID" \
+    ExternalId="$EXTERNAL_ID" \
+    FlagSeed="$FLAG_SEED"
 ```
 
-このcommandは、UserDataの成功、IAMの実権限、endpointへの到達性を保証しません。
+CloudFormation stackが`CREATE_COMPLETE`になれば、templateからAWS環境を作成できています。
 
-## 第3層はChallengeの実AWS確認
+## 3. 最初の症状を確認する
 
-新しいstackで次を確認します。
+CloudFormationのOutputsから、`FrontendUrl`、`ApiUrl`、`InstanceId`を取得します。
 
-```text
-CloudFormation: CREATE_COMPLETE
-SSM managed node: online
-frontend /: failure
-API /healthz: HTTP 200
-/recovery from outside: HTTP 403
-/recovery before recovery: HTTP 503
+```bash
+aws cloudformation describe-stacks \
+  --stack-name tc-cloud-rescue-test \
+  --query 'Stacks[0].Outputs'
 ```
 
-participant roleでSSMへ接続し、状態を調査します。
+開始時点の期待値は次のとおりです。
+
+| 確認先 | 期待する結果 |
+| --- | --- |
+| `FrontendUrl` | nginxが停止しているため接続に失敗する |
+| `ApiUrl/healthz` | HTTP 200を返す |
+| EC2 | SSM managed nodeとしてonlineになる |
+
+frontendとAPIが両方失敗する場合は、nginx以外の構築処理やnetworkを確認します。
+
+## 4. 参加者と同じ手順で復旧する
+
+`InstanceId`を使ってEC2へ接続します。
+
+```bash
+aws ssm start-session --target <instance-id>
+```
+
+状態とlogを確認します。
 
 ```bash
 systemctl status nginx tenkacloud-api
 journalctl -u nginx -u tenkacloud-api --no-pager -n 50
 sudo nginx -t
+```
+
+nginxが停止していることを確認したら、復旧します。
+
+```bash
 sudo systemctl start nginx
 curl -fsS http://127.0.0.1/
 curl -fsS http://localhost:8080/recovery
 ```
 
-取得したflagをPortalへ提出し、得点と誤答penaltyを確認します。
+最後のコマンドが`TC{...}`を返し、外部の`FrontendUrl`もHTTP 200になれば、問題文から復旧までを完走できています。
 
-## 第4層はBattleの実AWS確認
+## 5. stackを削除する
 
-`Ec2HostHint`から2つのURLを作り、Portalへ登録します。
-
-```text
-frontend slot: http://<host>
-API slot:      http://<host>:8080
-```
-
-次の採点周期で、両endpointの成功が反映されることを確認します。その後、`frontend-down`と`api-down`を別々に実行します。
-
-各障害で確認する内容は次です。
-
-- 対象teamだけに作用する
-- 片方のendpointだけが失敗する
-- participantがSSMから復旧できる
-- 復旧後に採点へ戻る
-- 600秒後のrevertが成功する
-- commandとrevertの監査記録が残る
-
-## 第5層は削除
+確認後は同じ日に削除します。
 
 ```bash
-aws cloudformation delete-stack --stack-name <problem-stack>
-aws cloudformation wait stack-delete-complete   --stack-name <problem-stack>
+aws cloudformation delete-stack \
+  --stack-name tc-cloud-rescue-test
+
+aws cloudformation wait stack-delete-complete \
+  --stack-name tc-cloud-rescue-test
 ```
 
-EC2、VPC、subnet、Internet Gateway、Security Group、IAM roleが残っていないことを確認します。請求画面とresource explorerでも確認します。
+EC2、VPC、Security Group、IAM roleが残っていないこともAWS Consoleで確認します。
 
-## 第6層は初見者テスト
-
-実装内容を使うべきではない言葉なので修正してください参加者に解いてもらいます。接続時間、ヒント利用、誤った仮説、復旧時間、再発時の短縮を記録します。
-
-CIの成功を実AWSの成功として扱いません。未確認の画面、log、所要時間は空欄のまま残します。
-
-次章では、Battleの継続採点を実装します。
+ここまででChallenge単体を解けることを確認しました。次章では、同じ題材を継続採点するBattleへ発展させます。

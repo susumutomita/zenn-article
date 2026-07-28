@@ -1,150 +1,73 @@
 ---
-title: "Part 3｜Challengeを実装する"
+title: "Part 3｜Challengeのファイルを作る"
 free: true
 ---
 
-TenkaCloudの問題は、プラットフォーム本体とは別の[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)で管理します。
+ここからCloud Rescueを実装します。最初に、TenkaCloudが問題を読み込む仕組みと、編集するファイルの役割を確認します。
 
-この分離は重要です。問題を1つ追加するたびにTenkaCloud本体へ個別ロジックを足すと、問題数に比例してプラットフォームが複雑になります。TenkaCloudでは、問題側が必要な情報を宣言し、プラットフォームは汎用的にデプロイ、表示、採点します。
+## 開発環境を準備する
 
-## 開発環境を取得する
-
-Bun、Git、Dockerを利用します。AWSへデプロイする段階までは、AWS資格情報がなくても問題ファイルの作成と検証ができます。
+TenkaCloudChallengeは、TenkaCloudの`problems/`ディレクトリにGit submoduleとして組み込まれています。本書ではTenkaCloudをsubmodule付きで取得します。準備と検証には、リポジトリの`Makefile`を使います。
 
 ```bash
-git clone https://github.com/susumutomita/TenkaCloudChallenge.git
-cd TenkaCloudChallenge
-bun install
-bun run setup
-bun run validate
+git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
+cd TenkaCloud
+make install
+make validate-problems
 ```
 
-最初の`bun run validate`が成功することを確認してください。既存問題で失敗する状態のまま新しい問題を追加すると、自分の変更が原因か切り分けられません。
+`make validate-problems`が成功すれば、既存の問題カタログを検証できる開始地点に立てています。以降、明記しない限りコマンドはTenkaCloudのルートで実行します。
 
-## 1問題1ディレクトリ
+## 1つの問題を構成するファイル
 
-公開カタログは、次のような構造です。
+Challengeは`problems/challenges/<problem-id>/`に置きます。Cloud Rescueの最小構成は次のとおりです。
 
 ```text
-TenkaCloudChallenge/
-├── battles/
-│   └── <problem-id>/
-│       ├── metadata.json
-│       ├── template.yaml
-│       ├── README.md
-│       ├── README.ja.md
-│       ├── portal/
-│       └── services/
-├── challenges/
-│   └── <problem-id>/
-│       ├── metadata.json
-│       ├── template.yaml
-│       ├── README.md
-│       └── README.ja.md
-├── SCHEMA.json
-└── scripts/
+problems/challenges/cloud-rescue/
+├── metadata.json
+├── template.yaml
+├── README.md
+└── README.ja.md
 ```
 
-役割は次のとおりです。
+各ファイルの役割は明確に分かれています。
 
-| ファイル | 必須 | 役割 |
-| --- | --- | --- |
-| `metadata.json` | 必須 | カタログ表示、採点、endpoint、ヒント、妨害などの宣言 |
-| `template.yaml` | 必須 | チームのAWSアカウントへデプロイするCloudFormation |
-| `README.md` | 必須 | 英語版のストーリー、解法、学習目標 |
-| `README.ja.md` | 必須 | 日本語版 |
-| `portal/` | 任意 | 問題固有のParticipant Portal UI |
-| `services/` | 任意 | Lambdaやコンテナなど、問題固有の実装 |
-| `simulation.json` | 任意 | IaCやmetadataだけでは表せないSimulator要件 |
+| ファイル | 役割 |
+| --- | --- |
+| `template.yaml` | チームのAWSアカウントへ作るリソースを定義するCloudFormation template |
+| `metadata.json` | 問題文、学習目標、template、採点、ヒントをTenkaCloudへ伝える |
+| `README.md` | 問題の英語ドキュメント |
+| `README.ja.md` | 問題の日本語ドキュメント |
 
-最初から`portal/`や`services/`を作る必要はありません。汎用UIとCloudFormationだけで成立する問題は、その方が保守しやすくなります。
+`template.yaml`だけでは、AWS環境は作れても競技にはなりません。反対に、`metadata.json`だけでは参加者が操作する環境を作れません。2つのファイルを次の参照で接続します。
 
-## 動くサンプルを複製する
+```text
+metadata.json
+├── cfnTemplate ──────────> template.yaml
+├── cfnParametersのキー ─> template.yamlのParameters
+└── scoring.flagOutputKey -> template.yamlのOutputs
+```
 
-ゼロから空ファイルを作るのではなく、検証を通る既存サンプルから始めます。
+Cloud Rescueでは、`metadata.json`の`FlagSeed`をCloudFormationへ渡します。採点時には、CloudFormationの`RecoveryFlag`を正解として読み取ります。
 
-### Challengeの雛形
+## 動く雛形から始める
+
+空のJSONとYAMLを手作業で用意せず、カタログのscaffoldコマンドで既存Challengeを複製します。
 
 ```bash
+cd problems
 bun run new challenges cloud-rescue --from hello-world
+cd ..
+make validate-problems
 ```
 
-### Battleの雛形
+`bun run new`はTenkaCloudChallengeが提供する問題作成コマンドです。依存関係の準備と検証は、TenkaCloudルートの`make`から実行します。
 
-```bash
-bun run new battles cloud-rescue-battle --from hello-world-battle
-```
+作成直後は、次の対応だけを確認します。
 
-コマンド実行後、次を確認します。
+- ディレクトリ名と`metadata.json`の`id`が`cloud-rescue`で一致する
+- `metadata.json`の`cfnTemplate`が`template.yaml`を指す
+- `template.yaml`が`NamePrefix`などの共通parameterを受け取る
+- `make validate-problems`が成功する
 
-```bash
-bun run validate
-```
-
-この時点では内容が元サンプルのままでも構いません。まず「新しいディレクトリが作られ、schemaと参照関係の検証を通る」という開始地点を確保します。
-
-## 問題IDを決める
-
-問題IDは小文字のkebab-caseにします。ディレクトリ名と`metadata.json`の`id`を一致させます。
-
-本書では次を使います。
-
-- Challenge: `cloud-rescue`
-- Battle: `cloud-rescue-battle`
-
-IDはCloudFormation stack名や内部参照にも使われます。公開後の変更は移行コストが高いため、表示名より慎重に決めます。
-
-## 編集の順序
-
-問題を次の順で編集すると、途中でも壊れた場所を見つけやすくなります。
-
-1. `metadata.json`のID、表示名、説明だけを変更する
-2. `bun run validate`を実行する
-3. `template.yaml`を正常な状態でデプロイできる構成にする
-4. 壊す箇所を1つ追加する
-5. 採点を設定する
-6. ヒントとREADMEを書く
-7. 実AWSでデプロイ、解答、削除を確認する
-8. Battle化、妨害、専用UIは最後に追加する
-
-完成形を一度に書くと、CloudFormation、IAM、metadata、採点のどこが原因か分からなくなります。
-
-## ローカルでできることとできないこと
-
-`bun run validate`では、主に次を検査できます。
-
-- `metadata.json`がJSON Schemaに適合するか
-- IDとディレクトリ名が一致するか
-- endpointやportal slotなどの参照が存在するか
-- カタログindexがmetadataと整合するか
-- 問題間の学習依存に循環がないか
-
-一方、次は実AWS環境が必要です。
-
-- CloudFormationが対象リージョンで作成できるか
-- IAM権限がAWS ConsoleやCLIの実挙動に足りるか
-- UserDataが最後まで成功するか
-- 採点側から公開endpointへ到達できるか
-- stack削除後にリソースが残らないか
-
-ローカル検証に通ったことを、実機確認済みと扱わないようにします。
-
-## 変更ごとの確認
-
-問題作者の基本ループは短く保ちます。
-
-```text
-編集
-  ↓
-bun run validate
-  ↓
-差分を読む
-  ↓
-必要なら実AWSへデプロイ
-  ↓
-参加者として解く
-  ↓
-削除する
-```
-
-次章では、`template.yaml`を読み、競技用のAWS環境を安全に作ります。
+この時点では、まだnginxを止めません。次章で`template.yaml`の形式を確認し、正常な環境を作ってから競技用の障害を入れます。

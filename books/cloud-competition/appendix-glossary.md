@@ -29,7 +29,7 @@ Capture The Flagの略です。問題を解いてflagを取得し、得点を競
 
 ### ハンズオン
 
-説明された手順を実行し、技術の操作方法を学ぶ形式です。クラウド競技では手順を全て示さず、参加者自身に観察と判断を行わせます。
+説明された手順を実行し、技術の操作方法を学ぶ形式です。クラウド競技では手順を全て示さず、参加者自身に観察と判断をさせます。
 
 ### 学習目標
 
@@ -41,7 +41,7 @@ Capture The Flagの略です。問題を解いてflagを取得し、得点を競
 
 ### 初見者テスト
 
-問題の内部実装を知らない人に解いてもらう試験です。作者には見えない導線の欠落、説明不足、想定外解法を発見します。
+問題の内部構造を初めて見る人に解いてもらう試験です。作者には見えない導線の欠落、説明不足、想定外解法を発見します。
 
 ### 完走率
 
@@ -95,7 +95,7 @@ endpointへHTTP requestなどを送り、正常性を確認する処理です。
 
 ### `flag`
 
-TenkaCloudの採点kindの一つです。参加者の提出値とcanonical answerを比較します。
+TenkaCloudの採点kindの1つです。参加者の提出値とcanonical answerを比較します。
 
 ### `uptime-flat`
 
@@ -127,7 +127,7 @@ TenkaCloudの採点kindの一つです。参加者の提出値とcanonical answe
 
 ### 理論最大点
 
-全ての採点周期で完全に正常だった場合の得点です。polling周期、endpoint数、競技時間から計算し、逆転可能性を設計します。
+全ての採点周期で正常だった場合の得点です。polling周期、endpoint数、競技時間から計算し、逆転可能性を設計します。
 
 ## 障害注入
 
@@ -257,7 +257,7 @@ roleを取得した後に、どのAWS APIを実行できるかを定義するpol
 
 ### least privilege
 
-必要な操作だけを許可する考え方です。競技を簡単にするためにAdministratorAccessを渡すと、安全性と学習価値を失います。
+必要な操作だけを許可する考え方です。AdministratorAccessを渡せば競技の実装は簡単です。しかし、安全性と学習価値を失います。
 
 ### ParticipantViewerRole
 
@@ -275,9 +275,9 @@ TenkaCloudがcompetitor accountへ問題stackをデプロイするために、�
 
 一時credentialを使い、対象roleの権限でAWS Consoleへ移動する仕組みです。参加者が自分のteam accountへ入る導線に使います。
 
-### session duration
+### セッション duration
 
-AssumeRoleで取得した一時sessionの有効時間です。競技時間より短すぎず、終了後に不要に長く残らない値へ調整します。
+AssumeRoleで取得した一時セッションの有効時間です。競技時間より短すぎず、終了後に不要に長く残らない値へ調整します。
 
 ## AWSリソースと運用
 
@@ -297,7 +297,7 @@ CloudFormation stackが外部へ公開する値です。instance ID、Console de
 
 EC2の初回起動時に実行するscriptです。アプリの導入と初期状態の作成に使えます。途中失敗を観測できるようにします。
 
-### SSM Session Manager
+### SSM セッション Manager
 
 SSH portと秘密鍵を公開せずにEC2へ接続する仕組みです。Cloud Rescueの管理経路として利用します。
 
@@ -307,7 +307,7 @@ EC2などのmanaged nodeへcommandを実行する仕組みです。TenkaCloudの
 
 ### systemd
 
-Linuxのservice管理機構です。`systemctl`と`journalctl`を使い、serviceの状態確認と復旧を行います。
+Linuxのservice管理機構です。`systemctl`と`journalctl`を使い、serviceの状態を確認して復旧します。
 
 ### 外形監視
 
@@ -353,7 +353,7 @@ AWS利用費をservice、account、期間などで分析する機能です。イ
 
 ### validator
 
-問題ファイルがschemaや参照関係に適合するか確認する処理です。TenkaCloudChallengeでは`bun run validate`を使います。
+問題ファイルがschemaや参照関係に適合するか確認する処理です。本書ではTenkaCloudのルートで`make validate-problems`を実行します。
 
 ### Git ref
 
