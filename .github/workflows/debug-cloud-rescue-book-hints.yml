@@ -1,0 +1,49 @@
+name: debug-cloud-rescue-book-hints
+
+on:
+  push:
+    branches:
+      - book/cloud-competition-draft
+    paths:
+      - .github/workflows/debug-cloud-rescue-book-hints.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/debug-cloud-rescue-book-hints.yml
+      - books/cloud-competition/chapter7.md
+      - books/cloud-competition/chapter8.md
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install
+      - name: Capture lint
+        shell: bash
+        run: |
+          set +e
+          pnpm exec textlint \
+            books/cloud-competition/chapter7.md \
+            books/cloud-competition/chapter8.md \
+            > cloud-rescue-book-hints.txt 2>&1
+          echo $? > cloud-rescue-book-hints-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-rescue-book-hints
+          path: |
+            cloud-rescue-book-hints.txt
+            cloud-rescue-book-hints-status.txt
