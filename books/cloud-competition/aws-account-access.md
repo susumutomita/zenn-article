@@ -93,4 +93,4 @@ flowchart LR
     Participant -->|"問題を解く操作"| ParticipantRole
 ```
 
-次章から作る`template.yaml`には、問題固有のAWSリソースと`ParticipantViewerRole`を定義します。チーム用AWSアカウントに置く`CompetitorDeployRole`は、イベントを開催する章で準備します。
+これで、問題を作る権限と、参加者が問題を解く権限を分けて理解できました。次章では、`hello-world`の勝利条件をTenkaCloudのflag採点へ変換します。その後、`template.yaml`に問題固有のAWSリソースと`ParticipantViewerRole`を定義します。

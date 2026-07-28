@@ -63,4 +63,4 @@ TenkaCloud Liteの削除が成功したら、CloudFormationから`tenkacloud-lit
 
 点数だけを見ず、参加者が実際に取った行動と質問を記録します。次回は問題文、ヒント、構成図、運営手順へ反映します。
 
-次章では、この2問を土台に自分の問題を作る方法を整理します。
+次章では、本書で作ったローカルChallenge、AWS Challenge、AWS Battleを土台に、自分の問題を作る方法を整理します。

@@ -28,48 +28,15 @@ flowchart LR
 - 成功を外から判定できる条件
 - 問題、ヒント、得点を参加者へ届ける運営基盤
 
-本書では、この4つを設計し、実際に動く問題へ変換します。
-
-## 本書で作る競技
-
-最初の狙いは、TenkaCloudのゲームルールを最も小さな構成で体験できる競技を作ることです。AWSサービスを数多く使うことより、参加者が競技の基本動作を一周できることを優先します。
-
-1問目では、参加者が自分のチーム用AWS環境へ移動します。AWS Systems Manager Parameter Storeから値を見つけ、参加者用画面のParticipant Portalへ提出します。これにより、問題の確認からAWS操作、答えの提出、得点の確認までを体験できます。
-
-2問目では、参加者がAWS Systems Managerのセッション機能でサーバーへ接続します。次に、稼働中のfrontendとAPIのURLをParticipant Portalへ登録し、継続採点を開始します。運営のレッドチームがfrontendを停止したら、参加者はサーバー上でサービスを復旧します。
-
-この設計から、次の2問を作ります。
-
-- `hello-world`: SSM Parameterの値を発見して提出する
-- `hello-world-battle`: サーバーへ接続し、2つのサービスURLを登録して正常状態を維持する
-
-本書で設計した完成形は、公開問題カタログで実際に利用できます。
-
-- [Hello World Challenge](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/hello-world)
-- [Hello World Battle](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/battles/hello-world-battle)
-
-完成済みファイルを読むことが本書の目的ではありません。参加者にどんな体験を届けたいかを決め、その体験をストーリー、AWS環境、採点、障害へ変換する過程を順にたどります。その結果として、上の2問と同じ構成が完成します。
-
-## ChallengeとBattle
-
-TenkaCloudの問題形式には、ChallengeとBattleがあります。
-
-Challengeは、明確なゴールを自分のペースで達成する形式です。発見した値を提出する、設定を修正した結果を検証する、といった一度の到達を採点します。本書の`hello-world`では、SSM Parameterから発見した値を提出すると得点します。
-
-Battleは、システムの状態を競技中に繰り返し採点する形式です。本書の`hello-world-battle`では、参加者が登録した2つのURLを1分ごとに確認します。運営はレッドチームとして障害を注入でき、参加者は停止したサービスを復旧します。
-
-| 形式 | ゴール | 本書で体験すること |
-| --- | --- | --- |
-| Challenge | 一度の発見や修正を完了する | AWSへ移動し、値を発見して提出する |
-| Battle | 正常な状態を継続して保つ | サーバー接続、URL登録、継続採点、障害復旧 |
-
-ChallengeとBattleは、初めて読む人が覚えておくべき最初の2語です。採点方式などの細かな用語は、必要になる章で初めて説明します。
+本書では、この4つを設計し、実際に遊べる問題へ変換します。
 
 ## TenkaCloudとは
 
 [TenkaCloud](https://www.tenkacloud.com/?lang=ja)は、クラウド競技を開催するためのOSSです。イベントとチームの管理、問題の配布、Participant Portal、採点、ヒント、スコア表示、Battleの障害注入をまとめて扱います。ソースコードは[GitHub](https://github.com/susumutomita/TenkaCloud)で公開されています。
 
-問題の中身は、[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)という別のOSSで管理します。問題ごとに、参加者へ見せる文章、環境、採点条件、ヒント、障害を1つのディレクトリへまとめます。
+参加者は、Participant Portalで問題文とヒントを読み、答えや採点対象URLを登録します。運営者は、Application Admin Consoleでイベント、チーム、問題の配布、Battle中の障害を管理します。
+
+問題の中身は、[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)という別のOSSで管理します。問題ごとに、参加者へ見せる文章、操作する環境、採点条件、ヒント、障害を1つのディレクトリへまとめます。
 
 役割の違いは次のとおりです。
 
@@ -78,7 +45,7 @@ flowchart LR
     Author["問題作者"]
     Catalog["TenkaCloudChallenge<br/>競技の内容を定義"]
     Platform["TenkaCloud<br/>競技を運営"]
-    Environment["チームごとの環境"]
+    Environment["参加者が操作する環境"]
     Participant["参加者"]
 
     Author --> Catalog
@@ -90,16 +57,56 @@ flowchart LR
 
 TenkaCloudChallengeが「何を体験する競技か」を定義し、TenkaCloudが「誰へ配り、どう採点し、どう進行するか」を担当します。
 
-TenkaCloudの動かし方には、AWSへ基盤をデプロイするTenkaCloud Liteと、AWSを使わず手元のDockerで問題を動かすローカルモードがあります。本書では両者を混同しないよう、AWS問題を作った後に違いを整理し、ローカル問題も一から作ります。
+## ChallengeとBattle
+
+TenkaCloudの問題形式には、ChallengeとBattleがあります。
+
+Challengeは、明確なゴールを自分のペースで達成する形式です。発見した値を提出する、設定を修正した結果を検証する、といった一度の到達を採点します。
+
+Battleは、システムの状態を競技中に繰り返し採点する形式です。参加者が登録したサービスURLを定期的に確認し、運営が障害を起こした後も正常な状態へ戻せるかを採点できます。
+
+| 形式 | 採点するもの | 難しさが増える理由 |
+| --- | --- | --- |
+| Challenge | 一度の発見や修正 | ゴールへ到達すれば完了する |
+| Battle | 時間とともに変わるシステムの状態 | URL登録、継続採点、障害、復旧を設計する |
+
+ChallengeとBattleは採点方法の違いです。問題環境をAWSと手元のDockerのどちらで動かすかは、別に選べます。
+
+## 本書では簡単な問題から順番に作る
+
+複数の問題を同時に設計すると、ストーリー、環境、採点のどこを考えているのか分かりにくくなります。本書では、1問を完成させてから次の問題へ進みます。
+
+最初に、Dockerで動くローカルChallengeを作ります。`sqli-demo`という小さなWeb問題を題材に、問題文、Docker環境、採点API、Participant Portalへの提出を一周します。AWSアカウントを使わないため、問題を構成する基本要素に集中できます。
+
+次に、AWS Challengeの`hello-world`を作ります。参加者は自分のチーム用AWS環境へ移動し、AWS Systems Manager Parameter Storeから値を見つけ、Participant Portalへ提出します。ここで、CloudFormation、参加者用IAM Role、AWS環境への一時アクセスを追加します。
+
+最後に、AWS Battleの`hello-world-battle`を作ります。参加者はAWS Systems Managerのセッション機能でサーバーへ接続し、frontendとAPIのURLをParticipant Portalへ登録します。登録後は継続採点が始まり、運営のレッドチームがfrontendを停止したら、参加者がサービスを復旧します。
+
+```mermaid
+flowchart LR
+    Local["1. ローカルChallenge<br/>問題と採点の基本"]
+    Challenge["2. AWS Challenge<br/>AWS環境と一度の採点"]
+    Battle["3. AWS Battle<br/>継続採点と障害復旧"]
+
+    Local --> Challenge --> Battle
+```
+
+Battleを最後にするのは、3問の中で最も多くの設計が必要だからです。Battleでは、参加者の最初の行動だけでなく、採点周期、登録するURL、障害を起こす時刻、復旧方法、自動で元へ戻す処理まで決めます。
+
+本書で作る完成形は、公開問題カタログで実際に利用できます。
+
+- [sqli-demo](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/sqli-demo)
+- [Hello World Challenge](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/hello-world)
+- [Hello World Battle](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/battles/hello-world-battle)
+
+完成済みファイルを読むことが本書の目的ではありません。参加者にどんな体験を届けたいかを決め、その体験をストーリー、環境、採点へ変換する過程を、簡単な問題から順番にたどります。
 
 ## この後の流れ
 
-まず、参加者に何を持ち帰ってもらうかを決めます。次に、最初の行動へつながるストーリーと、採点できる勝利条件を作ります。
+次章では、ローカルモードとTenkaCloud Liteの違いを整理します。その後は、ローカルChallenge、AWS Challenge、AWS Battleを順番に設計して実装します。
 
-設計が固まってから、ChallengeとBattleを実装します。実装中に初めて`template.yaml`や`metadata.json`を登場させ、各項目が先に決めた体験のどこを担うのかを説明します。
-
-その後、TenkaCloudがチームのAWSアカウントへ安全にアクセスする仕組み、TenkaCloud Liteとローカルモードの違い、ローカル問題の作り方を扱います。最後に、作成した問題を複数チームへ配り、競技を開催して削除するところまで進みます。
+3問が完成してから、TenkaCloud LiteをAWSへデプロイし、AWS ChallengeとBattleを複数チームへ配ります。最後に、開催、障害注入、復旧、削除までを通します。
 
 本書とTenkaCloudは独立したOSSプロジェクトであり、Amazon Web Services, Inc.との提携、承認、後援関係はありません。AWSと関連する名称は、Amazon.com, Inc.またはその関連会社の商標です。本書はAWS公式のGameDayを再現するものではなく、同種の実践型クラウド演習を自作する方法を扱います。
 
-次章では、参加者が時間を使って参加する価値のある競技とは何かを考えます。
+次章では、最初に作るローカル問題が、AWS問題とどのように違うのかを確認します。
