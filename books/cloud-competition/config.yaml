@@ -1,0 +1,23 @@
+title: "自分で作るクラウド競技"
+summary: "TenkaCloudを使い、AWS GameDay風の実践型クラウド競技を設計・実装・開催する方法を、ChallengeからBattle、障害注入、運営、再利用まで手を動かしながら学びます。"
+topics: ["AWS", "SRE", "GameDay", "CTF", "TenkaCloud"]
+published: false
+price: 0
+chapters:
+  - chapter1
+  - chapter2
+  - chapter3
+  - chapter4
+  - chapter5
+  - chapter6
+  - chapter7
+  - chapter8
+  - chapter9
+  - chapter10
+  - chapter11
+  - chapter12
+  - chapter13
+  - chapter14
+  - chapter15
+  - chapter16
+  - chapter17
