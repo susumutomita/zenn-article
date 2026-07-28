@@ -23,7 +23,7 @@ frontendの`/`とAPIの`/healthz`を継続採点します。`frontend-down`はng
 
 ## CIで証明する範囲
 
-metadata、CloudFormation参照、security checks、catalog test、index、cost report、course drift、Simulator compatibilityを機械検証します。
+metadataとCloudFormation参照を検査します。security checksとcatalog testも実行します。さらに、index、cost report、course drift、Simulator compatibilityを機械検証します。
 
 ## 公開前に実AWSで記録すること
 
