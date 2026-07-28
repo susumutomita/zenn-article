@@ -1,57 +1,58 @@
 ---
-title: "ChallengeからBattleへ進む"
+title: "Battleのゲームルールを設計する"
 free: true
 ---
 
-Challengeでは、参加者が値を提出した時点で問題が終わりました。Battleでは、システムの状態を繰り返し採点します。参加者は一度直して終わりではなく、正常な状態を維持します。
+Challengeでは、参加者が値を提出すると1問が完了しました。Battleでは、参加者が動かしているシステムの状態を競技中に繰り返し採点します。
 
-本書では、2問目として`hello-world-battle`を一から作ります。
+本書で作るBattleの狙いは、TenkaCloudのBattleを遊ぶために必要な操作を、最小の構成で一周することです。
 
-## 参加者の体験
+- AWS Systems Managerのセッション機能でサーバーへ接続する
+- 採点対象となるサービスURLをParticipant Portalへ登録する
+- URL登録後に得点が動き始めることを確認する
+- レッドチームが起こした障害を復旧する
 
-`hello-world-battle`では、1台のEC2上に次の2つのサービスを作ります。
+この体験を実現するため、EC2を1台だけ用意し、その上で2つのサービスを動かします。
 
-- nginxのfrontend: port 80
-- Python HTTP serverのAPI: port 8080
+- port 80: nginxのfrontend
+- port 8080: Pythonで作るAPI
 
-参加者は、CloudFormation Outputの`Ec2HostHint`からEC2の公開DNS名を確認します。その後、Participant Portalへ次のURLを登録します。
+## サーバーへ接続する
+
+参加者が最初に行うのは、サーバーへの接続です。
+
+問題stackは、EC2のinstance IDを使った接続コマンドをCloudFormation Outputへ返します。
 
 ```text
-frontend: http://<Ec2HostHint>
-api:      http://<Ec2HostHint>:8080
+aws ssm start-session --target <InstanceId>
 ```
 
-TenkaCloudは1分ごとに`/`と`/healthz`を確認します。
+SSH portや秘密鍵は使いません。Participant PortalからAWSへ移動し、Outputに示されたコマンドを実行します。
 
-運営がnginxを停止すると、frontendの確認が失敗します。参加者はAWS Systems Managerのセッション機能でEC2へ接続し、nginxを起動します。
+接続後のシェルには、次に登録するURLを案内します。初めてBattleへ参加する人が「サーバーには入れたが、この後に何をすればよいか」で止まらないためです。
 
-```bash
-sudo systemctl start nginx
+## サービスURLを登録する
+
+TenkaCloudは、参加者が登録したURLへHTTP要求を送り、サービスが正常かどうかを判断します。この採点対象URLをendpointと呼びます。
+
+Participant Portalには、問題が定義したendpointの入力欄があります。本書では、次の2つを登録します。
+
+```text
+frontend: http://<EC2の公開DNS名>
+api:      http://<EC2の公開DNS名>:8080
 ```
 
-## デプロイだけでは得点させない
-
-CloudFormationで正常なWebサービスを作り、そのURLをそのまま採点へ渡すと、参加者が何もしなくても得点が増えます。
-
-そこで、`FrontendUrl`と`ApiUrl`のOutputは空文字にします。
-
-```yaml
-Outputs:
-  FrontendUrl:
-    Value: ""
-  ApiUrl:
-    Value: ""
-```
-
-参加者がParticipant PortalへURLを登録した後に、初めて採点が始まります。
+TenkaCloudは1分ごとに、frontendの`/`とAPIの`/healthz`を確認します。
 
 ```mermaid
 sequenceDiagram
     participant P as 参加者
+    participant EC2 as チームのEC2
     participant Portal as Participant Portal
     participant Score as 採点エンジン
-    participant EC2 as チームのEC2
 
+    P->>EC2: SSMで接続
+    EC2-->>P: URL登録の案内
     P->>Portal: frontendとapiのURLを登録
     loop 1分ごと
         Score->>EC2: GET /
@@ -61,31 +62,69 @@ sequenceDiagram
     end
 ```
 
-## 障害は運営が実行する
+## デプロイしただけでは得点させない
 
-`hello-world-battle`で他チームの参加者がEC2を攻撃するわけではありません。TenkaCloudの運営者が、対象チームを選んで障害を実行します。
+CloudFormationが正常なWebサービスとURLを作り、そのURLを採点へ自動で渡すと、参加者が何もしなくても得点します。それでは、URL登録というBattleの基本操作を学べません。
 
-障害定義は、対象EC2で次のコマンドを実行します。
+そこで、採点へ渡す`FrontendUrl`と`ApiUrl`の初期値は空にします。
 
-```bash
+```yaml
+Outputs:
+  FrontendUrl:
+    Value: ""
+  ApiUrl:
+    Value: ""
+```
+
+EC2の公開DNS名は、採点URLとは別の`Ec2HostHint`で参加者へ示します。参加者がその値からURLを組み立て、Participant Portalへ登録した時点で採点が始まります。
+
+これは意地悪のための空欄ではありません。参加者の操作と「得点が動き始めた」という結果を結び付けるためのゲームルールです。
+
+## レッドチームが障害を起こす
+
+TenkaCloudには、Battle中に運営者が対象チームを選び、問題へ定義済みの障害を実行するレッドチーム機能があります。
+
+`hello-world-battle`では、他チームの参加者が攻撃するわけではありません。運営者がApplication Admin Consoleから`frontend-down`を実行すると、TenkaCloudが対象チームのEC2でnginxを停止します。
+
+```text
 systemctl stop nginx
 ```
 
-10分後には、TenkaCloudが次の復旧コマンドを実行します。
+frontendがHTTP 200を返さなくなるため、採点結果が変化します。参加者は再びEC2へ接続し、nginxを起動します。
 
 ```bash
-systemctl start nginx
+sudo systemctl start nginx
 ```
 
-自動復旧は、参加者が解けなかった場合に環境が停止したまま残ることを防ぐ安全網です。参加者が自分で復旧すれば、それより早く正常状態へ戻ります。
+参加者が復旧できない場合に備え、TenkaCloudは10分後にnginxを起動する処理も予約します。レッドチーム機能は、障害を起こす処理と、元へ戻す処理を対にして使います。
 
-## Battleの勝利条件
+```mermaid
+sequenceDiagram
+    participant Red as 運営のレッドチーム
+    participant TC as TenkaCloud
+    participant EC2 as 対象チームのEC2
+    participant P as 参加者
+    participant Score as 採点エンジン
 
-この入門Battleでは、複雑な順位規則を作りません。
+    Red->>TC: frontend-downを実行
+    TC->>EC2: nginxを停止
+    Score->>EC2: GET /
+    EC2-->>Score: 失敗
+    P->>EC2: SSMで接続
+    P->>EC2: nginxを起動
+    Score->>EC2: GET /
+    EC2-->>Score: HTTP 200
+```
 
-- 2つのendpointを登録する
-- frontendとAPIを正常に保つ
-- 障害が入ったら復旧する
-- 正常だった時間を得点へ反映する
+## Battleの完成条件
 
-次章では、この体験を作る`template.yaml`を組み立てます。
+この入門Battleで確認したいのは、複雑な順位計算ではありません。次の一連の流れが動くことです。
+
+1. 参加者がサーバーへ接続できる
+2. 2つのURLを登録できる
+3. 登録後に継続採点が始まる
+4. レッドチームが対象チームへ障害を起こせる
+5. 参加者が復旧し、正常な採点へ戻せる
+6. 自動復旧によって障害が残り続けない
+
+このゲームルールを、次章から`template.yaml`と`metadata.json`へ変換します。

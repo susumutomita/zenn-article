@@ -1,5 +1,5 @@
 title: "自分で作るクラウド競技"
-summary: "AWSを使う実践型クラウド競技を設計し、最小のChallengeとBattleを一から作り、TenkaCloudで複数チームへ届ける方法を学びます。"
+summary: "参加者の体験とストーリーからクラウド競技を設計し、AWSのChallengeとBattle、Dockerで動くローカル問題を一から作り、TenkaCloudで開催する方法を学びます。"
 topics: ["AWS", "SRE", "GameDay", "CTF", "TenkaCloud"]
 published: false
 price: 0
@@ -10,6 +10,7 @@ chapters:
   - chapter3
   - scoring-design
   - chapter4
+  - aws-account-access
   - chapter5
   - chapter6
   - chapter7
@@ -18,6 +19,9 @@ chapters:
   - battle-experience
   - chapter10
   - chapter11
+  - execution-modes
+  - local-problem-design
+  - local-problem-runtime
   - chapter13
   - chapter14
   - chapter15

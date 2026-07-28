@@ -11,8 +11,7 @@ challenges/hello-world/
 ├── template.yaml
 ├── README.md
 ├── README.ja.md
-├── diagram.svg
-└── simulation.json
+└── diagram.svg
 ```
 
 ## ファイル同士の接続を確認する
@@ -25,7 +24,6 @@ challenges/hello-world/
 | `metadata.json.cfnTemplate` | ファイル名 | `template.yaml` |
 | `metadata.json.cfnParameters.FlagSeed` | `template.yaml.Parameters` | `FlagSeed` |
 | `metadata.json.scoring.flagOutputKey` | `template.yaml.Outputs` | `ParameterValue` |
-| `metadata.json.simulationOverlay.entry` | ファイル名 | `simulation.json` |
 | 日本語ヒント | 英語ヒント | `hint-1`、`hint-2` |
 
 ## 参加者の流れを通して読む
@@ -52,14 +50,14 @@ sequenceDiagram
     Score-->>Portal: 一致なら加点
 ```
 
-## 完成形と比較する
+## 実装結果を確認する
 
-本書で説明した内容と、公開中の完成形を比較します。
+本書で設計して実装した結果は、公開問題カタログで確認できます。
 
 - [問題ディレクトリ全体](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/hello-world)
 - [metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/metadata.json)
 - [template.yaml](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/template.yaml)
 
-完成形には、AWS Consoleの表示を成立させる権限や、入力値の制約、説明コメントも含まれます。コードを短くするために削除せず、`AGENT.md`の理由と合わせて確認します。
+公開版には、AWS Consoleの表示を成立させる権限や入力値の制約も含まれます。本文の断片だけでファイルを完成させず、上の実装結果と`AGENT.md`を確認してください。
 
 次章では、リポジトリが定めたコマンドで問題を検証します。

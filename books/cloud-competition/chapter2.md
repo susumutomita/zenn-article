@@ -21,14 +21,14 @@ free: true
 
 `hello-world-battle`の学びは、次のように書けます。
 
-> EC2上の2つのWebサービスを継続監視する状況で、endpointを登録し、SSM Session Managerから停止したサービスを復旧できる。
+> EC2上の2つのWebサービスを継続監視する状況で、採点対象のURLを登録し、AWS Systems Managerのセッション機能から停止したサービスを復旧できる。
 
 この文章から、実装に必要なものが見えます。
 
 | 学び | 必要なAWSリソース | 参加者の操作 | 成功判定 |
 | --- | --- | --- | --- |
-| SSM Parameterを読む | SSM Parameter、参加者用IAM Role | ConsoleまたはCLIで値を取得 | flagが一致 |
-| Webサービスを維持する | VPC、EC2、nginx、Python API | URL登録、SSM接続、再起動 | 2つのendpointがHTTP 200 |
+| SSM Parameterを読む | SSM Parameter、参加者用IAM Role | ConsoleまたはCLIで値を取得 | 提出値が一致 |
+| Webサービスを維持する | VPC、EC2、nginx、Python API | URL登録、セッション接続、再起動 | 2つのURLがHTTP 200 |
 
 ## 一問に一つの中心行動を置く
 
@@ -36,7 +36,7 @@ free: true
 
 `hello-world`の中心行動は「SSM Parameterを読む」です。VPCやEC2は作りません。
 
-`hello-world-battle`の中心行動は「endpointを登録し、停止したサービスを復旧する」です。複雑なアプリケーション障害やデータベースは入れません。
+`hello-world-battle`の中心行動は「サービスURLを登録し、停止したサービスを復旧する」です。複雑なアプリケーション障害やデータベースは入れません。
 
 入門問題で基本の流れを体験した後に、ネットワーク、IAM、データベース、セキュリティなどの問題へ進めます。
 
@@ -46,7 +46,7 @@ free: true
 
 `hello-world`では、SSM Parameterの場所は示し、値そのものは見せません。参加者はAWSを操作して値を発見します。
 
-`hello-world-battle`では、EC2のhost名はOutputで示します。しかし、URLをParticipant Portalへ登録しなければ採点は始まりません。参加者自身がサービスと採点を接続します。
+`hello-world-battle`では、問題画面にEC2の公開DNS名を示します。しかし、URLをParticipant Portalへ登録しなければ採点は始まりません。参加者自身がサービスと採点を接続します。
 
 ## 設計メモを残す
 

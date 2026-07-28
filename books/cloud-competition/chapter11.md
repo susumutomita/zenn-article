@@ -95,7 +95,11 @@ free: true
 
 APIの登録URLへ`/healthz`を含めません。登録するのは`http://<host>:8080`で、採点エンジンが`path`の`/healthz`を追加します。
 
-## nginx停止の障害を定義する
+## レッドチーム機能を定義する
+
+TenkaCloudでは、運営者がBattle中に実行する障害を`disruptions`へ定義します。Application Admin Consoleのレッドチーム機能は、この定義を読み、運営者が選んだチームへ障害を実行します。
+
+`hello-world-battle`のレッドチームには、nginxを停止する`frontend-down`を1つだけ用意します。
 
 ```json
 {
@@ -128,7 +132,7 @@ APIの登録URLへ`/healthz`を含めません。登録するのは`http://<host
 }
 ```
 
-`targetRef`の`InstanceId`は、`template.yaml`のOutputです。TenkaCloudは対象チームのstackからEC2 instance IDを取得します。
+`targetRef`の`InstanceId`は、`template.yaml`のOutputです。TenkaCloudは対象チームのstackからEC2 instance IDを取得するため、別チームのEC2へ誤って実行しません。
 
 `action`が実際の障害を起こし、`revert`が自動復旧を予約します。説明文だけを書いてもnginxは停止しません。
 
@@ -153,4 +157,4 @@ BattleのREADMEには、次を明記します。
 
 完成形は[README.ja.md](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/battles/hello-world-battle/README.ja.md)で確認できます。
 
-これで2問のファイルがそろいました。次章では、TenkaCloud LiteをAWSへデプロイし、問題を複数チームで動かす準備をします。
+これで、ChallengeとBattleのAWS問題が完成しました。次章では、ここまで混同しやすかったTenkaCloud Lite、AWS問題、ローカルモードの違いを整理します。
