@@ -7,7 +7,22 @@ free: true
 
 ここからはTenkaCloudをAWSへデプロイし、問題カタログを読み込ませます。その後、イベントとチームを登録して、各チームのAWSアカウントへCloud Rescueを配布します。競技が終わったら、問題環境とTenkaCloudを削除します。
 
-この章ではTenkaCloud本体を用意します。次章でイベント、チーム、問題を設定します。
+この章ではTenkaCloud本体を用意します。初めてAWSへデプロイする場合は、先にTenkaCloudのLPから開ける次の問題を進めてください。
+
+## まず`deploy-tenkacloud-lite`を解く
+
+TenkaCloudのLPには、[自分のTenkaCloud LiteをAWSへデプロイする問題](https://www.tenkacloud.com/portal-demo/problems/01HZX0KZZ3DR0PW9M4Q7XV2C5D)があります。
+
+この問題は、ローカルモードでTenkaCloudを起動する問題とは別です。自分のAWSアカウントを使い、次の4段階を実際に進めます。
+
+1. Liteの自動デプロイ環境を作成する
+2. TenkaCloud Liteをデプロイする
+3. Competitorアカウントとの接続を検証する
+4. 最初のイベントを作成する
+
+問題画面には動画とヒントがあり、各段階で実環境に表示されるチェックポイントを提出しながら進められます。AWSへリソースを作る前に、問題画面に記載された費用、必要な権限、削除手順を確認してください。
+
+本章では、この問題の手順を最初から転載しません。`deploy-tenkacloud-lite`で標準のデプロイを経験した後に必要となる、独自の問題カタログの指定、複数チームでの開催、リハーサル時のref固定を説明します。次章では、イベント、チーム、問題を設定します。
 
 ## デプロイ前にrefを固定する
 
