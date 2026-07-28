@@ -6,8 +6,6 @@ price: 0
 chapters:
   - chapter1
   - good-problems
-  - code-guide
-  - implementation-status
   - chapter2
   - chapter3
   - scoring-design
@@ -20,7 +18,6 @@ chapters:
   - battle-experience
   - chapter10
   - chapter11
-  - chapter12
   - chapter13
   - chapter14
   - chapter15

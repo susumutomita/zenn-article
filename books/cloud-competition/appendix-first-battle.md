@@ -14,7 +14,7 @@ free: true
 - nginxのfrontend
 - Pythonのhealth API
 
-参加者は自分のstackのURLをParticipant Portalへ登録します。登録後、TenkaCloudが1分ごとにendpointをprobeします。運営側はnginx停止またはAPI停止のdisruptionを実行できます。参加者はSSM Session ManagerでEC2へ接続し、サービスを復旧します。
+参加者は自分のstackのURLをParticipant Portalへ登録します。登録後、TenkaCloudが1分ごとにendpointをprobeします。運営側はnginx停止またはAPI停止のdisruptionを実行できます。参加者はSSMセッションManagerでEC2へ接続し、サービスを復旧します。
 
 ```mermaid
 flowchart LR
@@ -55,19 +55,19 @@ Rehearsal date:             <YYYY-MM-DD>
 
 ## 1. 問題カタログを検証する
 
-TenkaCloudChallengeを取得します。
+TenkaCloudを問題カタログのsubmodule付きで取得します。
 
 ```bash
-git clone https://github.com/susumutomita/TenkaCloudChallenge.git
-cd TenkaCloudChallenge
-bun install
-bun run validate
+git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
+cd TenkaCloud
+make install
+make validate-problems
 ```
 
-`battles/cloud-rescue-battle/`を確認します。
+`problems/battles/cloud-rescue-battle/`を確認します。
 
 ```text
-battles/cloud-rescue-battle/
+problems/battles/cloud-rescue-battle/
 ├── metadata.json
 ├── template.yaml
 ├── README.md
@@ -75,8 +75,6 @@ battles/cloud-rescue-battle/
 ├── simulation.json
 └── redteam/README.md
 ```
-
-利用時点でファイル構成が変わっている場合は、repositoryの現行構成を優先してください。
 
 `metadata.json`では、少なくとも次を確認します。
 
@@ -113,7 +111,7 @@ bootstrap時には、次を一致させます。
 - ExternalId
 - 利用region
 
-作成される`TenkaCloud-CompetitorDeploy-Role`のtrust policyでは、operator accountからの`sts:AssumeRole`をExternalId一致の条件付きで許可します。
+bootstrapすると`TenkaCloud-CompetitorDeploy-Role`が作成されます。このroleは、ExternalIdが一致したoperator accountからの`sts:AssumeRole`だけを許可します。
 
 ExternalIdはsecretとして扱います。
 
@@ -123,7 +121,7 @@ ExternalIdはsecretとして扱います。
 - chatやイベント資料へ貼らない
 - SSM SecureStringなど、運用で定めた場所に保存する
 
-本番参加者を登録する前に、test account一つでAssumeRoleと問題deployを確認します。
+本番参加者を登録する前に、test account1つでAssumeRoleと問題deployを確認します。
 
 ## 4. Lite launcherを作る
 
@@ -248,7 +246,7 @@ aws ssm start-session --target <InstanceId>
 - SSM managed nodeとしてonlineか
 - instance profileが正しいか
 - participant roleに必要なSSM権限があるか
-- AWS CLIとSession Manager pluginの利用環境があるか
+- AWS CLIとセッションManager pluginの利用環境があるか
 
 ブラウザーだけで進める場合は、AWS ConsoleまたはCloudShellの導線を確認します。
 
@@ -263,7 +261,7 @@ Frontend slot: http://<public-dns>
 API slot:      http://<public-dns>:8080
 ```
 
-問題metadataが指定するpathは、frontendが`/`、APIが`/healthz`です。利用時点の`metadata.json`を正とします。
+問題metadataが指定するパスは、frontendが`/`、APIが`/healthz`です。利用時点の`metadata.json`を正とします。
 
 登録前の0点は正常です。登録後、次の採点tickで結果が更新されることを確認します。
 
@@ -360,7 +358,7 @@ Final endpoint:   healthy
 
 ## 15. 採点停止時の切り分けを試す
 
-リハーサルでは、意図的に一つの失敗を作り、運営の切り分けを練習します。
+リハーサルでは、意図的に1つの失敗を作り、運営の切り分けを練習します。
 
 ### endpoint未登録
 
@@ -433,7 +431,7 @@ launcher stackを削除すると、launcher専用のCodeBuild project、IAM role
 
 ## リハーサル記録
 
-最後に、次を一つのMarkdownへ残します。
+最後に、次を1つのMarkdownへ残します。
 
 ```markdown
 # hello-world-battle rehearsal

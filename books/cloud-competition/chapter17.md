@@ -1,11 +1,11 @@
 ---
-title: "Part 6｜競技を資産にする"
+title: "Part 6｜作った問題を公開し、次回も使えるようにする"
 free: true
 ---
 
-一度開催した競技を、その場限りのイベントで終わらせる必要はありません。
+イベントが終わった時点では、Cloud Rescueのファイルと開催記録が手元にあります。この章では、公開できる問題をTenkaCloudChallengeへ送る方法と、公開できない問題をProblem Packとして管理する方法を扱います。
 
-問題を再現可能なファイルとして残せば、個人学習、社内研修、採用イベント、コミュニティ開催へ再利用できます。TenkaCloudでは、問題とプラットフォームを分離しているため、問題カタログを独立して育てられます。
+どちらの場合も、実際に検証したcommitを記録します。次回は同じversionを使ってリハーサルを始められます。
 
 ## 公開問題としてコントリビュートする
 
@@ -14,11 +14,11 @@ free: true
 基本の流れです。
 
 ```bash
-git switch -c problem/cloud-rescue-battle
-bun run validate
-git add battles/cloud-rescue-battle
-git commit -m "feat: add cloud rescue battle"
-git push origin problem/cloud-rescue-battle
+git -C problems switch -c problem/cloud-rescue-battle
+make validate-problems
+git -C problems add battles/cloud-rescue-battle
+git -C problems commit -m "feat: add cloud rescue battle"
+git -C problems push origin problem/cloud-rescue-battle
 ```
 
 Pull Requestでは、少なくとも次を説明します。
@@ -41,7 +41,7 @@ Pull Requestでは、少なくとも次を説明します。
 `status: ready`は、原稿やtemplateを書き終えた意味ではありません。
 
 ```markdown
-- [ ] bun run validateが成功する
+- [ ] `make validate-problems`が成功する
 - [ ] 新しいAWS accountまたはクリーンな環境へデプロイできる
 - [ ] participant権限で解ける
 - [ ] 採点が設計どおり動く

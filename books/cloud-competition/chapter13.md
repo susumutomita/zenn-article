@@ -1,11 +1,13 @@
 ---
-title: "Part 5｜イベントを開催する"
+title: "Part 5｜作った競技を複数チームで動かす"
 free: true
 ---
 
-問題の実装と静的検証が終わったら、TenkaCloudへ読み込ませます。
+ここまでで、Cloud RescueのChallenge版とBattle版を問題ファイルとして作りました。しかし、問題ファイルをGitHubへ置くだけでは、複数チームは遊べません。
 
-TenkaCloudは、イベント単位で環境を作り、開催後に削除する運用を前提にしています。競技で使うcommitを固定し、リハーサルと本番で同じ構成を再現します。
+ここからはTenkaCloudをAWSへデプロイし、問題カタログを読み込ませます。その後、イベントとチームを登録して、各チームのAWSアカウントへCloud Rescueを配布します。競技が終わったら、問題環境とTenkaCloudを削除します。
+
+この章ではTenkaCloud本体を用意します。次章でイベント、チーム、問題を設定します。
 
 ## デプロイ前にrefを固定する
 
@@ -20,7 +22,7 @@ TenkaCloudは、イベント単位で環境を作り、開催後に削除する�
 - DynamoDB capacity
 - teardownの担当者
 
-Cloud RescueをPR branchから試す間は、`ProblemsRepoRef=feat/cloud-rescue-book`を指定します。PRをmergeした後は、検証したcommit SHAへ固定します。
+`ProblemsRepoRef`には、リハーサルで検証したTenkaCloudChallengeのcommit SHAを指定します。`main`や作業branchを指定すると、リハーサル後の更新まで本番へ入る可能性があります。
 
 ## Lite launcherを使う
 
@@ -81,7 +83,7 @@ ProblemsRepoUrl=https://github.com/<your-account>/TenkaCloudChallenge.git
 ProblemsRepoRef=<rehearsed-commit-sha>
 ```
 
-Cloud Rescueの実装PRを試す場合は、branch refを指定できます。本番では、途中で内容が変わらないcommit SHAを使います。
+開発中はbranchを指定できますが、本番では途中で内容が変わらないcommit SHAを使います。
 
 社内限定問題をpublic Gitへ置けない場合は、Problem Packまたはprivateな配布経路を使います。秘密値をpublic metadataへ入れません。
 

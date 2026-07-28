@@ -1,33 +1,71 @@
 ---
-title: "metadata.jsonで問題を説明する"
+title: "metadata.jsonで問題文と採点を定義する"
 free: true
 ---
 
-`template.yaml`はAWS環境を作ります。`metadata.json`は、その環境をTenkaCloud上の問題として成立させます。
+TenkaCloudChallengeの問題定義は`metadata.json`です。YAMLではありません。このJSONをTenkaCloudが読み、Participant Portalの問題文、CloudFormationへの入力、採点方法、ヒントを組み立てます。
 
-本章の正本は`challenges/cloud-rescue/metadata.json`です。カタログ表示、学習目標、CloudFormation parameter、採点、ヒント、英訳を1つの宣言へまとめます。
+## 最小構成を読む
 
-## 現在はdraftにする
-
-Cloud Rescueは実装済みですが、実AWSの通し検証は終わっていません。そのため、公開準備中の状態は`draft`です。
+Cloud Rescueで使う主な項目を1つにまとめると、次の形になります。
 
 ```json
 {
+  "$schema": "../../SCHEMA.json",
   "id": "cloud-rescue",
   "name": "Cloud Rescue",
   "category": "Challenge",
   "status": "draft",
   "visibility": "public",
   "difficulty": 2,
-  "estimatedDuration": "30 分"
+  "estimatedDuration": "30 分",
+  "shortDescription": "frontendが応答しない原因を調査して復旧します。",
+  "instructions": "症状を比較し、SSMで接続して停止serviceを復旧してください。",
+  "description": "systemdとjournalを使う障害対応Challengeです。",
+  "tags": ["challenge", "incident-response", "ec2", "nginx"],
+  "exposedPorts": [
+    { "port": 80, "name": "frontend (nginx)" },
+    { "port": 8080, "name": "api (Python)" }
+  ],
+  "learningGoals": [
+    "frontendとAPIの症状差から原因範囲を絞る",
+    "SSMでEC2へ接続し、停止serviceを復旧する"
+  ],
+  "cfnTemplate": "template.yaml",
+  "cfnParameters": {
+    "FlagSeed": "__RANDOM_PASSWORD__"
+  },
+  "scoring": {
+    "kind": "flag",
+    "flagOutputKey": "RecoveryFlag",
+    "points": 100,
+    "wrongAnswerPenalty": 5,
+    "hints": []
+  }
 }
 ```
 
-CIが成功しただけで`ready`へ変更しません。実AWSでデプロイ、解答、採点、削除を確認した後に変更します。
+`$schema`を指定すると、エディター上でも`SCHEMA.json`に基づく補完と検査を利用できます。
 
-## 症状とゴールを書く
+## 問題を識別する項目
 
-問題文は、原因ではなく観測できる症状を示します。
+| 項目 | 内容 |
+| --- | --- |
+| `id` | ディレクトリ名と一致するkebab-caseのID |
+| `name` | Participant Portalに表示する名前 |
+| `category` | `Challenge`または`Battle` |
+| `status` | 開発中は`draft`、公開可能なら`ready` |
+| `visibility` | 公開カタログなら`public` |
+| `difficulty` | 数値で表す難易度 |
+| `estimatedDuration` | 参加者向けの想定時間 |
+
+Cloud Rescueのディレクトリが`challenges/cloud-rescue/`なら、`id`も`cloud-rescue`、`category`も`Challenge`にします。
+
+## Participant Portalへ表示する項目
+
+`shortDescription`は一覧表示、`instructions`は参加者が最初に読む手順、`description`は問題の詳しい説明です。
+
+原因そのものは書かず、観測できる症状とゴールを書きます。
 
 ```markdown
 ## 症状
@@ -36,29 +74,11 @@ CIが成功しただけで`ready`へ変更しません。実AWSでデプロイ�
 
 ## ゴール
 既存のEC2を作り直さず、停止serviceを調査して復旧する。
-復旧後に`http://localhost:8080/recovery`からflagを取得する。
 ```
 
-「nginxを起動する」と最初から書くと、調査する余地がなくなります。
+`learningGoals`にはAWSサービス名を並べず、参加者が実行する判断と操作を書きます。
 
-## 学習目標を行動で書く
-
-Cloud Rescueの`learningGoals`は次です。
-
-```json
-{
-  "learningGoals": [
-    "frontendとAPIの症状差から原因範囲を絞る",
-    "SSM Session ManagerでSSHなしにEC2へ接続する",
-    "systemctlとjournalctlで停止serviceを特定して復旧する",
-    "復旧後に外形状態を再確認してflagを取得する"
-  ]
-}
-```
-
-AWS service名の一覧ではなく、参加者が行う判断と操作を記述します。
-
-## CloudFormationへrandom valueを渡す
+## template.yamlへ値を渡す
 
 ```json
 {
@@ -69,52 +89,67 @@ AWS service名の一覧ではなく、参加者が行う判断と操作を記述
 }
 ```
 
-`FlagSeed`はデプロイごとに変わります。template側のparameter名と一致させます。
+`cfnTemplate`は同じ問題ディレクトリのCloudFormation templateを指します。`cfnParameters`の各キーは、`template.yaml`の`Parameters`に存在しなければなりません。
 
-## 日本語と英語を同じ意味にする
+`__RANDOM_PASSWORD__`はデプロイ時に生成される値です。固定flagをGitへ保存せず、チームのデプロイごとに異なる`FlagSeed`を渡します。
 
-トップレベルを日本語、`i18n.en`を英語として管理します。
+## CloudFormation Outputを採点へつなぐ
 
 ```json
 {
+  "scoring": {
+    "kind": "flag",
+    "flagOutputKey": "RecoveryFlag",
+    "points": 100,
+    "wrongAnswerPenalty": 5,
+    "hints": []
+  }
+}
+```
+
+`kind: "flag"`は、参加者が文字列を提出するChallengeです。`flagOutputKey`の`RecoveryFlag`は、`template.yaml`の`Outputs`にある同名のキーを参照します。
+
+この名前が一致しないと、環境を作成できても正解を取得できません。
+
+```text
+metadata.json                      template.yaml
+cfnTemplate: template.yaml   ───> ファイル
+cfnParameters.FlagSeed       ───> Parameters.FlagSeed
+flagOutputKey: RecoveryFlag  ───> Outputs.RecoveryFlag
+```
+
+## ヒントと英語版を追加する
+
+日本語のヒントは`scoring.hints`へ、英語の表示内容は`i18n.en`へ記述します。
+
+```json
+{
+  "scoring": {
+    "hints": [
+      {
+        "id": "hint-1",
+        "content": "frontendとAPIの応答を比較してください。",
+        "penalty": 10
+      }
+    ]
+  },
   "i18n": {
     "en": {
       "name": "Cloud Rescue",
-      "shortDescription": "The frontend is down while the API still responds.",
-      "learningGoals": [
-        "Use symptom differences to narrow the incident scope",
-        "Connect through SSM Session Manager without SSH"
-      ]
+      "shortDescription": "Recover the unavailable frontend."
     }
   }
 }
 ```
 
-直訳より、状況、ゴール、制約が一致していることを優先します。READMEも`README.md`と`README.ja.md`を用意します。
+`README.md`と`README.ja.md`も用意し、日英でゴールと制約が食い違わないようにします。
 
-## Simulatorのcapabilityを宣言する
+## template.yamlとの対応を検証する
 
-Cloud RescueはAWS問題ですが、TenkaCloudSimulatorとの互換性も宣言します。
-
-```json
-{
-  "simulationOverlay": {
-    "schemaVersion": "1",
-    "entry": "simulation.json"
-  }
-}
-```
-
-Simulator固有の分岐を問題IDで作らず、必要なcapabilityを契約として記述します。
-
-## schemaと生成物を検証する
+TenkaCloudのルートへ戻り、Makefileの検証targetを実行します。
 
 ```bash
-bun run scripts/validate-problems.ts
-bun run reindex
-make agent-gate
+make validate-problems
 ```
 
-`reindex`は`index.json`と`cost-report.json`を更新します。生成物を手作業で編集しません。
-
-次章では、復旧を完了条件へ結び付けるflag採点を実装します。
+この検証では、JSON Schemaへの適合、問題IDとディレクトリ名、CloudFormation parameterとOutputへの参照を確認します。成功したら、次章で`RecoveryFlag`をParticipant Portalの提出と得点へ結び付けます。
