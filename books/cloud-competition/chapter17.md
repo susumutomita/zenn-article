@@ -1,202 +1,94 @@
 ---
-title: "Part 6｜作った問題を公開し、次回も使えるようにする"
+title: "自分の問題へ発展させる"
 free: true
 ---
 
-イベントが終わった時点では、Cloud Rescueのファイルと開催記録が手元にあります。この章では、公開できる問題をTenkaCloudChallengeへ送る方法と、公開できない問題をProblem Packとして管理する方法を扱います。
+本書では、最小のChallengeとBattleを一から作りました。最後に、自分の題材へ置き換える順番を整理します。
 
-どちらの場合も、実際に検証したcommitを記録します。次回は同じversionを使ってリハーサルを始められます。
+## Challengeを作る
 
-## 公開問題としてコントリビュートする
+値の発見や、一度の修正完了を採点したい場合はChallengeから始めます。
 
-一般化できる問題は、TenkaCloudChallengeへPull Requestを送ります。
-
-基本の流れです。
-
-```bash
-git -C problems switch -c problem/cloud-rescue-battle
-make validate-problems
-git -C problems add battles/cloud-rescue-battle
-git -C problems commit -m "feat: add cloud rescue battle"
-git -C problems push origin problem/cloud-rescue-battle
-```
-
-Pull Requestでは、少なくとも次を説明します。
-
-- 学習目標
-- 想定対象者
-- 初期状態
-- 正常条件
-- 採点方式
-- disruptionとrevert
-- 参加者権限
-- 費用に影響するresource
-- 実AWSで確認したregion
-- デプロイ、解答、採点、削除の確認結果
-
-「新しい問題を追加した」だけでなく、安全に開催できる根拠を書きます。
-
-## readyへ変更する条件
-
-`status: ready`は、原稿やtemplateを書き終えた意味ではありません。
-
-```markdown
-- [ ] `make validate-problems`が成功する
-- [ ] 新しいAWS accountまたはクリーンな環境へデプロイできる
-- [ ] participant権限で解ける
-- [ ] 採点が設計どおり動く
-- [ ] disruptionとrevertが動く
-- [ ] 初見者が問題文とhintから完走できる
-- [ ] stack削除後に課金resourceが残らない
-- [ ] README.mdとREADME.ja.mdが一致する
-- [ ] 秘密値、credential、固定flagがGitにない
-- [ ] 利用するcommitを固定して再現できる
-```
-
-1つでも未確認なら`draft`のままにし、残作業をIssueへ記録します。
-
-## 社内限定問題は公開しない
-
-社内構成、未公開incident、顧客情報、独自の統制ルールを含む問題は、公開カタログへ入れません。
-
-公開版へ抽象化できる部分と、内部だけに残す部分を分けます。
-
-### 公開しやすいもの
-
-- 一般的なAWS設定ミス
-- 架空企業のストーリー
-- ダミーデータ
-- 汎用的なrunbook
-- 再利用できるscoring pattern
-
-### 公開しないもの
-
-- 実account ID
-- 社内domain、IP address、system名
-- 実際のcredentialやsecret
-- 顧客データ
-- 未修正の脆弱性
-- 内部監査でのみ使う判定条件
-
-## Problem Packを使う
-
-TenkaCloudのProblem Packは、問題を公開カタログへmergeせず、特定tenantへinstall、activateするための仕組みです。
-
-作成と検証の基本例です。
-
-```bash
-make pack-init ARGS="./my-pack --runtime aws/cloudformation"
-make pack-validate ARGS="./my-pack"
-make pack-install ARGS="./my-pack"
-make pack-activate ARGS="com.example.cloud-rescue@0.1.0 --tenant local"
-```
-
-Problem Packは次に向きます。
-
-- 社内限定演習
-- 一度だけ開催する問題
-- 公開前の試験運用
-- 顧客ごとのカスタム問題
-- spoilerを公開リポジトリへ置けない問題
-
-pack自体のmanifest、version、lockを管理し、どのイベントでどのversionを使ったかを記録します。
-
-## 問題をversioningする
-
-競技問題は、文章だけでなくAWS resource、IAM、採点、障害注入を含みます。変更によって難易度や解法が変わるため、versionを意識します。
-
-変更例です。
-
-- `0.1.0`: 初回リハーサル
-- `0.2.0`: hintと権限を改善
-- `1.0.0`: 実AWS、初見者、削除まで確認して正式版
-- `1.1.0`: 新しいdisruptionを追加
-- `2.0.0`: architectureや勝利条件を変更
-
-Git tagまたはcommit SHAをイベント記録へ残します。
-
-## 一つの問題からカリキュラムへ
-
-Cloud Rescue単体でも教材になりますが、前後の問題を作ると体系化できます。
+Claude Codeを使う場合は、TenkaCloudChallengeリポジトリで次を実行します。
 
 ```text
-1. SSMで接続する
-2. Linuxサービスを調査する
-3. frontendを復旧する
-4. 複数endpointを監視する
-5. 再発へ対応する
-6. IAMやnetworkの別原因を切り分ける
-7. 自動復旧とrunbookを設計する
+/new-problem challenge
 ```
 
-問題ごとに`learningGoals`を持たせ、必要になった段階で`track`、`nodes`、`relations`を使って前提関係を表します。
+スキルは、slug、題材、難易度、想定時間、採点方式を確認します。`flag`方式なら`challenges/hello-world`をstarterとして使い、必須のIAM Role、タグ、採点の形を残したまま新しい問題を作ります。
 
-最初から巨大な総合問題を作るより、小さなChallengeを積み上げ、最後にBattleで統合する方が学びやすくなります。
+手動で作る場合は、次の順で進めます。
 
-## 生成AIを問題作成へ使う
+1. `challenges/hello-world`を新しいslugへ複製する
+2. 学習目標と勝利条件を書く
+3. `template.yaml`の問題固有リソースを置き換える
+4. デプロイごとのflagを、参加者が操作した先へ置く
+5. `metadata.json`の表示文、採点、ヒントを更新する
+6. 日本語と英語のREADMEを更新する
+7. `make agent-gate`を通す
 
-生成AIは、CloudFormation、metadata、問題文、hintの下書きを速く作れます。しかし、次は実環境でしか確認できません。
+flagは、暗記で答えられる固定文字列にしません。参加者が意図したAWS操作をしたときだけ発見できる値にします。
 
-- IAMの実権限
-- AWS Consoleが内部で呼ぶAPI
-- UserDataの完了
-- endpointの到達性
-- 採点の周期と状態
-- disruptionの安全性
-- stack削除後の残存resource
-- 初見者がどう迷うか
+## Battleを作る
 
-AIが生成した「もっともらしい実行結果」を本文へ書かず、実際に取得した結果だけを記録します。コードと説明が食い違った場合は、実装と検証結果を基準に本文を直します。
+サービスの状態を継続的に採点したい場合はBattleを選びます。
 
-## 本がOSSの導線になる
+Claude Codeでは次を実行します。
 
-本書を読んだ人は、TenkaCloudを使うだけでなく、問題作者になれます。
+```text
+/new-problem battle
+```
+
+次に、採点方式を選びます。
+
+| 採点方式 | 用途 |
+| --- | --- |
+| `uptime-flat` | 複数endpointを個別に採点する |
+| `uptime-multi` | すべて正常な場合だけ得点する |
+| `phased-polling` | 時間帯によって条件を変える |
+| `attack-detection` | 検知数などの統計を得点へ変える |
+
+最初のBattleは`uptime-flat`が分かりやすいです。`battles/hello-world-battle`をstarterにします。
+
+Battleでは、次の4点を必ず決めます。
+
+- 参加者が登録するendpoint
+- 正常と判定するパスとHTTP status
+- 障害を起こす実行方法
+- 障害を元へ戻すrevert
+
+URLのOutputは空にし、参加者が登録してから採点を始めます。障害の説明だけを書かず、`action`へ実行方法を定義します。永続障害を防ぐため、`revert`を付けます。
+
+## 問題を公開する
+
+公開問題は、TenkaCloudChallengeへ1問ずつPull Requestを作ります。
+
+Pull Requestには次を含めます。
+
+- 参加者が持ち帰る学び
+- 最初の一手と勝利条件
+- AWSリソースと権限境界
+- 採点方式
+- 障害とrevert
+- コストと削除方法
+- `make agent-gate`の結果
+
+社内限定の題材や公開できない設定を含む問題は、公開カタログへ入れません。TenkaCloudのProblem Packを使い、対象tenantだけへ追加します。
+
+## 本書で身につけた流れ
 
 ```mermaid
 flowchart LR
-    Read[本を読む] --> Play[既存問題を遊ぶ]
-    Play --> Author[独自問題を作る]
-    Author --> Event[イベントで試す]
-    Event --> Improve[feedbackで改善]
-    Improve --> Catalog[公開またはProblem Pack化]
-    Catalog --> Play
+    Learning["参加者に持ち帰る学び"]
+    Story["ストーリーと勝利条件"]
+    Boundary["安全境界"]
+    Template["template.yaml"]
+    Metadata["metadata.json"]
+    Gate["make agent-gate"]
+    Event["TenkaCloudで開催"]
+    Review["振り返り"]
+
+    Learning --> Story --> Boundary --> Template --> Metadata --> Gate --> Event --> Review
 ```
 
-この循環ができると、本は単なる操作マニュアルではなく、OSSの問題カタログを増やす仕組みになります。
-
-## 次に作れる競技
-
-Cloud Rescueで基本を理解した後は、次の題材へ発展できます。
-
-- Security Groupの到達性障害
-- IAMの過剰権限と権限不足
-- ALB target healthの不整合
-- S3公開設定と監査
-- RDS migration
-- WAFとrate limit
-- backupからの復元
-- CloudTrailからのincident調査
-- AI生成アプリを本番品質へ引き上げるPlatform Engineering競技
-
-どの題材でも、順序は同じです。
-
-1. 学習目標を行動で書く
-2. 正常系を作る
-3. 壊す箇所を1つ決める
-4. 外から観測できる勝利条件を作る
-5. 参加者権限と費用境界を絞る
-6. 自動採点する
-7. hintを段階化する
-8. 実AWSでデプロイ、解答、削除する
-9. 初見者feedbackで直す
-10. versionを固定して開催する
-
-## おわりに
-
-クラウド競技の本体は、派手なスコアボードでも、大量の障害注入でもありません。
-
-参加者に体験してほしい判断を1つ選び、その判断が必要になる環境を安全に再現し、結果を自動で観測し、何度でも削除して作り直せることです。
-
-TenkaCloudは、そのためのイベント、team、問題deploy、採点、hint、portal、disruptionを提供します。問題作者は、現場で身につけてほしい知識を競技へ変換します。
-
-最初の一問は小さくて構いません。正常な環境を1つ作り、一箇所だけ壊し、誰かに解いてもらうところから始めてください。
+最初から大規模なGameDayを作る必要はありません。1つの行動を採点できるChallengeを作り、次に状態を維持するBattleへ進みます。問題作者が実装した機能ではなく、参加者が持ち帰った経験を基準に改善します。

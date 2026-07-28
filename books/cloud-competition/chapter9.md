@@ -1,101 +1,56 @@
 ---
-title: "作ったChallengeをAWSで解いてみる"
+title: "make agent-gateで問題を確認する"
 free: true
 ---
 
-`metadata.json`と`template.yaml`を書いたら、Cloud RescueをAWSへ作成し、問題文どおりに復旧できるか確認します。この章では、CloudFormationを直接使ってChallenge単体を試します。TenkaCloudからの配布と採点は、イベントを作る章で確認します。
-
-## 1. 問題ファイルを検証する
-
-TenkaCloudのルートで実行します。
+問題ファイルをそろえたら、TenkaCloudChallengeリポジトリの定める方法で品質を確認します。
 
 ```bash
-make validate-problems
+make agent-gate
 ```
 
-エラーが出た場合は、AWSへ進む前に`metadata.json`と`template.yaml`の参照を直します。
-
-## 2. テスト用stackを作る
-
-作成先のAWS accountとリージョンを確認します。`AllowedCidr`には、検証端末のパブリックIPアドレスを`/32`で指定します。
+依存関係をまだ導入していない場合は、先に次を実行します。
 
 ```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-EXTERNAL_ID=$(openssl rand -hex 16)
-FLAG_SEED=$(openssl rand -hex 16)
-
-aws cloudformation deploy \
-  --stack-name tc-cloud-rescue-test \
-  --template-file problems/challenges/cloud-rescue/template.yaml \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides \
-    NamePrefix=tc-cloud-rescue-test \
-    AllowedCidr=<your-public-ip>/32 \
-    TenkaCloudAccountId="$ACCOUNT_ID" \
-    ExternalId="$EXTERNAL_ID" \
-    FlagSeed="$FLAG_SEED"
+make install
+make agent-gate
 ```
 
-CloudFormation stackが`CREATE_COMPLETE`になれば、templateからAWS環境を作成できています。
+`make agent-gate`は、個別の検証コマンドを利用者が組み合わせるためのものではありません。リポジトリが問題作成の完了条件として定めた入口です。
 
-## 3. 最初の症状を確認する
+## 確認される内容
 
-CloudFormationのOutputsから、`FrontendUrl`、`ApiUrl`、`InstanceId`を取得します。
+主に次の内容が確認されます。
 
-```bash
-aws cloudformation describe-stacks \
-  --stack-name tc-cloud-rescue-test \
-  --query 'Stacks[0].Outputs'
-```
+- `metadata.json`が`SCHEMA.json`に一致する
+- 参照したCloudFormation Outputが存在する
+- 必須の参加者用IAM権限がある
+- EC2関連リソースへ必要なタグがある
+- CloudFormation templateに危険な記述がない
+- READMEの必須ファイルがある
+- Challengeの点数とヒント減点が規定どおりである
+- `index.json`とcost reportに差分がない
+- Simulator向け定義が契約に一致する
 
-開始時点の期待値は次のとおりです。
+## hello-worldで確認したい接続
 
-| 確認先 | 期待する結果 |
-| --- | --- |
-| `FrontendUrl` | nginxが停止しているため接続に失敗する |
-| `ApiUrl/healthz` | HTTP 200を返す |
-| EC2 | SSM managed nodeとしてonlineになる |
+`hello-world`では、特に次の3点を確認します。
 
-frontendとAPIが両方失敗する場合は、nginx以外の構築処理やnetworkを確認します。
+1. `scoring.flagOutputKey`の`ParameterValue`が`template.yaml`のOutputにある
+2. `FlagSeed`が`cfnParameters`とCloudFormation Parameterの両方にある
+3. `ParticipantViewerRole`が自分のSSM Parameterを読める
 
-## 4. 参加者と同じ手順で復旧する
+検証が失敗した場合は、エラーメッセージが示すファイルと項目を直します。検証を無効化したり、対象ファイルを除外したりしません。
 
-`InstanceId`を使ってEC2へ接続します。
+## Pull Requestへ載せる情報
 
-```bash
-aws ssm start-session --target <instance-id>
-```
+新しい問題を公開する場合は、1問につき1つのPull Requestにします。本文へ次の内容を書きます。
 
-状態とlogを確認します。
+- 参加者に持ち帰ってほしい学び
+- 参加者の最初の一手と勝利条件
+- 作成するAWSリソース
+- 採点方式
+- コストと削除方法
+- `make agent-gate`の結果
 
-```bash
-systemctl status nginx tenkacloud-api
-journalctl -u nginx -u tenkacloud-api --no-pager -n 50
-sudo nginx -t
-```
-
-nginxが停止していることを確認したら、復旧します。
-
-```bash
-sudo systemctl start nginx
-curl -fsS http://127.0.0.1/
-curl -fsS http://localhost:8080/recovery
-```
-
-最後のコマンドが`TC{...}`を返し、外部の`FrontendUrl`もHTTP 200になれば、問題文から復旧までを完走できています。
-
-## 5. stackを削除する
-
-確認後は同じ日に削除します。
-
-```bash
-aws cloudformation delete-stack \
-  --stack-name tc-cloud-rescue-test
-
-aws cloudformation wait stack-delete-complete \
-  --stack-name tc-cloud-rescue-test
-```
-
-EC2、VPC、Security Group、IAM roleが残っていないこともAWS Consoleで確認します。
-
-ここまででChallenge単体を解けることを確認しました。次章では、同じ題材を継続採点するBattleへ発展させます。
+`hello-world`はこれで完成です。次章から、継続採点と障害注入を持つ`hello-world-battle`を作ります。

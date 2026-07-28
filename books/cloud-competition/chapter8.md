@@ -1,75 +1,65 @@
 ---
-title: "ヒントと解説で学習体験を作る"
+title: "Hello World Challengeを完成させる"
 free: true
 ---
 
-難しい問題がよい問題とは限りません。何も分からないまま時間切れになると、測れるのは事前知識の差だけです。
-
-Cloud Rescueは、3段階のヒントを`metadata.json`へ持ちます。英語版も同じIDで対応させます。
-
-## Hint 1は症状を比較させる
+ここまでの内容を、`challenges/hello-world/`へそろえます。
 
 ```text
-frontendとAPIの /healthz を比較してください。
-同じhost上でAPIが正常なら、network全体だけを疑い続ける必要はありません。
+challenges/hello-world/
+├── metadata.json
+├── template.yaml
+├── README.md
+├── README.ja.md
+├── diagram.svg
+└── simulation.json
 ```
 
-最初のヒントは、原因を教えません。観測済みの情報を比較し、調査範囲を狭めさせます。penaltyは10点です。
+## ファイル同士の接続を確認する
 
-## Hint 2は証拠の場所を示す
+最初に、名前が一致している箇所を確認します。
 
-```text
-SSMで接続後、systemctl status nginx tenkacloud-api と
-journalctl で状態と証拠を確認します。
-```
-
-service名と調査手段を示します。復旧commandはまだ書きません。penaltyは15点です。
-
-## Hint 3は完走を優先する
-
-```text
-停止しているfrontend serviceを復旧します。
-localhostで正常性を確認してから /recovery へアクセスします。
-```
-
-最終ヒントでは、復旧からflag取得までの方向を示します。penaltyは25点です。
-
-## 問題文、ヒント、READMEを分ける
-
-問題文は、状況、ゴール、制約だけを示します。ヒントは探索範囲を段階的に狭めます。READMEは、終了後に調査の順序と設計意図を整理する資料です。
-
-| 文書 | 役割 | 原因を明かす時期 |
+| 接続元 | 接続先 | 一致させる値 |
 | --- | --- | --- |
-| `metadata.instructions` | 競技中の状況とゴール | 明かさない |
-| `scoring.hints` | 詰まりを解消する | 段階的に示す |
-| `README.ja.md` | 学習内容と再利用方法 | 終了後に説明する |
+| ディレクトリ名 | `metadata.json` | `hello-world` |
+| `metadata.json.cfnTemplate` | ファイル名 | `template.yaml` |
+| `metadata.json.cfnParameters.FlagSeed` | `template.yaml.Parameters` | `FlagSeed` |
+| `metadata.json.scoring.flagOutputKey` | `template.yaml.Outputs` | `ParameterValue` |
+| `metadata.json.simulationOverlay.entry` | ファイル名 | `simulation.json` |
+| 日本語ヒント | 英語ヒント | `hint-1`、`hint-2` |
 
-## READMEで扱う内容
+## 参加者の流れを通して読む
 
-Cloud RescueのREADMEには、次を記載します。
+問題を開いた参加者は、`shortDescription`と`instructions`を読みます。
 
-- frontendとAPIの症状差
-- SSMセッションマネージャーの接続経路
-- systemdとjournalの確認
-- `/recovery`の条件
-- flagはsudo利用者への秘密境界ではないこと
-- Battle版で継続状態を評価する理由
-- CloudFormationでの削除方法
+次に`ParameterConsoleUrl`を開くか、CLIで`aws ssm get-parameter`を実行します。`ParticipantViewerRole`は、自分の`NamePrefix`配下にあるParameterだけを読めます。
 
-日本語版と英語版で、学習目標と制約をずらしません。
+取得した`TC{...}`をParticipant Portalへ提出します。TenkaCloudは`ParameterValue` Outputを正解として比較し、一致すれば得点を記録します。
 
-## 初見者テストで記録する
+```mermaid
+sequenceDiagram
+    participant P as 参加者
+    participant Portal as Participant Portal
+    participant AWS as チームのAWS
+    participant Score as 採点エンジン
 
-解答できたかだけでなく、次を記録します。
+    P->>Portal: 問題を開く
+    Portal-->>P: ParameterConsoleUrlと手順
+    P->>AWS: SSM Parameterを読む
+    AWS-->>P: TC{...}
+    P->>Portal: 値を提出
+    Score->>AWS: ParameterValue Outputを取得
+    Score-->>Portal: 一致なら加点
+```
 
-- 最初に比較したendpoint
-- AWS環境へ接続するまでの時間
-- 開いたヒントと時刻
-- 最初の仮説
-- 仮説を変えた証拠
-- 復旧後に確認した対象
-- 問題文で誤解した表現
+## 完成形と比較する
 
-ヒント利用は失敗ではありません。教材の説明が不足した場所を示すデータとして使います。
+本書で説明した内容と、公開中の完成形を比較します。
 
-次章では、CIと実AWSの検証範囲を分けます。
+- [問題ディレクトリ全体](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/hello-world)
+- [metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/metadata.json)
+- [template.yaml](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/template.yaml)
+
+完成形には、AWS Consoleの表示を成立させる権限や、入力値の制約、説明コメントも含まれます。コードを短くするために削除せず、`AGENT.md`の理由と合わせて確認します。
+
+次章では、リポジトリが定めたコマンドで問題を検証します。

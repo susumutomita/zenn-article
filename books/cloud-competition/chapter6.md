@@ -1,84 +1,71 @@
 ---
-title: "metadata.jsonで問題文と採点を定義する"
+title: "hello-worldの問題文と採点を書く"
 free: true
 ---
 
-TenkaCloudChallengeの問題定義は`metadata.json`です。YAMLではありません。このJSONをTenkaCloudが読み、Participant Portalの問題文、CloudFormationへの入力、採点方法、ヒントを組み立てます。
+`metadata.json`は、TenkaCloudが問題を表示して採点するための定義です。CloudFormationがAWS環境の正本なら、`metadata.json`は参加者体験と採点の正本です。
 
-## 最小構成を読む
+完成形は[metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/metadata.json)で確認できます。
 
-Cloud Rescueで使う主な項目を1つにまとめると、次の形になります。
+## metadata.jsonの全体像
 
 ```json
 {
   "$schema": "../../SCHEMA.json",
-  "id": "cloud-rescue",
-  "name": "Cloud Rescue",
+  "id": "hello-world",
+  "name": "Hello World (Sample)",
   "category": "Challenge",
-  "status": "draft",
+  "status": "ready",
   "visibility": "public",
-  "difficulty": 2,
-  "estimatedDuration": "30 分",
-  "shortDescription": "frontendが応答しない原因を調査して復旧します。",
-  "instructions": "症状を比較し、SSMで接続して停止serviceを復旧してください。",
-  "description": "systemdとjournalを使う障害対応Challengeです。",
-  "tags": ["challenge", "incident-response", "ec2", "nginx"],
-  "exposedPorts": [
-    { "port": 80, "name": "frontend (nginx)" },
-    { "port": 8080, "name": "api (Python)" }
-  ],
-  "learningGoals": [
-    "frontendとAPIの症状差から原因範囲を絞る",
-    "SSMでEC2へ接続し、停止serviceを復旧する"
-  ],
+  "difficulty": 1,
+  "estimatedDuration": "1 分",
+  "shortDescription": "...",
+  "instructions": "...",
+  "description": "...",
+  "tags": ["sample", "challenge", "flag", "ssm"],
+  "learningGoals": ["..."],
   "cfnTemplate": "template.yaml",
-  "cfnParameters": {
-    "FlagSeed": "__RANDOM_PASSWORD__"
+  "cfnParameters": {},
+  "i18n": {
+    "en": {}
   },
-  "scoring": {
-    "kind": "flag",
-    "flagOutputKey": "RecoveryFlag",
-    "points": 100,
-    "wrongAnswerPenalty": 5,
-    "hints": []
+  "scoring": {},
+  "simulationOverlay": {
+    "schemaVersion": "1",
+    "entry": "simulation.json"
   }
 }
 ```
 
-`$schema`を指定すると、エディター上でも`SCHEMA.json`に基づく補完と検査を利用できます。
+`$schema`を指定すると、エディタと検証コマンドが入力ミスを見つけやすくなります。
 
-## 問題を識別する項目
+`id`はディレクトリ名と一致させます。`category`は`Challenge`です。公開問題としてTenkaCloudへ表示するため、`status`を`ready`、`visibility`を`public`にします。
 
-| 項目 | 内容 |
-| --- | --- |
-| `id` | ディレクトリ名と一致するkebab-caseのID |
-| `name` | Participant Portalに表示する名前 |
-| `category` | `Challenge`または`Battle` |
-| `status` | 開発中は`draft`、公開可能なら`ready` |
-| `visibility` | 公開カタログなら`public` |
-| `difficulty` | 数値で表す難易度 |
-| `estimatedDuration` | 参加者向けの想定時間 |
+## 参加者へ見せる文章
 
-Cloud Rescueのディレクトリが`challenges/cloud-rescue/`なら、`id`も`cloud-rescue`、`category`も`Challenge`にします。
+文章には役割があります。
 
-## Participant Portalへ表示する項目
+| フィールド | 読む人 | 内容 |
+| --- | --- | --- |
+| `name` | 参加者 | 問題名 |
+| `shortDescription` | 参加者 | 問題カードと詳細画面の導入 |
+| `instructions` | 参加者 | 最初の一手とゴール |
+| `description` | 問題作者、運営 | 実装、採点、設計上の補足 |
+| `learningGoals` | 参加者、運営 | 持ち帰ってほしい学び |
 
-`shortDescription`は一覧表示、`instructions`は参加者が最初に読む手順、`description`は問題の詳しい説明です。
+`instructions`はMarkdown文字列です。次の3つを入れます。
 
-原因そのものは書かず、観測できる症状とゴールを書きます。
-
-```markdown
-## 症状
-- frontendは応答しない
-- APIの`/healthz`はHTTP 200を返す
-
-## ゴール
-既存のEC2を作り直さず、停止serviceを調査して復旧する。
+```json
+{
+  "instructions": "## はじめに\n前任のSREが残したメッセージを見つける入門問題です。\n\n## 最初の一手\n- Console: `ParameterConsoleUrl`を開く\n- CLI: `aws ssm get-parameter --name /<NamePrefix>/hello --query Parameter.Value --output text`\n\n## ゴール\nSSM Parameterの値をParticipant Portalへ提出します。"
+}
 ```
 
-`learningGoals`にはAWSサービス名を並べず、参加者が実行する判断と操作を書きます。
+問題文は、最初の一手を示しても正解値を見せないようにします。
 
-## template.yamlへ値を渡す
+## CloudFormationへランダム値を渡す
+
+`cfnTemplate`で、この問題が使うtemplateを指定します。
 
 ```json
 {
@@ -89,67 +76,68 @@ Cloud Rescueのディレクトリが`challenges/cloud-rescue/`なら、`id`も`c
 }
 ```
 
-`cfnTemplate`は同じ問題ディレクトリのCloudFormation templateを指します。`cfnParameters`の各キーは、`template.yaml`の`Parameters`に存在しなければなりません。
+TenkaCloudは`__RANDOM_PASSWORD__`をデプロイごとのランダム値へ置き換えます。前章の`FlagSeed`へ渡り、SSM Parameterと正解Outputの両方で使われます。
 
-`__RANDOM_PASSWORD__`はデプロイ時に生成される値です。固定flagをGitへ保存せず、チームのデプロイごとに異なる`FlagSeed`を渡します。
-
-## CloudFormation Outputを採点へつなぐ
+## flag採点を定義する
 
 ```json
 {
   "scoring": {
     "kind": "flag",
-    "flagOutputKey": "RecoveryFlag",
+    "flagOutputKey": "ParameterValue",
     "points": 100,
     "wrongAnswerPenalty": 5,
-    "hints": []
-  }
-}
-```
-
-`kind: "flag"`は、参加者が文字列を提出するChallengeです。`flagOutputKey`の`RecoveryFlag`は、`template.yaml`の`Outputs`にある同名のキーを参照します。
-
-この名前が一致しないと、環境を作成できても正解を取得できません。
-
-```text
-metadata.json                      template.yaml
-cfnTemplate: template.yaml   ───> ファイル
-cfnParameters.FlagSeed       ───> Parameters.FlagSeed
-flagOutputKey: RecoveryFlag  ───> Outputs.RecoveryFlag
-```
-
-## ヒントと英語版を追加する
-
-日本語のヒントは`scoring.hints`へ、英語の表示内容は`i18n.en`へ記述します。
-
-```json
-{
-  "scoring": {
     "hints": [
       {
         "id": "hint-1",
-        "content": "frontendとAPIの応答を比較してください。",
-        "penalty": 10
+        "content": "OutputsのParameterConsoleUrlを開くか、aws ssm get-parameterを実行します。",
+        "penalty": 20
+      },
+      {
+        "id": "hint-2",
+        "content": "値はTC{...}形式です。Parameterの実値を最初から最後まで貼り付けます。",
+        "penalty": 30
       }
     ]
-  },
+  }
+}
+```
+
+`flagOutputKey`は、`template.yaml`の`Outputs.ParameterValue`と一致させます。名前がずれると、TenkaCloudは正解を取得できません。
+
+難易度1のChallengeは100点です。誤答減点は5点、ヒント減点の合計は50点以内にします。この規定はTenkaCloudChallengeの検証で確認されます。
+
+## 日本語と英語を対応させる
+
+トップレベルへ日本語を書き、英語を`i18n.en`へ書きます。
+
+```json
+{
   "i18n": {
     "en": {
-      "name": "Cloud Rescue",
-      "shortDescription": "Recover the unavailable frontend."
+      "name": "Hello World (Sample)",
+      "shortDescription": "Find the message left in an SSM Parameter.",
+      "instructions": "## Getting started\nFind the message left by the previous SRE.\n\n## First move\nOpen ParameterConsoleUrl or use aws ssm get-parameter.\n\n## Goal\nSubmit the complete TC{...} value.",
+      "description": "Minimal Challenge using one SSM Parameter.",
+      "learningGoals": [
+        "Read a value from SSM Parameter Store through the AWS Console or CLI",
+        "Experience TenkaCloud's deploy, submit, and score flow"
+      ],
+      "hints": [
+        {
+          "id": "hint-1",
+          "content": "Open ParameterConsoleUrl or use aws ssm get-parameter."
+        },
+        {
+          "id": "hint-2",
+          "content": "Submit the complete value from TC{ to }."
+        }
+      ]
     }
   }
 }
 ```
 
-`README.md`と`README.ja.md`も用意し、日英でゴールと制約が食い違わないようにします。
+英語側のヒントIDは、日本語側と同じにします。採点点数と減点値はトップレベルが正本なので、英語側へ重複して書きません。
 
-## template.yamlとの対応を検証する
-
-TenkaCloudのルートへ戻り、Makefileの検証targetを実行します。
-
-```bash
-make validate-problems
-```
-
-この検証では、JSON Schemaへの適合、問題IDとディレクトリ名、CloudFormation parameterとOutputへの参照を確認します。成功したら、次章で`RecoveryFlag`をParticipant Portalの提出と得点へ結び付けます。
+次章では、READMEと構成図を仕上げます。

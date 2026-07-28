@@ -1,33 +1,36 @@
 ---
-title: "template.yamlでAWS環境を定義する"
+title: "hello-worldのAWS環境を作る"
 free: true
 ---
 
-`template.yaml`は、各チームのAWSアカウントへ作る環境を定義するCloudFormation templateです。Cloud Rescueでは、VPC、EC2、nginx、Python API、参加者がSSMで接続するためのIAM roleを作ります。
+`template.yaml`は、1チームのAWSアカウントへデプロイするCloudFormation templateです。`hello-world`では、SSM Parameterを1つと、参加者がそのParameterを読むためのIAM Roleを作ります。
 
-## template.yamlの全体構造
+完成形は[template.yaml](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/template.yaml)で確認できます。
 
-CloudFormation templateは、次の4つの部分から読めます。
+## template.yamlの構造
+
+CloudFormation templateは、次の4つの部分で読みます。
 
 ```yaml
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Cloud Rescue Challenge
+Description: >
+  TenkaCloud hello-world Challenge.
 
 Parameters:
-  # TenkaCloudやmetadata.jsonから受け取る値
+  # TenkaCloudがデプロイ時に渡す値
 
 Resources:
-  # AWSへ作成するVPC、EC2、IAM roleなど
+  # チームのAWSアカウントへ作るもの
 
 Outputs:
-  # TenkaCloudや参加者へ返すURL、ID、flagなど
+  # 採点とParticipant Portalが使う値
 ```
 
-`Parameters`は外部から受け取る値、`Resources`は作るAWSリソース、`Outputs`は作成後に返す値です。まずこの対応を決めてから、個々のリソースを書きます。
+`Parameters`は入力、`Resources`は作成物、`Outputs`はTenkaCloudへ返す値です。
 
-## TenkaCloudから受け取るparameter
+## TenkaCloudから受け取る値
 
-Cloud Rescueは、競技運営に必要な共通値を受け取ります。
+`hello-world`は4つのParameterを受け取ります。
 
 ```yaml
 Parameters:
@@ -45,19 +48,7 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 16
-```
 
-| parameter | 用途 |
-| --- | --- |
-| `NamePrefix` | チームごとのリソース名を分ける |
-| `TenkaCloudAccountId` | 参加者用roleを引き受けるTenkaCloud側のAWS accountを限定する |
-| `ExternalId` | 別イベントや第三者からの意図しない`AssumeRole`を防ぐ |
-
-これらの値をtemplateへ固定してはいけません。TenkaCloudのデプロイ処理が、イベントとチームに対応する値を渡します。
-
-Challengeのflagには、問題固有のparameterも追加します。
-
-```yaml
   FlagSeed:
     Type: String
     NoEcho: true
@@ -66,90 +57,129 @@ Challengeのflagには、問題固有のparameterも追加します。
     AllowedPattern: "^[A-Za-z0-9]+$"
 ```
 
-次章で、`metadata.json`から`FlagSeed`へデプロイごとのランダム値を渡します。
+`NamePrefix`は、チームごとのリソース名を衝突させないための接頭辞です。
 
-## Resourcesに環境を書く
+`TenkaCloudAccountId`と`ExternalId`は、TenkaCloudが参加者用Roleを引き受けるために使います。`ExternalId`を必須にすることで、意図しない第三者からのRole引受けを防ぎます。
 
-Cloud Rescueの主なリソースは次のとおりです。
+`FlagSeed`は、デプロイごとにTenkaCloudが生成するランダム値です。後の章で`metadata.json`から`__RANDOM_PASSWORD__`を渡します。
 
-| logical ID | AWSリソース | 役割 |
-| --- | --- | --- |
-| `Vpc`、`PublicSubnet`、`Igw`、`Rt` | VPCと経路 | EC2へ外部からHTTPで到達できるようにする |
-| `Sg` | Security Group | 80番と8080番だけを許可する |
-| `Ec2` | EC2 instance | nginxとPython APIを動かす |
-| `InstanceRole` | IAM role | EC2をSSM managed nodeとして登録する |
-| `ParticipantViewerRole` | IAM role | 参加者に自チームのEC2へのSSM接続を許可する |
+## 参加者用IAM Role
 
-リソース名には`NamePrefix`を使います。
+論理IDは`ParticipantViewerRole`にします。TenkaCloudは、このRoleのARNをOutputから受け取って参加者をAWSへ案内します。
 
-```yaml
-Resources:
-  Vpc:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.99.0.0/16
-      Tags:
-        - Key: Name
-          Value: !Sub "${NamePrefix}-vpc"
-```
+Roleには2種類の権限が必要です。
 
-同じAWS accountとリージョンへ複数チーム分を作っても、名前が衝突しないようにします。
+1. TenkaCloudのAWSアカウントから、正しい`ExternalId`付きで引き受けられる信頼ポリシー
+2. 参加者が自分のSSM Parameterだけを読める権限
 
-## 参加者の権限を問題へ限定する
-
-`ParticipantViewerRole`はTenkaCloudのAWS accountだけを信頼し、`ExternalId`の一致も要求します。
+信頼ポリシーは次の形です。
 
 ```yaml
-  ParticipantViewerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
-            Action: sts:AssumeRole
-            Condition:
-              StringEquals:
-                sts:ExternalId: !Ref ExternalId
+ParticipantViewerRole:
+  Type: AWS::IAM::Role
+  Properties:
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId: !Ref ExternalId
+    MaxSessionDuration: 3600
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/SignInLocalDevelopmentAccess
 ```
 
-実際のtemplateでは、SSM接続先をこの問題のEC2へ限定します。SSHの22番portは公開しません。
+`SignInLocalDevelopmentAccess`は、TenkaCloudが案内する一時的なAWSサインイン経路に必要です。問題ごとの判断で削除しません。
 
-## 正常な環境を作ってから壊す
+CloudShellを開くための許可も、カタログ共通の必須項目です。
 
-UserDataでは、nginxとAPIを起動して正常性を確認します。その後、競技の開始状態を作るためにnginxだけを停止します。
-
-```bash
-systemctl enable --now nginx
-curl -fsS http://127.0.0.1/ >/dev/null
-echo "frontend verified before incident injection" \
-  | systemd-cat -t cloud-rescue-setup
-
-systemctl stop nginx
-echo "initial incident injected: nginx stopped" \
-  | systemd-cat -t cloud-rescue-setup
+```yaml
+Policies:
+  - PolicyName: ProblemSpecific
+    PolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Sid: OpenCloudShellSession
+          Effect: Allow
+          Action:
+            - cloudshell:CreateEnvironment
+            - cloudshell:CreateSession
+            - cloudshell:GetEnvironmentStatus
+            - cloudshell:StartEnvironment
+            - cloudshell:StopEnvironment
+            - cloudshell:DeleteEnvironment
+            - cloudshell:PutCredentials
+          Resource: "*"
 ```
 
-最初から起動に失敗する設定を書くと、構築不良と競技用の障害を区別できません。「正常に動いた後で停止した」という証拠をlogへ残します。
+SSMの読み取り権限は、自分の`NamePrefix`配下へ絞ります。
 
-## Outputsをmetadata.jsonと参加者へ渡す
+```yaml
+- Sid: ReadOwnSsmParameters
+  Effect: Allow
+  Action:
+    - ssm:GetParameter
+    - ssm:GetParameters
+    - ssm:GetParametersByPath
+  Resource: !Sub "arn:aws:ssm:*:*:parameter/${NamePrefix}/*"
+```
+
+AWS ConsoleのParameter詳細画面は、表示時に`ssm:DescribeParameters`も呼び出します。このAPIはリソースARNで絞れないため、専用の読み取りStatementとして追加します。TenkaCloudでは1チームごとにAWSアカウントを分ける前提です。
+
+```yaml
+- Sid: DescribeOwnParameters
+  Effect: Allow
+  Action: ssm:DescribeParameters
+  Resource: "*"
+```
+
+## SSM Parameterへflagを保存する
+
+```yaml
+HelloParameter:
+  Type: AWS::SSM::Parameter
+  Properties:
+    Name: !Sub "/${NamePrefix}/hello"
+    Type: String
+    Value: !Sub "TC{${FlagSeed}}"
+    Description: !Sub "TenkaCloud hello-world flag parameter (${NamePrefix})."
+    Tier: Standard
+```
+
+参加者が読む値は`TC{...}`形式です。中身は`FlagSeed`なので、`NamePrefix`から推測できません。
+
+## TenkaCloudへ返すOutput
 
 ```yaml
 Outputs:
-  FrontendUrl:
-    Value: !Sub "http://${Ec2.PublicDnsName}"
-  ApiUrl:
-    Value: !Sub "http://${Ec2.PublicDnsName}:8080"
-  InstanceId:
-    Value: !Ref Ec2
-  SsmStartSessionCommand:
-    Value: !Sub "aws ssm start-session --target ${Ec2}"
-  RecoveryFlag:
-    Value: !Sub "TC{${FlagSeed}}"
+  ParameterName:
+    Value: !Ref HelloParameter
+
+  ParameterValue:
+    Value: !GetAtt HelloParameter.Value
+
+  ParameterConsoleUrl:
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/systems-manager/parameters/${NamePrefix}/hello/description?region=${AWS::Region}&tab=Table"
+
+  NamePrefix:
+    Value: !Ref NamePrefix
+
+  ParticipantViewerRoleArn:
+    Value: !GetAtt ParticipantViewerRole.Arn
 ```
 
-`FrontendUrl`と`ApiUrl`は参加者が症状を比較するために使います。`SsmStartSessionCommand`はEC2への接続方法です。`RecoveryFlag`は、次章で`metadata.json`の採点設定から参照します。
+各Outputの利用者は異なります。
 
-CloudFormationで環境を作る方法と、TenkaCloud上で問題として見せる方法は別です。次章では`metadata.json`の形式を確認し、このtemplateを問題文と採点へ接続します。
+| Output | 利用者 | 用途 |
+| --- | --- | --- |
+| `ParameterName` | 参加者、運営 | 作成されたParameter名 |
+| `ParameterValue` | 採点エンジン | 正解値 |
+| `ParameterConsoleUrl` | 参加者 | AWS Consoleの詳細画面 |
+| `NamePrefix` | TenkaCloud | チーム固有の接頭辞 |
+| `ParticipantViewerRoleArn` | TenkaCloud | 参加者をAWSへ案内するRole |
+
+参加者にはCloudFormation Outputを直接読む権限を与えないため、`ParameterValue`から答えを見ることはできません。次章では、このOutputを`metadata.json`のflag採点へ接続します。

@@ -1,107 +1,74 @@
 ---
-title: "復旧に結び付くflag採点を実装する"
+title: "READMEと構成図を仕上げる"
 free: true
 ---
 
-Challengeの採点には`flag`方式を使います。ただし、固定文字列を入力するだけでは、serviceを復旧した証拠になりません。
+TenkaCloudChallengeでは、各問題に`README.md`と`README.ja.md`が必要です。`metadata.json`がTenkaCloudの表示と採点の正本であるのに対し、READMEは問題作者、レビュー担当者、イベント運営者が設計を確認する文書です。
 
-Cloud Rescueでは、デプロイごとのflagを作ります。さらに、nginxが正常になるまでAPIの`/recovery`から返さない構成にします。
+## READMEに書く内容
 
-## デプロイごとに値を変える
+`hello-world`のREADMEは、次の順で書きます。
 
-`metadata.json`は、random valueの注入を要求します。
+1. 問題の目的
+2. ストーリー
+3. デプロイされるAWSリソース
+4. 参加者の解き方
+5. 採点
+6. ヒント
+7. コスト
+8. 学習目標
+9. 関連ファイル
 
-```json
-{
-  "cfnParameters": {
-    "FlagSeed": "__RANDOM_PASSWORD__"
-  }
-}
+READMEの説明は、`metadata.json`と`template.yaml`から確認できる事実に合わせます。
+
+`hello-world`では、SSM Parameterの値は次の形式です。
+
+```text
+TC{デプロイごとのランダム値}
 ```
 
-`template.yaml`は、採点用の値をOutputへ出します。
+以前の値やサンプル値をREADMEへ残すと、参加者と運営者が誤解します。Output名、点数、ヒント減点、AWSリソースは、実装を変更したときにREADMEも更新します。
 
-```yaml
-Outputs:
-  RecoveryFlag:
-    Description: Canonical flag used by the scoring engine.
-    Value: !Sub "TC{${FlagSeed}}"
+完成した日本語READMEは[README.ja.md](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/README.ja.md)、英語READMEは[README.md](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/README.md)で確認できます。
+
+## 日本語版と英語版を同じ内容にする
+
+`README.md`を英語、`README.ja.md`を日本語とします。直訳である必要はありませんが、次の事実は一致させます。
+
+- 作成されるAWSリソース
+- 参加者の最初の一手
+- 提出する値
+- 点数と減点
+- ヒントの段階
+- 削除方法
+- コスト
+
+片方だけを更新すると、言語によって異なる問題に見えます。Pull Requestでは両方を同時に確認します。
+
+## diagram.svgで流れを見せる
+
+`diagram.svg`はParticipant Portalの問題詳細へ表示されます。`hello-world`では、情報の流れだけを示せば十分です。
+
+```mermaid
+flowchart LR
+    TenkaCloud["TenkaCloud"]
+    Stack["CloudFormation stack"]
+    Parameter["SSM Parameter<br/>TC{...}"]
+    Player["参加者"]
+    Portal["Participant Portal"]
+
+    TenkaCloud --> Stack
+    Stack --> Parameter
+    Player --> Parameter
+    Player --> Portal
 ```
 
-TenkaCloudは、このOutputをcanonical answerとして比較します。
+構成図へ正解値や、参加者が発見すべき情報を書きません。リソースの関係と操作の流れを短く見せます。
 
-## 復旧するまでAPIから返さない
+## simulation.jsonの扱い
 
-Python APIの`/recovery`は、localhostのnginxへ接続します。
+`simulation.json`は、CloudFormation、採点、障害定義からSimulatorが読み取れない要件だけを補います。答え、flag、秘密情報は書きません。
 
-```python
-if self.path == "/recovery":
-    if self.client_address[0] not in ("127.0.0.1", "::1"):
-        return forbidden()
+既存問題を複製して新しい問題を作る場合、`simulation.json`をそのまま残さないでください。自分の問題に本当に必要かを確認し、不要なら`metadata.json`の`simulationOverlay`とファイルを外します。
 
-    frontend_ok = probe("http://127.0.0.1/")
-    if not frontend_ok:
-        return unavailable("frontend-unhealthy")
-
-    return text(RECOVERY_FLAG)
-```
-
-実装では標準libraryだけを使います。外部からの`/recovery`呼び出しはHTTP 403です。EC2内から呼び出しても、nginxが停止中ならHTTP 503になります。
-
-参加者は復旧後に次を実行します。
-
-```bash
-curl -fsS http://localhost:8080/recovery
-```
-
-## scoringを宣言する
-
-```json
-{
-  "scoring": {
-    "kind": "flag",
-    "flagOutputKey": "RecoveryFlag",
-    "points": 100,
-    "wrongAnswerPenalty": 5,
-    "hints": [
-      {
-        "id": "hint-1",
-        "content": "frontendとAPIの状態を比較する",
-        "penalty": 10
-      },
-      {
-        "id": "hint-2",
-        "content": "systemctlとjournalctlで確認する",
-        "penalty": 15
-      },
-      {
-        "id": "hint-3",
-        "content": "frontendを復旧してrecovery endpointを確認する",
-        "penalty": 25
-      }
-    ]
-  }
-}
-```
-
-`flagOutputKey`は、CloudFormation Outputの`RecoveryFlag`と一致させます。difficulty 2の標準得点に合わせて100点にします。
-
-## flagを秘密境界と考えない
-
-参加者は、EC2内でsudoを使えます。したがって、このflagは悪意のあるroot利用者から秘密を守る仕組みではありません。
-
-Challengeの目的は、症状の比較、SSM接続、systemd調査、復旧、確認という流れを作ることです。正常状態を維持できるかは、Battle版の外形監視で評価します。
-
-## 確認する経路
-
-実AWSでは次を確認します。
-
-1. nginx停止中の`/recovery`がHTTP 503になる
-2. 外部からの`/recovery`がHTTP 403になる
-3. nginx復旧後、localhostからデプロイ固有flagを取得できる
-4. 正しいflagで100点を得る
-5. 誤答で5点を失う
-6. 別teamのflagを提出できない
-7. 再デプロイ後にflagが変わる
-
-次章では、答えを直接書かずに完走率を上げるヒントを設計します。
+次章では、作成したChallengeをファイル単位で確認します。
