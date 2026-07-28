@@ -76,7 +76,7 @@ ChallengeとBattleは採点方法の違いです。問題環境をAWSと手元�
 
 複数の問題を同時に設計すると、ストーリー、環境、採点のどこを考えているのか分かりにくくなります。本書では、1問を完成させてから次の問題へ進みます。
 
-最初に、Dockerで動くローカルChallengeを作ります。`sqli-demo`という小さなWeb問題を題材に、問題文、Docker環境、採点API、Participant Portalへの提出を一周します。AWSアカウントを使わないため、問題を構成する基本要素に集中できます。
+最初に、Dockerで動くローカルChallengeを作ります。`sqli-demo`という小さなWeb問題を題材に、問題文、Docker環境、採点API、Participant Portalへの提出を一周します。一人で繰り返し取り組むドリルとして使い、AWSアカウントを準備せずに問題を構成する基本要素へ集中します。
 
 次に、AWS Challengeの`hello-world`を作ります。参加者は自分のチーム用AWS環境へ移動し、AWS Systems Manager Parameter Storeから値を見つけ、Participant Portalへ提出します。ここで、CloudFormation、参加者用IAM Role、AWS環境への一時アクセスを追加します。
 
