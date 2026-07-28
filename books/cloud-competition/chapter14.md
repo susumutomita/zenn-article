@@ -101,7 +101,7 @@ role名にViewerと付いていても、問題によっては復旧操作が必�
 
 Cloud Rescueでは、参加者が次を行える必要があります。
 
-- SSM Session Managerで対象EC2へ接続する
+- `SSM Session Manager`で対象EC2へ接続する
 - 問題固有のEC2情報を確認する
 - 必要なログを読む
 - instance内部でサービスを操作する
@@ -121,13 +121,13 @@ Participant PortalからAWS Consoleへ移動できる場合、実際にparticipa
 確認項目は次です。
 
 - 正しいteam accountへ入っている
-- sessionの有効期限が競技時間に適している
+- セッションの有効期限が競技時間に適している
 - 対象resourceのdeep linkが開く
 - 不要なresource一覧が見えない
-- SSM Session Managerが利用できる
-- 競技終了後にsessionを失効またはroleを削除できる
+- `SSM Session Manager`が利用できる
+- 競技終了後にセッションを失効またはroleを削除できる
 
-管理者の普段使いbrowser sessionが残っていると、意図せず強い権限で操作することがあります。participant用の別profile、別browser profile、private windowなどで確認します。
+管理者の普段使いブラウザーセッションが残っていると、意図せず強い権限で操作することがあります。participant用の別profile、別browser profile、private windowなどで確認します。
 
 ## 問題stackをデプロイする
 

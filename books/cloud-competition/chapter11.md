@@ -104,14 +104,14 @@ Phase 2: 全endpoint正常に加え、追加の運用条件を要求
 
 実装では、metadataの`phases`を`afterMinutes`順に宣言します。正確な構造は、現在の`SCHEMA.json`と`microservice-migration-battle`、`stackstack`を参照してください。
 
-フェーズの切り替えは、問題文または公開hintで予告する方がよい場合があります。参加者が「採点が壊れた」と誤解する変化は、競技ではなく運営不具合に見えます。
+採点条件が切り替わるフェーズでは、問題文または公開hintで変更時刻と新しい条件を予告します。予告がない変化は、参加者から採点障害に見えるためです。
 
 ## triggerを選ぶ
 
 妨害のtriggerには、問題設計に応じて次を使います。
 
 - `after-deploy`: デプロイ後に一度だけ起こす
-- `team-score-above`: 一定得点へ到達したチームへ起こす
+- `team-score-above`: チームが一定得点に到達した時点で起こす
 - `phase-entered`: フェーズへ入ったときに起こす
 - operator手動: 会場の進行を見ながら発火する
 

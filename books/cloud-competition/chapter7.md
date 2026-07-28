@@ -60,7 +60,7 @@ Resources:
       Tier: Standard
 ```
 
-参加者roleには、この問題のpathだけを読む権限を与えます。
+参加者roleには、この問題のパスだけを読む権限を与えます。
 
 ```yaml
 - Sid: ReadOwnRescueFlag
@@ -130,7 +130,7 @@ Outputs:
 }
 ```
 
-`flagOutputKey`は、`template.yaml`のOutput名と完全に一致させます。
+`flagOutputKey`は、`template.yaml`のOutput名と一致させます。
 
 ## 答えが漏れる経路を確認する
 
@@ -140,10 +140,10 @@ Outputs:
 - Gitに実値が残っていないか
 - Participant PortalのHTMLやJavaScriptに答えが含まれないか
 - 参加者roleでCloudFormation Outputを直接読めないか
-- 他チームのParameterを一覧またはpath指定で読めないか
+- 他チームのParameterを一覧またはパス指定で読めないか
 - エラーログにflagが出ないか
 
-ランダムであることと、秘密であることは同じではありません。権限、表示、ログを含む経路全体を確認します。
+ランダム値でも、秘密が保たれるとは限りません。権限、表示、ログを含む経路全体を確認します。
 
 ## 提出テスト
 

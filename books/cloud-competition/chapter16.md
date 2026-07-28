@@ -58,7 +58,7 @@ launcherのCodeBuild projectから、build overrideで`ACTION=destroy-all`を指
 
 `destroy-all`は、Lite stackだけでなく、保持される可能性があるcontrol dataや問題deploy関連のresourceも含めて削除するための経路です。
 
-古いlauncherが`destroy-all`を知らない場合、未知のACTIONを通常deployとして扱う可能性があります。利用中のlauncherとtemplateのversionを確認し、必要なら最新templateへ更新してから実行します。
+古いlauncherが`destroy-all`に対応していない場合、未知のACTIONを通常deployとして扱う可能性があります。利用中のlauncherとtemplateのversionを確認し、必要なら最新templateへ更新してから実行します。
 
 削除ログを最後まで確認します。
 
@@ -131,7 +131,7 @@ Cloud Rescueで確認する例です。
 
 1. frontendが失敗し、APIが正常であることを確認する
 2. Stack Outputから対象instanceとSSM接続方法を得る
-3. participant権限でSSM Session Managerへ接続する
+3. participant権限で`SSM Session Manager`へ接続する
 4. `systemctl --failed`で停止serviceを探す
 5. `systemctl status nginx`と`journalctl -u nginx`で状態を確認する
 6. `nginx -t`で設定自体が壊れていないことを確認する

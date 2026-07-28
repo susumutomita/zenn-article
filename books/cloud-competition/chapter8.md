@@ -19,7 +19,7 @@ Cloud Rescueでは、次の順番でヒントを出します。
 
 ### 第2段階: 調査方法を示す
 
-> 接続後、`systemctl --failed`と`systemctl status nginx`でサービス状態を確認してください。必要に応じて`journalctl -u nginx`でログを確認します。
+> 接続後、`systemctl --failed`と`systemctl status nginx`でサービス状態を確認してください。状態が`failed`または`inactive`なら、`journalctl -u nginx`で直近のログを確認します。
 
 観察対象を絞りますが、復旧操作は参加者に委ねます。
 

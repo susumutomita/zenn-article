@@ -44,7 +44,7 @@ Parameters:
 Cloud Rescueでは、次の操作が必要です。
 
 - 対象EC2の情報を見る
-- SSM Session Managerで接続する
+- `SSM Session Manager`で接続する
 - 自分の問題に必要なログを読む
 - 必要なサービスを起動・停止する
 

@@ -92,7 +92,7 @@ TenkaCloudの採点側が、チームごとにどのURLを確認するかをendp
 }
 ```
 
-frontendとAPIのうち、正常なendpointごとに評価したい場合に向きます。部分復旧を点数へ反映できます。
+frontendとAPIを個別に評価したい場合に向きます。部分復旧を点数へ反映できます。
 
 ## uptime-multi
 
@@ -139,7 +139,7 @@ frontendとAPIのうち、正常なendpointごとに評価したい場合に向�
 
 - 全サービスが揃わないと利用者価値がない
 - 一部だけ直して放置する行動を防ぎたい
-- チーム全体の正常性を一つのSLOとして扱いたい
+- チーム全体の正常性を1つのSLOとして扱いたい
 
 Cloud Rescueの最初のBattleでは`uptime-flat`を使い、frontendとAPIの両方が得点対象であることを見せます。
 

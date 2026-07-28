@@ -5,7 +5,7 @@ free: true
 
 問題は、ファイルが揃った時点では完成していません。
 
-完成の基準は、別のAWS環境へデプロイし、参加者権限で解き、採点され、最後に削除できることです。本章では、検証を層に分けて行います。
+完成の基準は、別のAWS環境へデプロイできることです。さらに、参加者権限で解答と採点を確認し、最後に環境を削除できなければなりません。本章では検証を層に分けます。
 
 ## 第1層: カタログ検証
 
@@ -56,7 +56,7 @@ aws cloudformation validate-template \
 
 - CloudFormation stackが`CREATE_COMPLETE`になる
 - EC2がSSM managed nodeとして見える
-- SSM Session Managerで接続できる
+- `SSM Session Manager`で接続できる
 - frontendとAPIがHTTP 200を返す
 - ParticipantViewerRoleで必要な画面とCLIだけが使える
 - 不要なAWSサービスへアクセスできない
@@ -166,7 +166,7 @@ TenkaCloudのローカルモードやCodespacesでは、Dockerで完結するclo
 
 ## 初見者テスト
 
-最後に、問題の実装を知らない人へ解いてもらいます。
+最後に、問題の実装内容を事前に共有していない人へ解いてもらいます。
 
 作者は次を説明せずに観察します。
 

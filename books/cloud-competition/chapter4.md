@@ -5,7 +5,7 @@ free: true
 
 TenkaCloudの問題は、プラットフォーム本体とは別の[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)で管理します。
 
-この分離は重要です。問題を一つ追加するたびにTenkaCloud本体へ個別ロジックを足すと、問題数に比例してプラットフォームが複雑になります。TenkaCloudでは、問題側が必要な情報を宣言し、プラットフォームは汎用的にデプロイ、表示、採点します。
+この分離は重要です。問題を1つ追加するたびにTenkaCloud本体へ個別ロジックを足すと、問題数に比例してプラットフォームが複雑になります。TenkaCloudでは、問題側が必要な情報を宣言し、プラットフォームは汎用的にデプロイ、表示、採点します。
 
 ## 開発環境を取得する
 
@@ -101,7 +101,7 @@ IDはCloudFormation stack名や内部参照にも使われます。公開後の�
 1. `metadata.json`のID、表示名、説明だけを変更する
 2. `bun run validate`を実行する
 3. `template.yaml`を正常な状態でデプロイできる構成にする
-4. 壊す箇所を一つ追加する
+4. 壊す箇所を1つ追加する
 5. 採点を設定する
 6. ヒントとREADMEを書く
 7. 実AWSでデプロイ、解答、削除を確認する
