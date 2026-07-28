@@ -7,9 +7,93 @@ AWSの障害対応やセキュリティは、説明を読んだだけでは身�
 
 本書では、この一連の体験を**クラウド競技**として自作します。
 
-ここでいうクラウド競技とは、参加者ごとに用意されたAWS環境で問題を解き、状態や回答に応じて得点する実践型の演習です。競技形式にすることで、座学では見えにくい判断力、調査力、復旧力を観察できます。
+ここでいうクラウド競技とは、参加者ごとに用意されたクラウド環境で問題を解き、回答やシステムの状態に応じて得点する実践型の演習です。競技形式にすることで、座学では見えにくい判断力、調査力、復旧力を観察できます。
 
-本書ではOSSの[TenkaCloud](https://github.com/susumutomita/TenkaCloud)と、問題カタログの[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)を使います。
+## TenkaCloudとは
+
+本書で使う[TenkaCloud](https://github.com/susumutomita/TenkaCloud)は、筆者が開発している、クラウド競技を開催するためのオープンソースプラットフォームです。Apache-2.0で公開しており、自分のAWS環境へデプロイして利用できます。
+
+ひと言で表すと、**問題カタログを、複数チームが実際に遊べるクラウド競技へ変換する基盤**です。
+
+CloudFormationで壊れたAWS環境を作るだけなら、問題作者だけでもできます。しかし、複数チームで競技を開催するには、環境構築以外にも多くの仕組みが必要です。
+
+- イベントと開催時間を管理する
+- 参加チームとAWSアカウントを対応付ける
+- チームごとのAWSアカウントへ問題をデプロイする
+- 参加者へ問題文とヒントを配る
+- flagやサービス状態を採点する
+- スコアを継続的に更新する
+- 参加者を自分のAWS環境へ安全に案内する
+- 運営側から障害を注入し、復旧状況を確認する
+- 終了後に問題環境と運営基盤を削除する
+
+TenkaCloudは、これらを一つの流れとして扱います。
+
+```mermaid
+flowchart LR
+    Catalog[問題カタログ<br/>TenkaCloudChallenge]
+    Admin[Application Admin Console<br/>イベント・チーム・デプロイ]
+    Platform[TenkaCloud<br/>採点・ヒント・認証・障害注入]
+    Portal[Participant Portal<br/>問題・ヒント・提出・スコア]
+    TeamA[Team AのAWSアカウント]
+    TeamB[Team BのAWSアカウント]
+
+    Catalog --> Platform
+    Admin --> Platform
+    Platform -->|問題stackをデプロイ| TeamA
+    Platform -->|問題stackをデプロイ| TeamB
+    Platform --> Portal
+    Portal -->|AWS Console連携| TeamA
+    Portal -->|AWS Console連携| TeamB
+```
+
+運営者はApplication Admin Consoleからイベントを作成し、問題とチームを登録します。TenkaCloudは、クロスアカウントの`AssumeRole`と必須の`ExternalId`を使い、各チームの隔離されたAWSアカウントへ問題stackをデプロイします。
+
+参加者はParticipant Portalから、問題文、ヒント、回答欄、endpoint登録、得点を確認します。必要な場合は、自分のチームの権限でAWS Consoleへ移動し、本物のAWSリソースを調査して修正します。
+
+### TenkaCloudが解決したいこと
+
+クラウド競技を一度だけ手作業で開くことはできます。チームごとにCloudFormationを実行し、スプレッドシートで得点を付け、チャットでヒントを配ればよいからです。
+
+しかし、この方法では問題を増やすたびに運営手順も増えます。チーム数が増えると、誰の環境が作成済みか、どのURLを採点するか、どの障害をどのチームへ実行したかを追跡しにくくなります。また、次回開催時に同じ環境を再現することも難しくなります。
+
+TenkaCloudでは、問題をプラットフォーム本体へ直接組み込まず、カタログ上のプラグインとして扱います。問題作者は、主に次のファイルを用意します。
+
+- `metadata.json`: 問題文、学習目標、採点、ヒント、endpoint、障害注入を宣言する
+- `template.yaml`: チームのAWSアカウントへ作る問題環境を定義する
+- `README.md` / `README.ja.md`: ストーリー、解法、学習内容を説明する
+- `portal/`や`services/`: 問題固有のUIや実装が必要な場合だけ追加する
+
+プラットフォーム側は、この宣言を読み取り、問題ごとの個別コードを増やさずにデプロイと採点を行います。
+
+### AWSアカウントなしでも最初の体験はできる
+
+TenkaCloudには、用途の異なる二つの入口があります。
+
+#### まず遊ぶ
+
+AWSを使わないDocker形式の問題は、GitHub Codespacesまたはローカル環境で実行できます。Participant Portalを開き、問題を選び、回答して得点する基本体験を確認できます。
+
+- [TenkaCloudのデモ](https://www.tenkacloud.com/portal-demo/?demo=1)
+- [GitHub Codespacesで開く](https://codespaces.new/susumutomita/TenkaCloud)
+
+#### 自分のイベントを開く
+
+本物のAWSを使う問題では、TenkaCloudを自分のAWSアカウントへデプロイします。その後、各チームのAWSアカウントへ問題stackを作り、複数チームで競技を開催します。
+
+本書の後半では、このイベント環境の構築、リハーサル、当日運営、完全削除まで扱います。
+
+### 本書で扱う三つのリポジトリ
+
+TenkaCloudは、プラットフォーム、問題、原稿を分けて管理しています。
+
+| リポジトリ | 役割 |
+| --- | --- |
+| [`susumutomita/TenkaCloud`](https://github.com/susumutomita/TenkaCloud) | イベント、チーム、デプロイ、採点、Participant Portal、障害注入を提供するプラットフォーム |
+| [`susumutomita/TenkaCloudChallenge`](https://github.com/susumutomita/TenkaCloudChallenge) | 公開問題のカタログ。1問題を1ディレクトリで管理する |
+| [`susumutomita/zenn-article`](https://github.com/susumutomita/zenn-article) | 本書の原稿 |
+
+問題を追加するとき、原則としてTenkaCloud本体は変更しません。問題カタログへ新しいディレクトリを追加し、その問題を読み込んだTenkaCloudをデプロイします。
 
 > 本書およびTenkaCloudは独立したOSSプロジェクトです。Amazon Web Services, Inc.との提携、承認、後援関係はありません。AWSおよび関連する名称はAmazon.com, Inc.またはその関連会社の商標です。本書はAWS公式のGameDayを再現するものではなく、同種の実践型クラウド演習を自作する方法を扱います。
 
@@ -26,9 +110,9 @@ AWSの障害対応やセキュリティは、説明を読んだだけでは身�
 
 形式の境界を厳密に分ける必要はありません。良質な競技では、CTFにある発見の楽しさ、障害訓練の現実性、ハンズオンの学びやすさを組み合わせます。
 
-## TenkaCloudの2つの遊び方
+## TenkaCloudの二つの問題形式
 
-TenkaCloudには大きく分けて2種類の問題があります。
+TenkaCloudには、大きく分けて二種類の問題があります。
 
 ### Challenge
 
@@ -39,11 +123,11 @@ Challengeは次の用途に向いています。
 - 個人学習
 - オンボーディング
 - 研修の事前課題
-- 1つの概念を確実に理解させる問題
+- 一つの概念を確実に理解させる問題
 
 ### Battle
 
-複数チームが同時に参加し、サービスの状態に応じて継続的に得点します。正常なエンドポイントを維持すると加点され、障害を放置すると得点を失うような設計が可能です。
+複数チームが同時に参加し、サービスの状態に応じて継続的に得点します。正常なendpointを維持すると加点され、障害を放置すると得点を失うような設計が可能です。
 
 Battleは次の用途に向いています。
 
@@ -64,7 +148,7 @@ flowchart LR
 
 本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**という題材を使います。
 
-ただし、ゼロから巨大なテンプレートを書くのではありません。TenkaCloudChallengeに含まれる、動作する最小サンプルを複製して育てます。
+ただし、ゼロから巨大なtemplateを書くのではありません。TenkaCloudChallengeに含まれる、動作する最小サンプルを複製して育てます。
 
 - Challengeの基準: `challenges/hello-world`
 - Battleの基準: `battles/hello-world-battle`
@@ -77,18 +161,6 @@ Battle側は、EC2上のnginxと小さなPython APIを監視する既存サン�
 2. TenkaCloud本体の変更なしで問題だけを追加できる
 3. 完成形を先に動かし、差分だけを理解できる
 4. 架空のAPIや動かないコードを本文へ持ち込みにくい
-
-## 3つのリポジトリ
-
-作業中に混乱しやすいため、役割を分けます。
-
-| リポジトリ | 役割 |
-| --- | --- |
-| `susumutomita/TenkaCloud` | イベント、チーム、デプロイ、採点、ポータルを提供するプラットフォーム |
-| `susumutomita/TenkaCloudChallenge` | 公開問題のカタログ。1問題を1ディレクトリで管理する |
-| `susumutomita/zenn-article` | 本書の原稿 |
-
-問題を追加するとき、原則としてTenkaCloud本体は変更しません。カタログ表示とCloudFormationだけで成立する問題は、`metadata.json`と`template.yaml`で構成します。問題固有のUIまたは実装が必要な場合に限り、`portal/`や`services/`を追加します。
 
 ## 読了時にできること
 
