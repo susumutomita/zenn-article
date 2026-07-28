@@ -1,0 +1,239 @@
+name: finalize-cloud-competition-ja
+
+on:
+  push:
+    branches:
+      - book/cloud-competition-draft
+    paths:
+      - .github/workflows/finalize-cloud-competition-ja.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: book/cloud-competition-draft
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Install
+        run: pnpm install
+      - name: Update manuscript to the real implementation
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          base = Path('books/cloud-competition')
+
+          chapter1 = base / 'chapter1.md'
+          source = chapter1.read_text(encoding='utf-8')
+          before = '''ただし、ゼロから巨大なtemplateを書くのではありません。TenkaCloudChallengeに含まれる、動作する最小サンプルを複製して育てます。
+
+- Challengeの基準: `challenges/hello-world`
+- Battleの基準: `battles/hello-world-battle`
+
+Battle側は、EC2上のnginxと小さなPython APIを監視する既存サンプルです。参加者は`SSM Session Manager`で接続し、停止したサービスを復旧します。本書ではこの構成をCloud Rescueとして読み替え、学習目標、物語、採点、ヒント、障害注入を順に設計します。'''
+          after = '''本書で説明する設計は、TenkaCloudChallengeに実在する次の問題として実装しています。
+
+- Challenge: `challenges/cloud-rescue`
+- Battle: `battles/cloud-rescue-battle`
+
+Challengeでは、同じEC2上でAPIだけが正常、nginxだけが停止した状態から始めます。参加者は`SSM Session Manager`で接続し、systemdとjournalの証拠からfrontendを復旧します。復旧後にだけ`/recovery`がデプロイごとのflagを返します。
+
+Battleでは、frontendとAPIを1分ごとに継続採点します。運営はnginxまたはAPIをチーム単位で停止でき、各障害には10分後の自動revertがあります。本文のコード断片より、これらの実ファイルを実行時の正本とします。'''
+          if before not in source:
+              raise RuntimeError('chapter1 implementation block not found')
+          chapter1.write_text(source.replace(before, after, 1), encoding='utf-8')
+
+          guide = base / 'code-guide.md'
+          source = guide.read_text(encoding='utf-8')
+          start = source.index('## 本書の通し題材')
+          end = source.index('## 1つの章を進める手順')
+          replacement = '''## 本書の通し題材
+
+本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**を通し題材として扱います。実装の正本はTenkaCloudChallengeの次の2ディレクトリです。
+
+- Challenge: `challenges/cloud-rescue`
+- Battle: `battles/cloud-rescue-battle`
+
+Challengeは、EC2、network、Python APIが正常で、nginxだけが停止した状態から始まります。APIの`/recovery`はlocalhostのnginxがHTTP 200を返した場合だけ、デプロイごとのflagを返します。
+
+Battleは、nginx frontendとPython APIを継続採点します。`frontend-down`と`api-down`の2種類のdisruptionを持ち、どちらも対象チームのEC2だけに作用し、10分後に自動revertします。operator向けのtargeting規律と中止条件は`redteam/README.md`へ分離しています。
+
+この2問題は、最小サンプル`hello-world`と`hello-world-battle`から設計を育てた完成例です。第4章では、その作成過程を再現するため、サンプルを複製するところから説明します。
+
+## 検証状態を3段階に分ける
+
+本書では、実装済み、静的検証済み、実AWS検証済みを同じ意味で使いません。
+
+### 実装済み
+
+次がTenkaCloudChallenge上に存在します。
+
+- 日英の`metadata.json`とREADME
+- ChallengeのCloudFormationとflag採点
+- Battleのendpoint継続採点
+- nginx/APIの障害注入と自動revert
+- ParticipantViewerRoleとSSM接続経路
+- simulation capability宣言
+- operator向けred-team runbook
+
+### 静的検証
+
+TenkaCloudChallengeのPRでは、次を機械検証します。
+
+- metadataとJSON Schema
+- metadataからCloudFormation Outputへの参照
+- CloudFormationのASCIIとsecurity checks
+- catalog test shards
+- `index.json`と`cost-report.json`のdrift
+- course references
+- Simulator capability compatibility
+
+### 実AWS検証
+
+次はCIだけでは証明できません。
+
+- CloudFormationが対象regionで`CREATE_COMPLETE`になる
+- participant権限でSSM Session Managerへ接続できる
+- Challengeの初期状態がfrontend失敗、API成功になる
+- nginx復旧後に`/recovery`からflagを取得して採点できる
+- Battleの2 endpointを採点環境からprobeできる
+- 2種類のdisruption、手動復旧、自動revertが動く
+- stack削除後に課金resourceが残らない
+- 初見者が問題文とヒントで完走できる
+
+したがって、実AWSで取得していない画面、log、時間は本文へ捏造しません。実装と静的CIを完成させた後、実AWSの通し結果だけを最終証跡として追加します。
+
+'''
+          guide.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+
+          source = guide.read_text(encoding='utf-8')
+          source = source.replace('| 第5章 | CloudFormationとIAM | `battles/hello-world-battle/template.yaml` |', '| 第5章 | CloudFormationとIAM | `challenges/cloud-rescue/template.yaml` |')
+          source = source.replace('| 第7章 | flag採点 | `challenges/hello-world` |', '| 第7章 | flag採点 | `challenges/cloud-rescue/metadata.json`と`template.yaml` |')
+          source = source.replace('| 第10章 | uptime採点 | `battles/hello-world-battle/metadata.json` |', '| 第10章 | uptime採点 | `battles/cloud-rescue-battle/metadata.json` |')
+          source = source.replace('| 第11章 | phasesとdisruptions | `hello-world-battle`、`microservice-migration-battle`、`stackstack` |', '| 第11章 | phasesとdisruptions | `cloud-rescue-battle`、`microservice-migration-battle`、`stackstack` |')
+          guide.write_text(source, encoding='utf-8')
+
+          appendix = base / 'appendix-first-battle.md'
+          source = appendix.read_text(encoding='utf-8')
+          source = source.replace('TenkaCloudChallengeに既に存在する`hello-world-battle`', '本書のために実装した`cloud-rescue-battle`')
+          source = source.replace('`hello-world-battle`', '`cloud-rescue-battle`')
+          source = source.replace('運営側はnginx停止のdisruptionを実行できます。', '運営側はnginx停止またはAPI停止のdisruptionを実行できます。')
+          source = source.replace('    Fire[運営がnginx停止]', '    Fire[運営がfrontendまたはAPIを停止]')
+          source = source.replace('battles/hello-world-battle/', 'battles/cloud-rescue-battle/')
+          source = source.replace('├── README.ja.md\n└── OPERATOR.md', '├── README.ja.md\n├── simulation.json\n└── redteam/README.md')
+          appendix.write_text(source, encoding='utf-8')
+
+          status = base / 'implementation-status.md'
+          status.write_text('''---
+title: "実装と検証の現在地"
+free: true
+---
+
+本書のCloud Rescueは、説明用の架空コードではありません。TenkaCloudChallengeにChallenge版とBattle版を実装しています。
+
+- [`challenges/cloud-rescue`](https://github.com/susumutomita/TenkaCloudChallenge/tree/feat/cloud-rescue-book/challenges/cloud-rescue)
+- [`battles/cloud-rescue-battle`](https://github.com/susumutomita/TenkaCloudChallenge/tree/feat/cloud-rescue-book/battles/cloud-rescue-battle)
+- [実装PR #318](https://github.com/susumutomita/TenkaCloudChallenge/pull/318)
+
+PRがmainへmergeされた後は、リンク内のbranchを`main`へ読み替えてください。
+
+## Challengeで実装したもの
+
+初期状態では、同じEC2上のPython APIは正常ですが、nginxは停止しています。
+
+```text
+FrontendUrl /          -> failure
+ApiUrl /healthz        -> HTTP 200
+```
+
+参加者はSSM Session ManagerでEC2へ接続します。`systemctl`と`journalctl`で状態を確認し、既存のnginxを復旧します。
+
+```text
+http://localhost:8080/recovery
+```
+
+このendpointは、localhostのnginxがHTTP 200を返すまでHTTP 503を返します。正常化すると、デプロイごとの`TC{...}`を返します。TenkaCloudはCloudFormation Outputの`RecoveryFlag`を正解として採点します。
+
+Challengeでは、flagは調査から復旧までの導線を作ります。ただし、参加者がEC2内で強い権限を持つ以上、flagだけで正常状態の継続を完全には証明できません。その役割はBattleへ分けます。
+
+## Battleで実装したもの
+
+Battleでは、Participant Portalへ次の2 endpointを登録します。
+
+- frontend: `/`
+- API: `/healthz`
+
+両方がHTTP 200を返す採点周期では加点し、失敗中は減点します。運営は次の障害を対象チームだけへ実行できます。
+
+| disruption | 操作 | 自動revert |
+| --- | --- | --- |
+| `frontend-down` | nginxを停止 | 600秒後に起動 |
+| `api-down` | `tenkacloud-api`を停止 | 600秒後に起動 |
+
+障害のtargeting規律、復旧経路、中止条件は`redteam/README.md`に記載しています。
+
+## CIで証明する範囲
+
+TenkaCloudChallengeのCIは、metadata、CloudFormation参照、security checks、catalog index、cost report、course drift、Simulator compatibilityを検査します。
+
+CIが成功しても、AWS上でUserDataが最後まで動くことや、採点Lambdaからpublic endpointへ到達できることまでは証明できません。
+
+## 公開前に必要な実AWS証跡
+
+日本語版を公開する前に、次の結果を記録します。
+
+```text
+TenkaCloud commit:
+TenkaCloudChallenge commit:
+AWS region:
+Challenge deploy:
+participant SSM接続:
+初期状態 frontend/API:
+復旧後 frontend/API:
+flag採点:
+Battle継続採点:
+frontend disruption/revert:
+API disruption/revert:
+stack削除:
+残存課金resource:
+初見者の所要時間:
+```
+
+空欄を推測で埋めません。実AWSで確認した値だけを、画面、log、所要時間とともに反映します。
+''', encoding='utf-8')
+
+          config = base / 'config.yaml'
+          source = config.read_text(encoding='utf-8')
+          marker = '  - code-guide\n'
+          if '  - implementation-status\n' not in source:
+              if marker not in source:
+                  raise RuntimeError('config insertion marker not found')
+              source = source.replace(marker, marker + '  - implementation-status\n', 1)
+          config.write_text(source, encoding='utf-8')
+          PY
+      - name: Validate manuscript
+        run: make before_commit
+      - name: Remove workflow and commit
+        run: |
+          rm .github/workflows/finalize-cloud-competition-ja.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add books/cloud-competition .github/workflows/finalize-cloud-competition-ja.yml
+          git commit -m "docs: connect Japanese book to the real Cloud Rescue implementation"
+          git push origin HEAD:book/cloud-competition-draft
