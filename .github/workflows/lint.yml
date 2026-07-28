@@ -36,4 +36,25 @@ jobs:
           make install
 
       - name: Lint and validate books
-        run: make before_commit
+        run: |
+          set +e
+          make before_commit > /tmp/before-commit.log 2>&1
+          status=$?
+          cat /tmp/before-commit.log
+          exit "$status"
+
+      - name: Package lint diagnostics
+        if: failure()
+        run: |
+          cp -R books/cloud-competition /tmp/cloud-competition-current
+          tar -czf /tmp/cloud-competition-diagnostics.tar.gz \
+            -C /tmp before-commit.log cloud-competition-current
+
+      - name: Upload lint diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloud-competition-lint-diagnostics
+          path: /tmp/cloud-competition-diagnostics.tar.gz
+          if-no-files-found: error
+          retention-days: 1
