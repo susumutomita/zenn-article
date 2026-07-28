@@ -21,42 +21,36 @@ free: true
 
 ## 本書の通し題材
 
-本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**を通し題材として設計します。
+本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**を通し題材として扱います。実装の正本はTenkaCloudChallengeの次の2ディレクトリです。
 
-開始地点は、TenkaCloudChallengeに存在する次の問題です。
+- Challenge: `challenges/cloud-rescue`
+- Battle: `battles/cloud-rescue-battle`
 
-- Challengeの基準: `challenges/hello-world`
-- Battleの基準: `battles/hello-world-battle`
+Challengeは、EC2、network、Python APIが正常で、nginxだけが停止した状態から始まります。APIの`/recovery`はlocalhostのnginxがHTTP 200を返した場合だけ、デプロイごとのflagを返します。
 
-`hello-world`は、デプロイごとに変わる値をSSM Parameterから発見し、flagとして提出する最小Challengeです。
+Battleは、nginx frontendとPython APIを継続採点します。`frontend-down`と`api-down`を対象チームのEC2だけへ注入し、どちらも10分後に自動revertします。operator向けのtargeting規律と中止条件は`redteam/README.md`へ分離しています。
 
-`hello-world-battle`は、EC2上のnginxとPython APIを対象に、frontendとAPIのendpointを継続監視する最小Battleです。SSM Session Managerで接続し、停止したサービスを復旧する体験と、運営側の障害注入を含みます。
+## 検証状態を3段階に分ける
 
-本書のCloud Rescueは、これらを無関係な新規実装へ置き換えるのではなく、既存サンプルを複製し、学習目標、ストーリー、採点、ヒント、障害を段階的に変更する題材です。
+本書では、実装済み、静的検証済み、実AWS検証済みを同じ意味で使いません。
 
-## 現在の検証状態
+### 実装済み
 
-この初稿を書いた時点では、次を確認しています。
+- 日英のmetadataとREADME
+- ChallengeのCloudFormationとflag採点
+- Battleの継続採点
+- nginx/APIの障害注入と自動revert
+- ParticipantViewerRoleとSSM接続経路
+- simulation capability宣言
+- operator向けrunbook
 
-- TenkaCloudとTenkaCloudChallengeの現在の公開構成
-- `hello-world`のflag採点構造
-- `hello-world-battle`のendpoint採点とdisruption構造
-- TenkaCloudのAWSデプロイ導線
-- Problem PackのCLI導線
-- Zenn Bookの構成、textlint、文字数、Mermaid検証
+### 静的検証
 
-一方、Cloud Rescueという独立問題については、まだ次の実AWS通し検証を完了していません。
+TenkaCloudChallengeのCIで、schema、CloudFormation参照、security checks、catalog test、indexとcostのdrift、course drift、Simulator compatibilityを検査します。
 
-- TenkaCloudChallengeへの`cloud-rescue`実装
-- 新規AWS環境へのデプロイ
-- participant権限での解答
-- ChallengeとBattleの採点
-- disruptionと自動revert
-- stack削除後の残存リソース確認
-- 初見者による解答時間とヒント利用の測定
+### 実AWS検証
 
-したがって、本文中のCloud Rescue固有のコード例は**設計例**です。存在しない実行結果や成功ログを、検証済みであるかのようには掲載しません。実問題の通し検証後に、実際のファイル、画面、ログ、所要時間へ置き換えます。
-
+CloudFormation作成、participant権限でのSSM接続、実endpointの採点、disruptionとrevert、削除後の残存resource、実費用、初見者の所要時間はCIだけでは証明できません。実AWSで取得していない画面、log、時間は本文へ記載しません。
 ## 1つの章を進める手順
 
 実装を含む章では、次の順で進めます。
@@ -111,13 +105,13 @@ free: true
 | --- | --- | --- |
 | 第1〜3章 | 競技設計 | 本書のCloud Rescue設計シート |
 | 第4章 | 問題scaffold | TenkaCloudChallengeの`bun run new`、README、`SCHEMA.json` |
-| 第5章 | CloudFormationとIAM | `battles/hello-world-battle/template.yaml` |
+| 第5章 | CloudFormationとIAM | `challenges/cloud-rescue/template.yaml` |
 | 第6章 | 問題metadata | `SCHEMA.json`、`CATALOG.md`、既存問題の`metadata.json` |
-| 第7章 | flag採点 | `challenges/hello-world` |
+| 第7章 | flag採点 | `challenges/cloud-rescue/metadata.json`と`template.yaml` |
 | 第8章 | ヒントとREADME | 既存Challengeの`scoring.hints`、README構成 |
 | 第9章 | 実機検証 | TenkaCloudChallengeのvalidatorと実AWS stack |
-| 第10章 | uptime採点 | `battles/hello-world-battle/metadata.json` |
-| 第11章 | phasesとdisruptions | `hello-world-battle`、`microservice-migration-battle`、`stackstack` |
+| 第10章 | uptime採点 | `battles/cloud-rescue-battle/metadata.json` |
+| 第11章 | phasesとdisruptions | `cloud-rescue-battle`、`microservice-migration-battle`、`stackstack` |
 | 第12章 | Portal plugin | 既存問題の`portal/`とTenkaCloud側slot実装 |
 | 第13章 | AWSデプロイ | TenkaCloud README、`lite-pipeline.yaml`、deployment guide |
 | 第14章 | eventとteam | Application Admin Consoleとproblem deploy flow |

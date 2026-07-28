@@ -3,18 +3,18 @@ title: "付録D 最小Battleを一度リハーサルする"
 free: true
 ---
 
-この付録では、TenkaCloudChallengeに既に存在する`hello-world-battle`を使い、最小のBattleを一度リハーサルします。
+この付録では、本書のために実装した`cloud-rescue-battle`を使い、最小のBattleを一度リハーサルします。
 
 新しい問題を作る前に、プラットフォームのデプロイ、チーム用AWS account、endpoint登録、1分ごとの採点、障害注入、削除までを通してください。既存サンプルで通らない状態では、独自問題の不具合とプラットフォーム側の不具合を切り分けられません。
 
 ## このリハーサルで確認すること
 
-`hello-world-battle`は、EC2上で次の2サービスを動かす最小Battleです。
+`cloud-rescue-battle`は、EC2上で次の2サービスを動かす最小Battleです。
 
 - nginxのfrontend
 - Pythonのhealth API
 
-参加者は自分のstackのURLをParticipant Portalへ登録します。登録後、TenkaCloudが1分ごとにendpointをprobeします。運営側はnginx停止のdisruptionを実行できます。参加者はSSM Session ManagerでEC2へ接続し、サービスを復旧します。
+参加者は自分のstackのURLをParticipant Portalへ登録します。登録後、TenkaCloudが1分ごとにendpointをprobeします。運営側はnginx停止またはAPI停止のdisruptionを実行できます。参加者はSSM Session ManagerでEC2へ接続し、サービスを復旧します。
 
 ```mermaid
 flowchart LR
@@ -38,7 +38,7 @@ flowchart LR
 - 参加者が利用するブラウザー
 - AWS CLIまたはブラウザー上のCloudShell
 
-Codespacesのローカルプレイでは、Dockerだけで完結する問題を試せます。`hello-world-battle`の実AWS resource、cross-account deploy、SSM、公開endpointの確認には実AWSを使います。
+Codespacesのローカルプレイでは、Dockerだけで完結する問題を試せます。`cloud-rescue-battle`の実AWS resource、cross-account deploy、SSM、公開endpointの確認には実AWSを使います。
 
 ## 利用するversionを記録する
 
@@ -64,15 +64,16 @@ bun install
 bun run validate
 ```
 
-`battles/hello-world-battle/`を確認します。
+`battles/cloud-rescue-battle/`を確認します。
 
 ```text
-battles/hello-world-battle/
+battles/cloud-rescue-battle/
 ├── metadata.json
 ├── template.yaml
 ├── README.md
 ├── README.ja.md
-└── OPERATOR.md
+├── simulation.json
+└── redteam/README.md
 ```
 
 利用時点でファイル構成が変わっている場合は、repositoryの現行構成を優先してください。
@@ -190,7 +191,7 @@ account IDの一桁違いは、別accountへの操作または一括deploy失敗
 
 ## 7. 問題stackをデプロイする
 
-`hello-world-battle`をeventへ追加し、test team向けにデプロイします。
+`cloud-rescue-battle`をeventへ追加し、test team向けにデプロイします。
 
 状態を追跡します。
 
@@ -289,7 +290,7 @@ pollingは1分単位のため、登録直後に画面が更新されなくても
 
 ## 12. nginx停止を発火する
 
-運営画面から、`hello-world-battle`が宣言するnginx停止のdisruptionをtest teamへ実行します。
+運営画面から、`cloud-rescue-battle`が宣言するnginx停止のdisruptionをtest teamへ実行します。
 
 発火前に確認します。
 

@@ -150,12 +150,14 @@ flowchart LR
 
 本書では、**Cloud Rescue — 障害中のWeb APIを復旧せよ**という題材を使います。
 
-ただし、ゼロから巨大なtemplateを書くのではありません。TenkaCloudChallengeに含まれる、動作する最小サンプルを複製して育てます。
+本書で説明する設計は、TenkaCloudChallengeに実在する次の問題として実装しています。
 
-- Challengeの基準: `challenges/hello-world`
-- Battleの基準: `battles/hello-world-battle`
+- Challenge: `challenges/cloud-rescue`
+- Battle: `battles/cloud-rescue-battle`
 
-Battle側は、EC2上のnginxと小さなPython APIを監視する既存サンプルです。参加者は`SSM Session Manager`で接続し、停止したサービスを復旧します。本書ではこの構成をCloud Rescueとして読み替え、学習目標、物語、採点、ヒント、障害注入を順に設計します。
+Challengeでは、同じEC2上でAPIだけが正常、nginxだけが停止した状態から始めます。参加者は`SSM Session Manager`で接続し、systemdとjournalの証拠からfrontendを復旧します。復旧後にだけ`/recovery`がデプロイごとのflagを返します。
+
+Battleでは、frontendとAPIを1分ごとに継続採点します。運営はnginxまたはAPIをチーム単位で停止でき、各障害には10分後の自動revertがあります。本文のコード断片より、これらの実ファイルを実行時の正本とします。
 
 この進め方には利点があります。
 
