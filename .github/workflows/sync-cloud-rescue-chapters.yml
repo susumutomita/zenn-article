@@ -1,0 +1,862 @@
+name: sync-cloud-rescue-chapters
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/sync-cloud-rescue-chapters.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout book branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: book/cloud-competition-draft
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install
+      - name: Rewrite implementation chapters
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path('books/cloud-competition')
+          chapters = {
+          'chapter5.md': '''---
+          title: "壊れたAWS環境をCloudFormationで作る"
+          free: true
+          ---
+
+          競技環境は、正常なシステムを作ってから意図的に壊します。最初から壊れたtemplateを書くと、構築失敗と競技用の障害を区別できません。
+
+          本章の正本は`challenges/cloud-rescue/template.yaml`です。EC2、nginx、Python API、SSM接続経路を作ります。セットアップの成功を確認した後、nginxだけを停止します。
+
+          ## 最小サンプルから始める
+
+          Cloud Rescueは、既存の`hello-world-battle`を複製して作りました。
+
+          ```bash
+          bun run new challenges cloud-rescue --from hello-world-battle
+          ```
+
+          複製直後は、両serviceが正常に動く状態を保ちます。ID、説明、採点を一度に変更せず、差分ごとに検証します。
+
+          ## 共通parameterを受け取る
+
+          TenkaCloudからデプロイするtemplateは、少なくとも次を受け取ります。
+
+          ```yaml
+          Parameters:
+            NamePrefix:
+              Type: String
+              MinLength: 5
+              MaxLength: 80
+              AllowedPattern: "^tc-[a-z0-9]+(-[a-z0-9]+)+$"
+
+            TenkaCloudAccountId:
+              Type: String
+              AllowedPattern: "^[0-9]{12}$"
+
+            ExternalId:
+              Type: String
+              NoEcho: true
+              MinLength: 16
+          ```
+
+          `NamePrefix`は、teamごとのresource名を分離します。`TenkaCloudAccountId`と`ExternalId`は、参加者用roleの信頼条件に使います。作者が固定値を入れず、デプロイ経路から注入します。
+
+          ## Challenge固有のflag seed
+
+          Challengeは、デプロイごとに異なる値も受け取ります。
+
+          ```yaml
+          FlagSeed:
+            Type: String
+            NoEcho: true
+            MinLength: 8
+            MaxLength: 64
+            AllowedPattern: "^[A-Za-z0-9]+$"
+          ```
+
+          `metadata.json`の`__RANDOM_PASSWORD__`を、デプロイ処理が実値へ置き換えます。Gitには固定flagを置きません。
+
+          ## participant roleを問題へ限定する
+
+          `ParticipantViewerRole`は、TenkaCloud側のaccountだけを信頼します。さらに、`ExternalId`を必須にします。
+
+          ```yaml
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Principal:
+                  AWS: !Sub "arn:aws:iam::${TenkaCloudAccountId}:root"
+                Action: sts:AssumeRole
+                Condition:
+                  StringEquals:
+                    sts:ExternalId: !Ref ExternalId
+          ```
+
+          参加者は、自分のEC2を確認してSSMセッションを開始できます。SSHの22番portは公開しません。serviceの操作は、接続後のOS上で行います。
+
+          ## 正常系を作ってから止める
+
+          UserDataは、nginxとAPIを構築します。nginxを一度起動し、localhostからHTTP 200を確認します。その後に初期障害を注入します。
+
+          ```bash
+          systemctl enable --now nginx
+          curl -fsS http://127.0.0.1/ >/dev/null
+          echo "frontend verified before incident injection" \
+            | systemd-cat -t cloud-rescue-setup
+
+          systemctl stop nginx
+          echo "initial incident injected: nginx stopped" \
+            | systemd-cat -t cloud-rescue-setup
+          ```
+
+          この順序により、参加者は「セットアップが失敗した」のではなく、「正常だったserviceが停止した」と判断できます。
+
+          ## APIは正常なまま残す
+
+          Python APIは8080番portで動きます。
+
+          ```text
+          GET /healthz   -> HTTP 200
+          GET /recovery  -> nginxが未復旧ならHTTP 503
+          ```
+
+          frontendだけを止めるため、network全体の障害ではないと切り分けられます。
+
+          ## Outputを導線として使う
+
+          Challenge版は、次のOutputを持ちます。
+
+          ```yaml
+          Outputs:
+            FrontendUrl:
+              Value: !Sub "http://${Ec2.PublicDnsName}"
+            ApiUrl:
+              Value: !Sub "http://${Ec2.PublicDnsName}:8080"
+            InstanceId:
+              Value: !Ref Ec2
+            SsmStartSessionCommand:
+              Value: !Sub "aws ssm start-session --target ${Ec2}"
+            RecoveryFlag:
+              Value: !Sub "TC{${FlagSeed}}"
+          ```
+
+          `FrontendUrl`と`ApiUrl`は症状の比較に使います。`SsmStartSessionCommand`は接続の摩擦を減らします。`RecoveryFlag`は採点engineが参照する正解です。
+
+          ## 削除できる構成にする
+
+          参加者には、新しいEC2やElastic IPを作らせません。既存serviceの状態だけを修正させます。CloudFormation stackを削除すれば、EC2、VPC、subnet、Internet Gateway、Security Group、IAM roleを回収できます。
+
+          次章では、この環境を`metadata.json`からTenkaCloudへ接続します。
+          ''',
+          'chapter6.md': '''---
+          title: "metadata.jsonで問題を説明する"
+          free: true
+          ---
+
+          `template.yaml`はAWS環境を作ります。`metadata.json`は、その環境をTenkaCloud上の問題として成立させます。
+
+          本章の正本は`challenges/cloud-rescue/metadata.json`です。カタログ表示、学習目標、CloudFormation parameter、採点、ヒント、英訳を1つの宣言へまとめます。
+
+          ## 現在はdraftにする
+
+          Cloud Rescueは実装済みですが、実AWSの通し検証は終わっていません。そのため、公開準備中の状態は`draft`です。
+
+          ```json
+          {
+            "id": "cloud-rescue",
+            "name": "Cloud Rescue",
+            "category": "Challenge",
+            "status": "draft",
+            "visibility": "public",
+            "difficulty": 2,
+            "estimatedDuration": "30 分"
+          }
+          ```
+
+          CIが成功しただけで`ready`へ変更しません。実AWSでデプロイ、解答、採点、削除を確認した後に変更します。
+
+          ## 症状とゴールを書く
+
+          問題文は、原因ではなく観測できる症状を示します。
+
+          ```markdown
+          ## 症状
+          - frontendは応答しない
+          - APIの`/healthz`はHTTP 200を返す
+
+          ## ゴール
+          既存のEC2を作り直さず、停止serviceを調査して復旧する。
+          復旧後に`http://localhost:8080/recovery`からflagを取得する。
+          ```
+
+          「nginxを起動する」と最初から書くと、調査する余地がなくなります。
+
+          ## 学習目標を行動で書く
+
+          Cloud Rescueの`learningGoals`は次です。
+
+          ```json
+          {
+            "learningGoals": [
+              "frontendとAPIの症状差から原因範囲を絞る",
+              "SSM Session ManagerでSSHなしにEC2へ接続する",
+              "systemctlとjournalctlで停止serviceを特定して復旧する",
+              "復旧後に外形状態を再確認してflagを取得する"
+            ]
+          }
+          ```
+
+          AWS service名の一覧ではなく、参加者が行う判断と操作を記述します。
+
+          ## CloudFormationへrandom valueを渡す
+
+          ```json
+          {
+            "cfnTemplate": "template.yaml",
+            "cfnParameters": {
+              "FlagSeed": "__RANDOM_PASSWORD__"
+            }
+          }
+          ```
+
+          `FlagSeed`はデプロイごとに変わります。template側のparameter名と一致させます。
+
+          ## 日本語と英語を同じ意味にする
+
+          トップレベルを日本語、`i18n.en`を英語として管理します。
+
+          ```json
+          {
+            "i18n": {
+              "en": {
+                "name": "Cloud Rescue",
+                "shortDescription": "The frontend is down while the API still responds.",
+                "learningGoals": [
+                  "Use symptom differences to narrow the incident scope",
+                  "Connect through SSM Session Manager without SSH"
+                ]
+              }
+            }
+          }
+          ```
+
+          直訳より、状況、ゴール、制約が一致していることを優先します。READMEも`README.md`と`README.ja.md`を用意します。
+
+          ## Simulatorのcapabilityを宣言する
+
+          Cloud RescueはAWS問題ですが、TenkaCloudSimulatorとの互換性も宣言します。
+
+          ```json
+          {
+            "simulationOverlay": {
+              "schemaVersion": "1",
+              "entry": "simulation.json"
+            }
+          }
+          ```
+
+          Simulator固有の分岐を問題IDで作らず、必要なcapabilityを契約として記述します。
+
+          ## schemaと生成物を検証する
+
+          ```bash
+          bun run scripts/validate-problems.ts
+          bun run reindex
+          make agent-gate
+          ```
+
+          `reindex`は`index.json`と`cost-report.json`を更新します。生成物を手作業で編集しません。
+
+          次章では、復旧を完了条件へ結び付けるflag採点を実装します。
+          ''',
+          'chapter7.md': '''---
+          title: "復旧に結び付くflag採点を実装する"
+          free: true
+          ---
+
+          Challengeの採点には`flag`方式を使います。ただし、固定文字列を入力するだけでは、serviceを復旧した証拠になりません。
+
+          Cloud Rescueでは、デプロイごとのflagを作ります。さらに、nginxが正常になるまでAPIの`/recovery`から返さない構成にします。
+
+          ## デプロイごとに値を変える
+
+          `metadata.json`は、random valueの注入を要求します。
+
+          ```json
+          {
+            "cfnParameters": {
+              "FlagSeed": "__RANDOM_PASSWORD__"
+            }
+          }
+          ```
+
+          `template.yaml`は、採点用の値をOutputへ出します。
+
+          ```yaml
+          Outputs:
+            RecoveryFlag:
+              Description: Canonical flag used by the scoring engine.
+              Value: !Sub "TC{${FlagSeed}}"
+          ```
+
+          TenkaCloudは、このOutputをcanonical answerとして比較します。
+
+          ## 復旧するまでAPIから返さない
+
+          Python APIの`/recovery`は、localhostのnginxへ接続します。
+
+          ```python
+          if self.path == "/recovery":
+              if self.client_address[0] not in ("127.0.0.1", "::1"):
+                  return forbidden()
+
+              frontend_ok = probe("http://127.0.0.1/")
+              if not frontend_ok:
+                  return unavailable("frontend-unhealthy")
+
+              return text(RECOVERY_FLAG)
+          ```
+
+          実装では標準libraryだけを使います。外部からの`/recovery`呼び出しはHTTP 403です。EC2内から呼び出しても、nginxが停止中ならHTTP 503になります。
+
+          参加者は復旧後に次を実行します。
+
+          ```bash
+          curl -fsS http://localhost:8080/recovery
+          ```
+
+          ## scoringを宣言する
+
+          ```json
+          {
+            "scoring": {
+              "kind": "flag",
+              "flagOutputKey": "RecoveryFlag",
+              "points": 100,
+              "wrongAnswerPenalty": 5,
+              "hints": [
+                {
+                  "id": "hint-1",
+                  "content": "frontendとAPIの状態を比較する",
+                  "penalty": 10
+                },
+                {
+                  "id": "hint-2",
+                  "content": "systemctlとjournalctlで確認する",
+                  "penalty": 20
+                },
+                {
+                  "id": "hint-3",
+                  "content": "frontendを復旧してrecovery endpointを確認する",
+                  "penalty": 30
+                }
+              ]
+            }
+          }
+          ```
+
+          `flagOutputKey`は、CloudFormation Outputの`RecoveryFlag`と一致させます。difficulty 2の標準得点に合わせて100点にします。
+
+          ## flagを秘密境界と考えない
+
+          参加者は、EC2内でsudoを使えます。したがって、このflagは悪意のあるroot利用者から秘密を守る仕組みではありません。
+
+          Challengeの目的は、症状の比較、SSM接続、systemd調査、復旧、確認という流れを作ることです。正常状態を維持できるかは、Battle版の外形監視で評価します。
+
+          ## 確認する経路
+
+          実AWSでは次を確認します。
+
+          1. nginx停止中の`/recovery`がHTTP 503になる
+          2. 外部からの`/recovery`がHTTP 403になる
+          3. nginx復旧後、localhostからデプロイ固有flagを取得できる
+          4. 正しいflagで100点を得る
+          5. 誤答で5点を失う
+          6. 別teamのflagを提出できない
+          7. 再デプロイ後にflagが変わる
+
+          次章では、答えを直接書かずに完走率を上げるヒントを設計します。
+          ''',
+          'chapter8.md': '''---
+          title: "ヒントと解説で学習体験を作る"
+          free: true
+          ---
+
+          難しい問題がよい問題とは限りません。何も分からないまま時間切れになると、測れるのは事前知識の差だけです。
+
+          Cloud Rescueは、3段階のヒントを`metadata.json`へ持ちます。英語版も同じIDで対応させます。
+
+          ## Hint 1は症状を比較させる
+
+          ```text
+          frontendとAPIの /healthz を比較してください。
+          同じhost上でAPIが正常なら、network全体だけを疑い続ける必要はありません。
+          ```
+
+          最初のヒントは、原因を教えません。観測済みの情報を比較し、調査範囲を狭めさせます。penaltyは10点です。
+
+          ## Hint 2は証拠の場所を示す
+
+          ```text
+          SSMで接続後、systemctl status nginx tenkacloud-api と
+          journalctl で状態と証拠を確認します。
+          ```
+
+          service名と調査手段を示します。復旧commandはまだ書きません。penaltyは20点です。
+
+          ## Hint 3は完走を優先する
+
+          ```text
+          停止しているfrontend serviceを復旧します。
+          localhostで正常性を確認してから /recovery へアクセスします。
+          ```
+
+          最終ヒントでは、復旧からflag取得までの方向を示します。penaltyは30点です。
+
+          ## 問題文、ヒント、READMEを分ける
+
+          問題文は、状況、ゴール、制約だけを示します。ヒントは探索範囲を段階的に狭めます。READMEは、終了後に調査の順序と設計意図を整理する資料です。
+
+          | 文書 | 役割 | 原因を明かす時期 |
+          | --- | --- | --- |
+          | `metadata.instructions` | 競技中の状況とゴール | 明かさない |
+          | `scoring.hints` | 詰まりを解消する | 段階的に示す |
+          | `README.ja.md` | 学習内容と再利用方法 | 終了後に説明する |
+
+          ## READMEで扱う内容
+
+          Cloud RescueのREADMEには、次を記載します。
+
+          - frontendとAPIの症状差
+          - SSMセッションマネージャーの接続経路
+          - systemdとjournalの確認
+          - `/recovery`の条件
+          - flagはsudo利用者への秘密境界ではないこと
+          - Battle版で継続状態を評価する理由
+          - CloudFormationでの削除方法
+
+          日本語版と英語版で、学習目標と制約をずらしません。
+
+          ## 初見者テストで記録する
+
+          解答できたかだけでなく、次を記録します。
+
+          - 最初に比較したendpoint
+          - AWS環境へ接続するまでの時間
+          - 開いたヒントと時刻
+          - 最初の仮説
+          - 仮説を変えた証拠
+          - 復旧後に確認した対象
+          - 問題文で誤解した表現
+
+          ヒント利用は失敗ではありません。教材の説明が不足した場所を示すデータとして使います。
+
+          次章では、CIと実AWSの検証範囲を分けます。
+          ''',
+          'chapter9.md': '''---
+          title: "検証、実機デプロイ、解答テスト"
+          free: true
+          ---
+
+          問題は、ファイルが揃った時点では完成していません。静的検証と実AWS検証を分け、証明できた範囲を明示します。
+
+          ## 現在の実装PR
+
+          Cloud RescueはTenkaCloudChallengeのPR #318で管理しています。
+
+          ```text
+          Challenge: challenges/cloud-rescue
+          Battle:    battles/cloud-rescue-battle
+          ```
+
+          実AWSの通し確認が終わるまで、両問題の`status`は`draft`です。
+
+          ## 第1層はcatalog contract
+
+          repositoryの完了条件を実行します。
+
+          ```bash
+          make agent-gate
+          ```
+
+          このcommandは、次をまとめて検査します。
+
+          - metadataのJSON Schema
+          - problem IDとdirectory名
+          - CloudFormation Outputへの参照
+          - templateのASCIIとsecurity checks
+          - catalog test shards
+          - `index.json`と`cost-report.json`
+          - course drift
+
+          Simulatorとのcross-repository contractは、専用workflowで検査します。
+
+          ## 第2層はCloudFormationの静的確認
+
+          AWS CLIを使える場合は、templateも検証します。
+
+          ```bash
+          aws cloudformation validate-template \
+            --template-body file://challenges/cloud-rescue/template.yaml
+
+          aws cloudformation validate-template \
+            --template-body file://battles/cloud-rescue-battle/template.yaml
+          ```
+
+          このcommandは、UserDataの成功、IAMの実権限、endpointへの到達性を保証しません。
+
+          ## 第3層はChallengeの実AWS確認
+
+          新しいstackで次を確認します。
+
+          ```text
+          CloudFormation: CREATE_COMPLETE
+          SSM managed node: online
+          frontend /: failure
+          API /healthz: HTTP 200
+          /recovery from outside: HTTP 403
+          /recovery before recovery: HTTP 503
+          ```
+
+          participant roleでSSMへ接続し、状態を調査します。
+
+          ```bash
+          systemctl status nginx tenkacloud-api
+          journalctl -u nginx -u tenkacloud-api --no-pager -n 50
+          sudo nginx -t
+          sudo systemctl start nginx
+          curl -fsS http://127.0.0.1/
+          curl -fsS http://localhost:8080/recovery
+          ```
+
+          取得したflagをPortalへ提出し、得点と誤答penaltyを確認します。
+
+          ## 第4層はBattleの実AWS確認
+
+          `Ec2HostHint`から2つのURLを作り、Portalへ登録します。
+
+          ```text
+          frontend slot: http://<host>
+          API slot:      http://<host>:8080
+          ```
+
+          次の採点周期で、両endpointの成功が反映されることを確認します。その後、`frontend-down`と`api-down`を別々に実行します。
+
+          各障害で確認する内容は次です。
+
+          - 対象teamだけに作用する
+          - 片方のendpointだけが失敗する
+          - participantがSSMから復旧できる
+          - 復旧後に採点へ戻る
+          - 600秒後のrevertが成功する
+          - commandとrevertの監査記録が残る
+
+          ## 第5層は削除
+
+          ```bash
+          aws cloudformation delete-stack --stack-name <problem-stack>
+          aws cloudformation wait stack-delete-complete \
+            --stack-name <problem-stack>
+          ```
+
+          EC2、VPC、subnet、Internet Gateway、Security Group、IAM roleが残っていないことを確認します。請求画面とresource explorerでも確認します。
+
+          ## 第6層は初見者テスト
+
+          実装内容を知らない参加者に解いてもらいます。接続時間、ヒント利用、誤った仮説、復旧時間、再発時の短縮を記録します。
+
+          CIの成功を実AWSの成功として扱いません。未確認の画面、log、所要時間は空欄のまま残します。
+
+          次章では、Battleの継続採点を実装します。
+          ''',
+          'chapter10.md': '''---
+          title: "リアルタイム競技の得点設計"
+          free: true
+          ---
+
+          Challengeは、1回の完了を採点します。Battleは、正常状態を維持した時間を採点します。
+
+          本章の正本は`battles/cloud-rescue-battle/metadata.json`です。
+
+          ## Battleもdraftから始める
+
+          ```json
+          {
+            "id": "cloud-rescue-battle",
+            "name": "Cloud Rescue Battle",
+            "category": "Battle",
+            "status": "draft",
+            "difficulty": 2,
+            "estimatedDuration": "60 分"
+          }
+          ```
+
+          実AWSで採点と障害注入を確認するまで`ready`へ変更しません。
+
+          ## URLは参加者が登録する
+
+          Battle版のCloudFormation Outputは、`FrontendUrl`と`ApiUrl`を空文字にします。`Ec2HostHint`だけを参加者へ示します。
+
+          ```yaml
+          Outputs:
+            FrontendUrl:
+              Value: ""
+            ApiUrl:
+              Value: ""
+            Ec2HostHint:
+              Value: !GetAtt Ec2.PublicDnsName
+          ```
+
+          参加者はPortalへ次を登録します。
+
+          ```text
+          frontend: http://<Ec2HostHint>
+          API:      http://<Ec2HostHint>:8080
+          ```
+
+          デプロイしただけでは得点しません。監視対象を理解して登録した時点からBattleが始まります。
+
+          ## endpoint slotを宣言する
+
+          ```json
+          {
+            "endpoints": [
+              {
+                "slot": "frontend",
+                "default": {
+                  "from": "cfn-output",
+                  "key": "FrontendUrl"
+                },
+                "overridable": true
+              },
+              {
+                "slot": "api",
+                "default": {
+                  "from": "cfn-output",
+                  "key": "ApiUrl"
+                },
+                "overridable": true
+              }
+            ]
+          }
+          ```
+
+          `overridable: true`により、teamごとのURLをPortalへ保存できます。
+
+          ## uptime-flatで個別に採点する
+
+          ```json
+          {
+            "scoring": {
+              "kind": "uptime-flat",
+              "endpoints": [
+                {
+                  "slot": "frontend",
+                  "path": "/",
+                  "expectStatus": [200]
+                },
+                {
+                  "slot": "api",
+                  "path": "/healthz",
+                  "expectStatus": [200]
+                }
+              ],
+              "pointsPerSuccess": 100,
+              "failurePenalty": -50
+            }
+          }
+          ```
+
+          frontendとAPIを別々に判定するため、部分復旧もscoreへ反映できます。
+
+          ## 点数を試算する
+
+          1分ごとに2 endpointを確認し、各成功が100点なら、60分の理論最大は12,000点です。
+
+          ```text
+          2 endpoints × 100 points × 60 rounds = 12,000 points
+          ```
+
+          失敗時は、endpointごとの採点規則に従って50点を失います。初学者が序盤の失点だけで諦めないよう、成功点より小さくしています。
+
+          ## uptime-multiは次の発展
+
+          全endpointが正常な場合だけ得点させるなら、`uptime-multi`を検討します。Cloud Rescueの初版は、どちらが壊れたかをscoreから観察できる`uptime-flat`を使います。
+
+          Battleの価値は、正解commandの早押しではありません。復旧後も監視し、再発へ対応する運用を得点に変えることです。
+
+          次章では、2種類の障害注入と自動revertを実装します。
+          ''',
+          'chapter11.md': '''---
+          title: "フェーズと妨害イベントを入れる"
+          free: true
+          ---
+
+          継続採点だけでもBattleは成立します。Cloud Rescueは、operatorが手動で発火する2種類の障害を追加します。
+
+          初版では時間連動のphaseを実装しません。全teamの準備を確認してから、同じ条件で手動発火します。
+
+          ## frontendを停止する
+
+          ```json
+          {
+            "id": "frontend-down",
+            "name": "frontend停止",
+            "eventDetailType": "OutageDisruptionFired",
+            "defaultAfterMinutes": 10,
+            "operatorEditable": ["afterMinutes"],
+            "publicHint": true,
+            "action": {
+              "kind": "ssm-run-command",
+              "targetRef": "InstanceId",
+              "documentName": "AWS-RunShellScript",
+              "paramTemplate": {
+                "commands": [
+                  "systemctl stop nginx || true"
+                ]
+              },
+              "revert": {
+                "afterSeconds": 600,
+                "documentName": "AWS-RunShellScript",
+                "paramTemplate": {
+                  "commands": [
+                    "systemctl start nginx || true"
+                  ]
+                }
+              }
+            }
+          }
+          ```
+
+          frontend probeだけが失敗するため、参加者はAPIが正常なことを手掛かりにできます。
+
+          ## APIを停止する
+
+          2つ目の障害は、`tenkacloud-api`を停止します。
+
+          ```json
+          {
+            "id": "api-down",
+            "name": "API停止",
+            "action": {
+              "kind": "ssm-run-command",
+              "targetRef": "InstanceId",
+              "documentName": "AWS-RunShellScript",
+              "paramTemplate": {
+                "commands": [
+                  "systemctl stop tenkacloud-api || true"
+                ]
+              },
+              "revert": {
+                "afterSeconds": 600,
+                "documentName": "AWS-RunShellScript",
+                "paramTemplate": {
+                  "commands": [
+                    "systemctl start tenkacloud-api || true"
+                  ]
+                }
+              }
+            }
+          }
+          ```
+
+          今度はfrontendが正常なため、同じ調査手順を別serviceへ適用できます。
+
+          ## revertを必須にする
+
+          各障害は、600秒後に自動revertします。participantが接続できない場合や、operatorが進行を中止した場合にも、障害を永続化させません。
+
+          revertは正解の代行ではありません。参加者が自力で復旧する時間より長く設定した安全網です。
+
+          ## operator runbookを分離する
+
+          `redteam/README.md`と`redteam/README.ja.md`には、次を記載します。
+
+          - endpoint登録と初回得点を確認してから発火する
+          - `InstanceId`が対象teamのstackに属するか確認する
+          - 同じ障害のrevert待機中に再発火しない
+          - team、disruption ID、時刻、結果、revert予定を記録する
+          - SSM失敗、誤target、想定外の両系停止では追加発火を止める
+
+          participant向けREADMEに、未公開の発火予定は書きません。
+
+          ## 公平性を決める
+
+          Cloud Rescueの初回イベントは、全teamの準備完了後に同じ障害を手動発火します。
+
+          ```text
+          0〜15分: endpoint登録と正常状態の確認
+          15〜30分: frontend-down
+          30〜45分: api-down
+          45〜60分: どちらかを再発
+          ```
+
+          この時刻はrunbook上の進行例です。metadataに自動phaseとして実装した値ではありません。
+
+          ## phaseは必要になってから追加する
+
+          `phased-polling`を使うと、時間によって採点条件を変えられます。たとえば、前半はfrontendだけ、後半はfrontendとAPIの両方を要求できます。
+
+          初版では、継続採点、手動disruption、自動revertを先に実証します。phaseを追加する場合は、条件変更を参加者へ予告し、採点障害と誤認されないようにします。
+
+          次章では、専用UIを追加せず汎用Portalを使う判断を説明します。
+          ''',
+          }
+
+          for filename, content in chapters.items():
+              cleaned = '\n'.join(line.removeprefix('          ') for line in content.splitlines())
+              root.joinpath(filename).write_text(cleaned.rstrip() + '\n', encoding='utf-8')
+      - name: Apply safe textlint fixes
+        run: |
+          pnpm exec textlint --fix \
+            books/cloud-competition/chapter5.md \
+            books/cloud-competition/chapter6.md \
+            books/cloud-competition/chapter7.md \
+            books/cloud-competition/chapter8.md \
+            books/cloud-competition/chapter9.md \
+            books/cloud-competition/chapter10.md \
+            books/cloud-competition/chapter11.md || true
+      - name: Validate and capture
+        id: validation
+        shell: bash
+        run: |
+          set +e
+          make before_commit > cloud-rescue-chapter-sync.txt 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload validation output
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-rescue-chapter-sync
+          path: cloud-rescue-chapter-sync.txt
+      - name: Commit synchronized chapters
+        if: steps.validation.outputs.status == '0'
+        run: |
+          rm .github/workflows/sync-cloud-rescue-chapters.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add books/cloud-competition/chapter5.md books/cloud-competition/chapter6.md books/cloud-competition/chapter7.md books/cloud-competition/chapter8.md books/cloud-competition/chapter9.md books/cloud-competition/chapter10.md books/cloud-competition/chapter11.md .github/workflows/sync-cloud-rescue-chapters.yml
+          git commit -m "docs: align implementation chapters with Cloud Rescue"
+          git push origin HEAD:book/cloud-competition-draft
+      - name: Fail when validation failed
+        if: steps.validation.outputs.status != '0'
+        run: exit 1
