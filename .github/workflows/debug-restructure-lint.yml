@@ -1,0 +1,49 @@
+name: debug-restructure-lint
+
+on:
+  push:
+    branches:
+      - book/cloud-competition-draft
+    paths:
+      - .github/workflows/debug-restructure-lint.yml
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup safe-chain
+        run: |
+          pnpm add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
+          safe-chain setup-ci
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Capture validation output
+        shell: bash
+        run: |
+          set +e
+          make before_commit > restructure-validation.txt 2>&1
+          echo $? > restructure-status.txt
+          exit 0
+
+      - name: Upload validation output
+        uses: actions/upload-artifact@v4
+        with:
+          name: restructure-validation-output
+          path: |
+            restructure-validation.txt
+            restructure-status.txt
