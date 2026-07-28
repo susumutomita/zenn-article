@@ -23,7 +23,7 @@ SSMで接続後、systemctl status nginx tenkacloud-api と
 journalctl で状態と証拠を確認します。
 ```
 
-service名と調査手段を示します。復旧commandはまだ書きません。penaltyは20点です。
+service名と調査手段を示します。復旧commandはまだ書きません。penaltyは15点です。
 
 ## Hint 3は完走を優先する
 
@@ -32,7 +32,9 @@ service名と調査手段を示します。復旧commandはまだ書きません
 localhostで正常性を確認してから /recovery へアクセスします。
 ```
 
-最終ヒントでは、復旧からflag取得までの方向を示します。penaltyは30点です。
+最終ヒントでは、復旧からflag取得までの方向を示します。penaltyは25点です。
+
+3段階をすべて開いても、減点合計は50点です。100点問題に対するcatalog上限の50%を超えません。
 
 ## 問題文、ヒント、READMEを分ける
 
