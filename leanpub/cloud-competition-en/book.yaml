@@ -1,8 +1,8 @@
 title: "Build Your Own Cloud Competition"
-summary: "Design, build, and run a GameDay-inspired cloud exercise from scratch. Starting with the participant experience and story, you will create a local Challenge, an AWS Challenge, and an AWS Battle in increasing order of complexity, then run them for multiple teams with TenkaCloud."
-topics: ["AWS", "SRE", "GameDay", "CTF", "TenkaCloud"]
-published: false
-price: 0
+subtitle: "Design, Build, and Run GameDay-Inspired AWS Challenges with TenkaCloud"
+author: "Susumu Tomita"
+language: en
+distribution: leanpub
 chapters:
   - chapter1
   - execution-modes

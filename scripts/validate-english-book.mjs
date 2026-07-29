@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const bookDir = resolve("books/cloud-competition-en");
-const configPath = join(bookDir, "config.yaml");
+const bookDir = resolve("leanpub/cloud-competition-en");
+const configPath = join(bookDir, "book.yaml");
 const errors = [];
 
 if (!existsSync(configPath)) {
@@ -29,10 +29,16 @@ for (const line of config.split(/\r?\n/)) {
 }
 
 if (!config.includes('title: "Build Your Own Cloud Competition"')) {
-  errors.push("config.yaml must use the English title");
+  errors.push("book.yaml must use the English title");
 }
-if (!config.includes("published: false")) {
-  errors.push("the Zenn English edition must remain unpublished");
+if (!config.includes("distribution: leanpub")) {
+  errors.push("book.yaml must identify Leanpub as the distribution target");
+}
+if (/^(?:published|price|topics):/m.test(config)) {
+  errors.push("book.yaml must not contain Zenn publication metadata");
+}
+if (existsSync(resolve("books/cloud-competition-en"))) {
+  errors.push("the Leanpub manuscript must not exist under Zenn's books directory");
 }
 if (chapterSlugs.length !== 27) {
   errors.push(`expected 27 chapters, found ${chapterSlugs.length}`);
