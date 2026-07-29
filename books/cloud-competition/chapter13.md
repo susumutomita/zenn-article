@@ -29,7 +29,7 @@ TenkaCloud Liteは、これらのマルチテナント管理を持ちません�
 | TenkaCloud Lite | 自分でイベントを開く運営者 | 固定された1つ | イベントごとにデプロイして撤去する |
 | SaaS構成 | 複数組織へサービスを提供する運営者 | 複数 | 常設し、利用組織を追加して管理する |
 
-TenkaCloud Liteは、Application Admin ConsoleとParticipant Portalを含む2つの本体stackで構成します。SaaS向けのControl PlaneやCodePipelineは作りません。この設計判断は、[Lite modeのADR](https://github.com/susumutomita/TenkaCloud/blob/main/docs/architecture/adr-016-lite-mode-single-tenant.html)で確認できます。
+TenkaCloud Liteは、Application Admin ConsoleとParticipant Portalを含む2つの本体stackで構成します。SaaS向けのControl PlaneやCodePipelineは作りません。
 
 ## デプロイ前に費用と終了方法を確認する
 

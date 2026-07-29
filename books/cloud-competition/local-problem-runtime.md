@@ -160,36 +160,35 @@ const verify = createServer(async (request, response) => {
 
 不正解時に、期待したflagや比較結果の詳細を返してはいけません。参加者が推測に使えない結果だけを返します。
 
-## TenkaCloudのチェックアウトで動かす
+## 完成した問題をParticipant Portalで動かす
 
-ローカルモードはTenkaCloud本体のParticipant Portalと採点APIを使います。問題カタログは、TenkaCloudリポジトリの`problems/` submoduleとして読み込まれます。
+問題を作成するリポジトリと、参加者が問題を解く画面を動かすリポジトリは別です。
 
-最初にTenkaCloudを準備します。
+| リポジトリ | この章での役割 |
+| --- | --- |
+| TenkaCloudChallenge | `sqli-demo`の問題文、Docker環境、採点方法を作成して検証する |
+| TenkaCloud | Participant Portal、ローカル採点API、問題コンテナを起動する |
+
+ここまで編集してきたTenkaCloudChallengeで、問題カタログの完了条件を実行します。
 
 ```bash
+make agent-gate
+```
+
+次に、TenkaCloudChallengeとは別のディレクトリへTenkaCloudを取得します。
+
+```bash
+cd ..
 git clone https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
 make local-onboard
 ```
 
-問題を作るときは、`problems/`の中でTenkaCloudChallengeのbranchを作ります。
+TenkaCloudは、公開されている問題カタログを`problems/`というGit submoduleから読み込みます。これはTenkaCloudChallengeを参照するための仕組みであり、TenkaCloud本体へ問題を追加するという意味ではありません。
+
+本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。問題IDを指定して、公開済みの完成形を起動します。
 
 ```bash
-cd problems
-git checkout -b feat/my-local-problem
-```
-
-本章の構成で問題ファイルを作成したら、問題カタログの完了条件を実行します。
-
-```bash
-make install
-make agent-gate
-```
-
-TenkaCloudのルートへ戻り、問題IDを指定してローカルモードを起動します。
-
-```bash
-cd ..
 make local PROBLEM=sqli-demo
 ```
 
