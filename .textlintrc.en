@@ -1,0 +1,8 @@
+{
+  "filters": {},
+  "rules": {
+    "@textlint-ja/preset-ai-writing": true,
+    "no-mixed-zenkaku-and-hankaku-alphabet": true,
+    "no-mixed-zenkaku-and-hankaku-number": true
+  }
+}
