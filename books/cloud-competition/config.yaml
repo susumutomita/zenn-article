@@ -1,7 +1,7 @@
 title: "自分で作るクラウド競技"
 summary: "AWS GameDayに着想を得た実践型クラウド演習を、自分で設計・実装・開催する本です。参加者の体験とストーリーを起点に、ローカルChallenge、AWS Challenge、AWS Battleを簡単な順に一から作り、TenkaCloudで複数チームが遊べる競技として動かします。"
 topics: ["AWS", "SRE", "GameDay", "CTF", "TenkaCloud"]
-published: false
+published: true
 price: 0
 chapters:
   - chapter1
