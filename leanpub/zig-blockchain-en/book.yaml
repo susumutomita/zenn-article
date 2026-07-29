@@ -1,0 +1,9 @@
+title: "Build a Blockchain and a Minimal EVM from Scratch in Zig"
+subtitle: "A Hands-On Guide to Proof of Work, P2P Networking, Chain Synchronization, and Solidity Bytecode"
+author: "Susumu Tomita"
+language: en
+distribution: leanpub
+chapters:
+  - chapter1
+  - code-guide
+  - chapter2
