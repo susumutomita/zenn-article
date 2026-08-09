@@ -38,6 +38,8 @@ flowchart LR
 
 問題の中身は、[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)という別のOSSで管理します。問題ごとに、参加者へ見せる文章、操作する環境、採点条件、ヒント、障害を1つのディレクトリへまとめます。
 
+読む前に動かしてみたい場合は、[デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面をそのまま触れます。手元の環境を用意せずに問題を1問解くところまで試すなら、[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)でブラウザだけで起動できます。本書の説明が具体的に何を指しているかは、実際の画面を見てからのほうが早く掴めます。
+
 役割の違いは次のとおりです。
 
 ```mermaid
