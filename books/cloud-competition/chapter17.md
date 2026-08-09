@@ -184,3 +184,18 @@ make agent-gate
 - `make agent-gate`の結果
 
 本書で作った3問は、どれも「どのAWSサービスを使うか」から始めていません。参加者にどんな行動を取ってほしいかを決め、ストーリー、環境、採点を後から接続しました。自分の問題を作るときも、この順序を変えないことが最も重要です。
+
+## 読み終えたあとの進み方
+
+本書は読み終えたところが終点ではありません。次の順番で進むと、読んだ内容が自分の環境の中で動く状態になります。
+
+1. **試す** — [デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面を触るか、[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)でブラウザだけで1問解きます。手元に何も用意せずに始められます。
+2. **動かす** — [TenkaCloud](https://github.com/susumutomita/TenkaCloud)をクローンし、`make local`でローカル問題を起動します。本書の第3章から第4章がこの段階に対応します。
+3. **作る** — [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)へ自分の問題を1問足します。既存の問題ディレクトリが、そのままテンプレートとして読めます。完了条件は`make agent-gate`です。
+4. **開く** — TenkaCloud LiteをAWSへデプロイし、チームを登録してイベントを開催します。第10章以降がこの段階です。
+
+公式サイトは[日本語](https://www.tenkacloud.com/?lang=ja)と[英語](https://www.tenkacloud.com/?lang=en)があり、役割別のマニュアルもそこから辿れます。
+
+作った問題を公開する義務はありませんが、公開すると他の主催者がそのまま使えます。逆に、自分が問題を作る前に[問題カタログ](https://github.com/susumutomita/TenkaCloudChallenge)を眺めておくと、すでにある問題と重ならない題材を選べます。
+
+うまく動かないところや、本書の説明で足りなかったところは、[GitHub Discussions](https://github.com/susumutomita/TenkaCloud/discussions)へ書いてもらえると、本書とプラットフォームの両方の改善につながります。

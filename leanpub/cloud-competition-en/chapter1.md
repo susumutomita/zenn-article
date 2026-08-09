@@ -38,6 +38,8 @@ Participants use the Participant Portal to read a problem and its hints, submit 
 
 The problem content lives in a separate open-source project called [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge). Each problem keeps its participant-facing text, environment, scoring conditions, hints, and faults in one directory.
 
+If you would rather see it before reading about it, the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) puts you in the participant's screen directly, and [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud) runs a problem end to end in the browser with nothing installed locally. Most of what this book describes is quicker to recognise once you have seen the actual screen.
+
 The responsibilities are separated like this:
 
 ```mermaid
