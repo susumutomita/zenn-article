@@ -150,6 +150,14 @@ make agent-gate
 
 ファイルを複製した直後に`make agent-gate`を実行しても、自分の問題は完成しません。ディレクトリ名と`id`、参加者向け文章、環境、採点、Output、READMEをすべて自分の設計へ変更した後に実行します。
 
+`make agent-gate`は、新しい問題を足しただけで一度は必ず失敗します。カタログの`index.json`と`cost-report.json`は生成物で、新しい問題ディレクトリを追加した時点で古くなるためです。エラーメッセージが指す再生成コマンドをそのまま実行してから、もう一度`make agent-gate`を実行します。
+
+```bash
+bun run scripts/build-index.ts
+bun run scripts/estimate-cost.ts --write
+make agent-gate
+```
+
 ## 実行してから公開する
 
 AWS問題は、テスト用AWSアカウントへデプロイし、参加者用Roleで解答、採点、削除まで通します。
@@ -157,8 +165,10 @@ AWS問題は、テスト用AWSアカウントへデプロイし、参加者用Ro
 ローカル問題は、TenkaCloud本体のルートで起動します。
 
 ```bash
-make local PROBLEM=<新しいslug>
+make local
 ```
+
+`make local PROBLEM=<slug>`という形も見かけますが、Docker版の`make local`は今のところこの指定を無視します（起動時に注意メッセージが出ます）。問題は自動では開かず、起動後にParticipant Portalのカタログから自分で選んで起動します。
 
 Participant Portalから問題を開き、想定した解答で得点し、誤答では得点しないことを確認します。終了時は次を実行します。
 
@@ -184,6 +194,22 @@ make agent-gate
 - `make agent-gate`の結果
 
 本書で作った3問は、どれも「どのAWSサービスを使うか」から始めていません。参加者にどんな行動を取ってほしいかを決め、ストーリー、環境、採点を後から接続しました。自分の問題を作るときも、この順序を変えないことが最も重要です。
+
+## 問題を公開せずに使う場合
+
+ここまでの流れは、TenkaCloudChallengeへPull Requestを送る前提で説明してきました。社内の脆弱性やインシデント事例を題材にしていて、問題そのものを公開したくない場合は、経路が変わります。
+
+**ローカルChallenge・Battleは、そもそもどこにも push しなくて構いません。** `make local`は`problems/`ディレクトリの中身をそのまま読みます。自分のPCで問題を作り、コミットせずに`make local`で起動して遊ぶだけなら、この章のここまでの手順（`cp -R` → 編集 → `make agent-gate`）で完結します。「公開」が必要になるのは、他の主催者や参加者へ配りたいときだけです。
+
+**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init` / `pack-validate` / `pack-install` / `pack-activate`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
+
+```bash
+make pack-install ARGS="./my-pack"
+```
+
+この経路なら、パックの中身をどこにも公開せずに`pack-activate`で特定のテナントへ有効化できます。ただし2026年8月時点で、Problem Packsが対応するruntimeは4種類だけです。対応先は`aws/cloudformation`・`gcp/infra-manager`・`azure/bicep`・`sakura/apprun`です。この章の「ローカルChallengeを作る」で説明したDocker版のローカル問題（`docker/compose`）は、まだ対応していません。
+
+TenkaCloud Lite launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジトリの代わりには使えません。launcherがカタログを取得するGitのcheckoutは、認証情報を一切使わない設計です。private repoを指定すると、すぐに失敗します。「自分のforkを指定できる」というのは、そのforkも公開リポジトリである場合の話です。
 
 ## 読み終えたあとの進み方
 
