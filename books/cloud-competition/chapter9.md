@@ -29,7 +29,10 @@ make agent-gate
 - CloudFormation templateに危険な記述がない
 - READMEの必須ファイルがある
 - Challengeの点数とヒント減点が規定どおりである
-- `index.json`とcost reportに差分がない
+
+このgateは、カタログ全体のindexや固定料金表を生成しません。AWS料金はRegion、利用量、購入オプション、アカウントごとの割引などで変わるため、リポジトリ内の固定ドル値を正解にはできません。問題作者は課金が継続するリソースと削除方法をREADMEへ書き、金額が必要なときは対象Regionの最新料金で確認します。
+
+`make agent-gate`が通ることは、問題が実際に解けることの証明ではありません。個別問題のテストに加えて、実環境またはParticipant Portalで起動、正答、誤答、採点、終了まで確認します。
 
 ## hello-worldで確認したい接続
 

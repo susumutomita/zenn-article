@@ -7,7 +7,7 @@ free: true
 
 ## コマンドを実行する前に決める
 
-Claude Codeの問題作成スキルは、競技の内容を自動で考えるものではありません。最初に、次の5点を自分の言葉で書きます。
+AIコーディングエージェントは、競技の内容を自動で決めるものではありません。最初に、次の5点を自分の言葉で書きます。
 
 ```text
 参加者に持ち帰ってほしいこと:
@@ -31,32 +31,22 @@ AWSとローカルのどちらで動かすか:
 
 この文章から、必要な環境、最初の手がかり、採点条件を決めます。
 
-## new-problemスキルを開く
+## 問題作成契約を開く
 
-TenkaCloudChallengeには、Claude Code用の`new-problem`スキルがあります。
+TenkaCloudChallengeのルートにある`AGENTS.md`が、人間とAIに共通する問題作成契約です。専用スキルや専用コマンドがなくても、リポジトリを開いたAIコーディングエージェントはこのファイルと近い既存問題から作り方を判断できます。
 
-- [人間向けの使い方](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/README.md)
-- [Claude Codeが読む作問手順](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/SKILL.md)
-
-TenkaCloudChallengeのルートをClaude Codeで開き、作りたい形式を指定します。
-
-```text
-/new-problem challenge
+```bash
+less AGENTS.md
 ```
 
-または、Battleを作る場合は次のように入力します。
+AIへ依頼する場合も、通常の言葉で形式と題材を伝えます。
 
 ```text
-/new-problem battle
+AGENTS.mdに従って、新しいAWS Challengeを作ってください。
+参加者体験と成功条件は次のとおりです: ...
 ```
 
-形式をまだ決めていない場合は、引数を省略できます。
-
-```text
-/new-problem
-```
-
-スキルは、順番に次の内容を確認します。
+作り始める前に、次の内容を確定します。
 
 1. 問題形式
 2. 採点方式
@@ -92,7 +82,7 @@ AWSを使わない問題は、Challengeを選び、採点方式として`verify`
 
 値の発見や、一度の修正完了を採点したい場合はChallengeを選びます。採点方式は`flag`です。
 
-スキルは、`challenges/hello-world`をstarterとして新しいディレクトリを作ります。starterには、参加者用IAM Role、必須のCloudShell権限、リソース名のprefix、flag採点の接続が含まれます。
+`challenges/hello-world`をstarterとして新しいディレクトリを作ります。starterには、参加者用IAM Role、必須のCloudShell権限、リソース名のprefix、flag採点の接続が含まれます。
 
 生成後に、次の内容を自分の題材へ置き換えます。
 
@@ -109,7 +99,7 @@ flagは固定文字列にしません。問題をデプロイするたびに変�
 
 サービスの状態を競技中に繰り返し採点したい場合はBattleを選びます。
 
-スキルは、次の採点方式を確認します。
+次の採点方式から、競技の判定方法に合うものを選びます。
 
 | 採点方式 | 用途 |
 | --- | --- |
@@ -150,13 +140,9 @@ make agent-gate
 
 ファイルを複製した直後に`make agent-gate`を実行しても、自分の問題は完成しません。ディレクトリ名と`id`、参加者向け文章、環境、採点、Output、READMEをすべて自分の設計へ変更した後に実行します。
 
-`make agent-gate`は、新しい問題を足しただけで一度は必ず失敗します。カタログの`index.json`と`cost-report.json`は生成物で、新しい問題ディレクトリを追加した時点で古くなるためです。エラーメッセージが指す再生成コマンドをそのまま実行してから、もう一度`make agent-gate`を実行します。
+`make agent-gate`は、全問題の`metadata.json`を`SCHEMA.json`とリポジトリ規約に照らして確認します。カタログindex、知識グラフ、固定料金表の生成は行いません。失敗した場合は、表示された問題ファイルまたは契約違反を直して、もう一度実行します。
 
-```bash
-bun run scripts/build-index.ts
-bun run scripts/estimate-cost.ts --write
-make agent-gate
-```
+AWSの金額はRegion、利用量、購入オプション、アカウントの割引などで変わります。問題側に固定ドル値を持たせず、課金が継続するリソース、削除方法、想定Regionを記録し、開催時にAWSの最新料金で確認します。
 
 ## 実行してから公開する
 
@@ -168,7 +154,7 @@ AWS問題は、テスト用AWSアカウントへデプロイし、参加者用Ro
 make local
 ```
 
-`make local PROBLEM=<slug>`という形も見かけますが、Docker版の`make local`は今のところこの指定を無視します（起動時に注意メッセージが出ます）。問題は自動では開かず、起動後にParticipant Portalのカタログから自分で選んで起動します。
+問題はコマンド引数では選びません。起動後にParticipant Portalのカタログから対象問題を選んで開始します。
 
 Participant Portalから問題を開き、想定した解答で得点し、誤答では得点しないことを確認します。終了時は次を実行します。
 
