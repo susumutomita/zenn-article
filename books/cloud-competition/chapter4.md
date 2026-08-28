@@ -15,13 +15,13 @@ make install
 
 `make install`は、このリポジトリが定めた依存関係の導入コマンドです。
 
-問題を編集する前に、リポジトリ直下の`AGENT.md`を読みます。
+問題を編集する前に、リポジトリ直下の`AGENTS.md`を読みます。
 
 ```bash
-less AGENT.md
+less AGENTS.md
 ```
 
-`AGENT.md`には、問題作者向けの契約が書かれています。ローカル問題では、特に次を確認します。
+`AGENTS.md`には、人間とAIが共通で読む問題作者向けの契約が書かれています。ローカル問題では、特に次を確認します。
 
 - `metadata.json`が`SCHEMA.json`に一致する
 - `runtime.entry`が実在するCompose fileを指す
@@ -75,21 +75,15 @@ mkdir -p challenges/sqli-demo/local/app
 
 [sqli-demoの完成形](https://github.com/susumutomita/TenkaCloudChallenge/tree/main/challenges/sqli-demo)
 
-## Claude Codeを使う場合
+## AIコーディングエージェントを使う場合
 
-TenkaCloudChallengeには、Claude Code用の`new-problem`スキルがあります。ローカルChallengeの土台を作る場合は、次のように開始します。
+専用スキルや専用コマンドは必要ありません。TenkaCloudChallengeのルートをAIコーディングエージェントで開き、`AGENTS.md`を読ませたうえで、通常の言葉で依頼します。
 
 ```text
-/new-problem challenge
+AGENTS.mdの問題作成契約に従って、ローカルChallengeの土台を作ってください。
+題材はSQL Injection、採点はverify、問題IDはsqli-demoです。
 ```
 
-採点方式を聞かれたら`verify`を選びます。題材、参加者に持ち帰ってほしいこと、ストーリーには、前章までに決めた内容を渡します。
-
-スキルは、ディレクトリと必須項目を作る作業を補助します。競技の内容を代わりに決めるものではありません。本書では、生成される各項目の意味が分かるように、ファイルを1つずつ説明します。
-
-人間向けの使い方と、Claude Codeが読む手順は次の場所で確認できます。
-
-- [new-problemの使い方](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/README.md)
-- [new-problemの作問手順](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/.claude/skills/new-problem/SKILL.md)
+参加者に持ち帰ってほしいこと、最初の一手、成功条件は、前章までに決めた内容を渡します。AIは`AGENTS.md`と近い既存問題を読んでファイルを組み立てますが、競技の内容を代わりに決めるものではありません。本書では、各項目の意味が分かるようにファイルを1つずつ説明します。
 
 次章では、設計したストーリー、勝利条件、安全境界を`metadata.json`へ記述します。

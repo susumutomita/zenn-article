@@ -58,7 +58,7 @@ free: true
 - [ ] 公開portを`127.0.0.1`へbindしている
 - [ ] flagを実行ごとの`FLAG_SEED`から生成している
 - [ ] 不正解時に`/verify`が答えを漏らさない
-- [ ] `make local PROBLEM=sqli-demo`で起動できる
+- [ ] `make local`でPortalを起動し、カタログから`sqli-demo`を開始できる
 - [ ] Participant Portalから正答と誤答を確認した
 - [ ] `make local-down`で終了した
 

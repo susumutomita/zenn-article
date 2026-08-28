@@ -181,18 +181,12 @@ make agent-gate
 cd ..
 git clone https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
-make local-onboard
+make local
 ```
 
 TenkaCloudは、公開されている問題カタログを`problems/`というGit submoduleから読み込みます。これはTenkaCloudChallengeを参照するための仕組みであり、TenkaCloud本体へ問題を追加するという意味ではありません。
 
-本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。問題IDを指定して、公開済みの完成形を起動します。
-
-```bash
-make local PROBLEM=sqli-demo
-```
-
-`make local`は、ローカル採点API、Participant Portal、指定した問題コンテナをつなぎます。ブラウザでParticipant Portalを開き、`Web` endpointからログイン画面へ進みます。
+本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。`make local`でローカル採点APIとParticipant Portalを起動し、Portalの問題カタログから`sqli-demo`を選んで開始します。問題を選ぶと、Docker Composeの問題コンテナへ接続されます。`Web` endpointからログイン画面へ進みます。
 
 確認する流れは次のとおりです。
 

@@ -58,6 +58,6 @@ sequenceDiagram
 - [metadata.json](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/metadata.json)
 - [template.yaml](https://github.com/susumutomita/TenkaCloudChallenge/blob/main/challenges/hello-world/template.yaml)
 
-公開版には、AWS Consoleの表示を成立させる権限や入力値の制約も含まれます。本文の断片だけでファイルを完成させず、上の実装結果と`AGENT.md`を確認してください。
+公開版には、AWS Consoleの表示を成立させる権限や入力値の制約も含まれます。本文の断片だけでファイルを完成させず、上の実装結果と`AGENTS.md`を確認してください。
 
 次章では、リポジトリが定めたコマンドで問題を検証します。

@@ -62,10 +62,10 @@ TenkaCloudと公開問題はOSSとして利用できます。ローカルモー�
 問題環境は、TenkaCloudChallengeの`local/docker-compose.yml`から起動します。
 
 ```text
-make local PROBLEM=<問題ID>
+make local
   → Participant Portalを起動
   → ローカル採点APIを起動
-  → Docker Composeで問題環境を起動
+  → Portalで選んだ問題をDocker Composeで起動
   → 参加者の提出を問題コンテナの/verifyへ渡す
 ```
 
