@@ -187,13 +187,13 @@ make agent-gate
 
 **ローカルChallenge・Battleは、そもそもどこにも push しなくて構いません。** `make local`は`problems/`ディレクトリの中身をそのまま読みます。自分のPCで問題を作り、コミットせずに`make local`で起動して遊ぶだけなら、この章のここまでの手順（`cp -R` → 編集 → `make agent-gate`）で完結します。「公開」が必要になるのは、他の主催者や参加者へ配りたいときだけです。
 
-**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init` / `pack-validate` / `pack-install` / `pack-activate`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
+**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init` / `make pack-validate` / `make pack-install` / `make pack-list`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
 
 ```bash
 make pack-install ARGS="./my-pack"
 ```
 
-この経路なら、パックの中身をどこにも公開せずに`pack-activate`で特定のテナントへ有効化できます。ただし2026年8月時点で、Problem Packsが対応するruntimeは4種類だけです。対応先は`aws/cloudformation`・`gcp/infra-manager`・`azure/bicep`・`sakura/apprun`です。この章の「ローカルChallengeを作る」で説明したDocker版のローカル問題（`docker/compose`）は、まだ対応していません。
+この経路では、パックを公開せずに検証し、不変revisionとしてローカルstoreへ保存できます。installだけで現在の大会カタログへ問題は追加されません。`make pack-activate`は現行のMakefileにはありません。CLIに残るactivateもオフラインのカタログ記録であり、現在の開催環境へ配信・有効化する機能ではありません。manifestの検証成功と開催環境での実行対応は別です。Cloudで使う問題は、現行のカタログ取得経路と対応runtimeを確認してリハーサルしてください。Docker/Compose問題はLocal開催で使います。
 
 TenkaCloud launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジトリの代わりには使えません。launcherがカタログを取得するGitのcheckoutは、認証情報を一切使わない設計です。private repoを指定すると、すぐに失敗します。「自分のforkを指定できる」というのは、そのforkも公開リポジトリである場合の話です。
 
@@ -201,7 +201,7 @@ TenkaCloud launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジト
 
 本書は読み終えたところが終点ではありません。次の順番で進むと、読んだ内容が自分の環境の中で動く状態になります。
 
-1. **試す** — [デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面を触るか、[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)でブラウザだけで1問解きます。手元に何も用意せずに始められます。
+1. **試す** — [デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面を触るか、[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)で開発環境を用意します。Codespacesで競技を動かす場合は、転送URLとブラウザから問題環境への接続を確認してください。本書ではその経路での完遂は未検証です。
 2. **動かす** — [TenkaCloud](https://github.com/susumutomita/TenkaCloud)をクローンし、`make local`でローカル問題を起動します。本書の第3章から第4章がこの段階に対応します。
 3. **作る** — [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)へ自分の問題を1問足します。既存の問題ディレクトリが、そのままテンプレートとして読めます。完了条件は`make agent-gate`です。
 4. **開く** — TenkaCloudをAWSへデプロイし、チームを登録してイベントを開催します。第10章以降がこの段階です。

@@ -25,15 +25,15 @@ free: true
 ACTION=destroy-all
 ```
 
-`make destroy`は基盤とデフォルトの所有データを削除し、外部Tursoの行は保持します。`make destroy-all`は対象を確認して保持データと選択したTursoの行も消去します。継承したTurso tokenがあればdirect経路、なければ既存SSM parameterを使い、新しいtoken保存は行いません。問題環境は先に大会のTeardownで撤収してください。source bucketなど別途残る課金対象も確認します。
+`make destroy`は基盤とデフォルトの所有データを削除し、外部Tursoの行は保持します。`make destroy-all`は対象を確認して保持データと選択したTursoの行も消去します。destroy-allは配置済みstackから検証したTursoのDBと既存SSM parameterを使い、新しいtoken保存は行いません。問題環境は先に大会のTeardownで撤収してください。source bucketなど別途残る課金対象も確認します。
 
-履歴を意図的に残す場合だけ`ACTION=destroy`を使います。`destroy`では保持されたDynamoDB tableが残るため、再デプロイ前と費用確認時に注意が必要です。
+`ACTION=destroy`でも、デフォルトではstackが所有するDynamoDB tableとデータを削除します。配置時に`RetainDataTables=true`を選んだ場合など、配置済みtemplateにRetain policyがあるときだけ保持されます。削除直前にlauncherの設定値を変えても配置済みpolicyは変わりません。履歴を残す目的でdestroyを選ぶ前に、配置済みpolicyとバックアップを確認します。通常のdestroyは外部Tursoの行を保持します。
 
-古いlauncherを使っている場合は、`destroy-all`を実行する前に最新の`lite-pipeline.yaml`でlauncher stackを更新します。古いbuildspecへ未知の`ACTION`を渡しません。
+古いlauncherを使っている場合は、`destroy-all`の実行前に対応するActionと配置先の互換性を確認します。現行templateは`infrastructure/templates/cloud-pipeline.yaml`です。既存の物理名を維持してlauncher stackを更新します。古いbuildspecへ未知の`ACTION`を渡しません。
 
 ## launcherを削除する
 
-TenkaCloudの削除が成功したら、CloudFormationから`tenkacloud-lite-launcher` stackを削除します。
+TenkaCloudの削除が成功したら、デプロイに使ったlauncher stackをCloudFormationから削除します。既存環境の`tenkacloud-lite-launcher`などの物理名は変更せず、実際に配置したstackを確認します。
 
 これにより、launcherが作成した次のリソースも削除されます。
 
@@ -43,14 +43,14 @@ TenkaCloudの削除が成功したら、CloudFormationから`tenkacloud-lite-lau
 
 ## 最後に残存を確認する
 
-次のstackが残っていないことを確認します。
+以下は既存環境の物理名の例です。新規環境では`tenkacloud-cloud`系になるため、配置時のstack名と削除planを照合して残存を確認します。
 
 - 各チームの問題stack
 - `tenkacloud-lite`
 - `tenkacloud-lite-problem-deploy`
 - `tenkacloud-lite-launcher`
 
-さらに、EC2 instanceとDynamoDB tableをAWS Consoleで確認します。削除失敗がある場合は、CloudFormation eventとCodeBuild logを確認してから終了します。
+さらに、EC2 instance、DynamoDB table、S3の保持bucketとsource bucket、log、CDKToolkitと共有assetを確認します。destroy-allでもRetain policyのbucket本体や共有bootstrapは残ります。Tursoを選んだ場合は対象DBの行も確認します。削除失敗がある場合は、CloudFormation eventとCodeBuild logを確認してから終了します。
 
 ## 振り返りを残す
 

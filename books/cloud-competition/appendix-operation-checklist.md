@@ -16,9 +16,9 @@ free: true
 
 ## TenkaCloud
 
-- [ ] LPの`deploy-tenkacloud-lite`を最後まで実行した
-- [ ] `tenkacloud-lite`が作成完了している
-- [ ] `tenkacloud-lite-problem-deploy`が作成完了している
+- [ ] LPのCloud配置ガイドを最後まで実行した（problemIDは互換性のため維持）
+- [ ] 配置した基盤stackが作成完了している（新規は`tenkacloud-cloud`系、以下の`tenkacloud-lite`系は既存環境の例）
+- [ ] 選択layoutの問題配置stackが作成完了している
 - [ ] Application Admin Consoleへサインインできる
 - [ ] Participant Portalが開く
 - [ ] 本番用の`ProblemsRepoRef`を確認済みのtagかcommit SHAへ固定した
@@ -76,10 +76,10 @@ free: true
 - [ ] 順位と必要な記録を保存した
 - [ ] 各チームの問題stackを削除した
 - [ ] CodeBuildで`ACTION=destroy-all`を実行した
-- [ ] `tenkacloud-lite`が残っていない
-- [ ] `tenkacloud-lite-problem-deploy`が残っていない
-- [ ] `tenkacloud-lite-launcher`を削除した
-- [ ] EC2 instanceとDynamoDB tableの残存を確認した
+- [ ] 配置した基盤stackが残っていない
+- [ ] 選択layoutの問題配置stackが残っていない
+- [ ] デプロイに使ったlauncher stackを削除した
+- [ ] EC2、DynamoDB、S3、logと、選択したTursoの行の残存を確認した
 - [ ] 次回直す問題文、ヒント、運営手順を記録した
 
 ## 停止・消去・キー再発行の区別

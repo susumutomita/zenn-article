@@ -42,7 +42,7 @@ launcherは、TenkaCloudを削除する入口です。`destroy-all`が成功す�
 
 TenkaCloudのランディングページには、AWS上へTenkaCloudをデプロイする手順を問題形式で用意しています。
 
-[deploy-tenkacloud-liteを開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
+[TenkaCloudのCloud配置ガイドを開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
 この問題は、自分のAWSアカウントへTenkaCloudを作るための案内です。前章で作ったDocker問題を動かすローカルモードとは別の入口です。
 
@@ -57,11 +57,13 @@ TenkaCloudのランディングページには、AWS上へTenkaCloudをデプロ
 
 ## launcherとTenkaCloudを分けて考える
 
-最初に作る`tenkacloud-lite-launcher` stackは、TenkaCloud本体ではありません。TenkaCloudのソースと問題カタログを取得し、デプロイを実行するCodeBuild projectを作ります。
+`infrastructure/templates/cloud-pipeline.yaml`からlauncher stackを作ります。TenkaCloud本体とは別です。既存環境の物理名の例は`tenkacloud-lite-launcher`です。TenkaCloudのソースと問題カタログを取得し、デプロイを実行するCodeBuild projectを作ります。
+
+以下の図のstack名は既存環境の互換識別子です。新規配置の`tenkacloud-cloud`系と取り違えず、実際のstack名を使います。
 
 ```mermaid
 flowchart LR
-    Template["lite-pipeline.yaml"]
+    Template["cloud-pipeline.yaml"]
     Launcher["tenkacloud-lite-launcher"]
     Build["CodeBuild"]
     Lite["tenkacloud-lite"]
@@ -94,7 +96,7 @@ launcher stackの`StartBuildConsoleUrl`からCodeBuildを開き、`Start build`�
 
 ## デプロイ完了を確認する
 
-CodeBuildの最後に、Application Admin ConsoleとParticipant PortalのURLが表示されます。同じURLは、次のCloudFormation stackのOutputでも確認できます。
+CodeBuildの最後に、Application Admin ConsoleとParticipant PortalのURLが表示されます。同じURLは、配置したCloudFormation stackのOutputでも確認できます。以下は既存環境の物理名の例です。
 
 - `tenkacloud-lite`
 - `tenkacloud-lite-problem-deploy`
