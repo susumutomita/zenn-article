@@ -5,7 +5,7 @@ free: true
 
 ## EVM実装の土台となる256ビット整数型を作る
 
-この章では、Ethereum Virtual Machine (EVM)の値を表す `EVMu256` をZigで実装します。スタック、メモリ、オペコード実行エンジンは第10章で組み立てます。
+この章では、Ethereum Virtual Machine (EVM)の値を表す`EVMu256`をZigで実装します。スタック、メモリ、オペコード実行エンジンは第10章で組み立てます。
 
 この章の目標は次のとおりです。
 

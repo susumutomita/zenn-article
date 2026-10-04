@@ -91,6 +91,6 @@ sqli-demo
 
 ## 停止・消去・キー再発行の区別
 
-`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart / resumeで再開します。
+`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart/resumeで再開します。
 
 `make local-clear`は確認後に競技データと所有するDocker問題データを消去します。`make local-reset`は主催者アクセスを再発行し、大会・参加者データを保持します。対話的な`make local`起動ごとに新しい主催者キーを一度表示し、古い主催者アクセスを失効させます。起動中の`make local-reset`は別の対話端末から同じデータディレクトリへ実行します。非TTY・public/container起動は既存キーを保持し、ログに表示しません。

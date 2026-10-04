@@ -154,7 +154,7 @@ AWS問題は、テスト用AWSアカウントへデプロイし、参加者用Ro
 make local
 ```
 
-問題はコマンド引数では選びません。開催者が大会・チーム・問題を選び、jobsを準備してScheduleから開始します。参加者URLとチームキーを渡し、参加者がStart / resumeで開始します。
+問題はコマンド引数では選びません。開催者が大会・チーム・問題を選び、jobsを準備してScheduleから開始します。参加者URLとチームキーを渡し、参加者がStart/resumeで開始します。
 
 Participant Portalから問題を開き、想定した解答で得点し、誤答では得点しないことを確認します。終了時は次を実行します。
 
@@ -187,7 +187,7 @@ make agent-gate
 
 **ローカルChallenge・Battleは、そもそもどこにも push しなくて構いません。** `make local`は`problems/`ディレクトリの中身をそのまま読みます。自分のPCで問題を作り、コミットせずに`make local`で起動して遊ぶだけなら、この章のここまでの手順（`cp -R` → 編集 → `make agent-gate`）で完結します。「公開」が必要になるのは、他の主催者や参加者へ配りたいときだけです。
 
-**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init` / `make pack-validate` / `make pack-install` / `make pack-list`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
+**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init`/`make pack-validate`/`make pack-install`/`make pack-list`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
 
 ```bash
 make pack-install ARGS="./my-pack"
@@ -195,15 +195,15 @@ make pack-install ARGS="./my-pack"
 
 Problem Packは、非公開の企業問題や、イベント終了後に公開する予定の問題を、公開カタログとは別に管理するための仕組みです。installだけでは問題を有効化しません。
 
-Cloudではリポジトリのルートで次を実行します。`<id@version>` はmanifestのIDとversionに置き換えます。
+Cloudではリポジトリのルートで次を実行します。`<id@version>`はmanifestのIDとversionに置き換えます。
 
 ```sh
 bun run pack activate <id@version> --tenant local
 ```
 
-`local` はCloudのカタログ読込処理が使う固定の選択名で、Local開催を指定する値ではありません。保存先は `.tenkacloud/pack-store` です。`make pack-activate` はありません。activate自体はAWSを操作しません。通常のCloud配置でこのstoreが非公開のsource archiveに含まれ、有効化した問題と実行素材が読み込まれます。開催間に `make deploy` で更新し、新しい大会で対象問題を選びます。既存大会の保存済みカタログは変わりません。問題のruntimeと採点対応を確認し、開催前に解答・採点・撤収をリハーサルしてください。
+`local`はCloudのカタログ読込処理が使う固定の選択名で、Local開催を指定する値ではありません。保存先は`.tenkacloud/pack-store`です。`make pack-activate`はありません。activate自体はAWSを操作しません。通常のCloud配置でこのstoreが非公開のsource archiveに含まれ、有効化した問題と実行素材が読み込まれます。開催間に`make deploy`で更新し、新しい大会で対象問題を選びます。既存大会の保存済みカタログは変わりません。問題のruntimeと採点対応を確認し、開催前に解答・採点・撤収をリハーサルしてください。
 
-LocalではPack storeから大会カタログへの接続は未対応です。公開せずに使う対応Docker/Compose問題は手元の `problems/` に作成し、検証して `make local` で起動します。AWS問題はCloudで使います。非公開Git repositoryから取得する場合は、運営者が権限を持つ方法で手元へcheckoutし、そのローカルディレクトリをinstallしてください。Pack CLIのGit取得は認証情報を使いません。
+LocalではPack storeから大会カタログへの接続は未対応です。公開せずに使う対応Docker/Compose問題は手元の`problems/`に作成し、検証して`make local`で起動します。AWS問題はCloudで使います。非公開Git repositoryから取得する場合は、運営者が権限を持つ方法で手元へcheckoutし、そのローカルディレクトリをinstallしてください。Pack CLIのGit取得は認証情報を使いません。
 
 公開前でも開催できます。イベント後に公開したい場合は、社内情報や解答の扱いを確認し、作成者が公開先とタイミングを決めます。自動公開機能はありません。
 
@@ -226,6 +226,6 @@ TenkaCloud launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジト
 
 ## 停止・消去・キー再発行の区別
 
-`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart / resumeで再開します。
+`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart/resumeで再開します。
 
 `make local-clear`は確認後に競技データと所有するDocker問題データを消去します。`make local-reset`は主催者アクセスを再発行し、大会・参加者データを保持します。対話的な`make local`起動ごとに新しい主催者キーを一度表示し、古い主催者アクセスを失効させます。起動中の`make local-reset`は別の対話端末から同じデータディレクトリへ実行します。非TTY・public/container起動は既存キーを保持し、ログに表示しません。

@@ -9,7 +9,7 @@ free: true
 
 ## 正式なコードリポジトリ
 
-本書のコードは、GitHubの [susumutomita/BlockChain](https://github.com/susumutomita/BlockChain) で管理しています。本書の原稿は別リポジトリの [books/zig-blockchain](https://github.com/susumutomita/zenn-article/tree/main/books/zig-blockchain) にありますが、実行するコードの基準は `BlockChain` リポジトリです。
+本書のコードは、GitHubの[susumutomita/BlockChain](https://github.com/susumutomita/BlockChain)で管理しています。本書の原稿は別リポジトリの[books/zig-blockchain](https://github.com/susumutomita/zenn-article/tree/main/books/zig-blockchain)にありますが、実行するコードの基準は`BlockChain`リポジトリです。
 
 まず、コードを取得します。
 
@@ -19,7 +19,7 @@ cd BlockChain
 git switch main
 ```
 
-本書が基準にしているZigのバージョンは `0.14.0` です。リポジトリの `Dockerfile` とCIもこのバージョンを使用します。異なるZigでは、標準ライブラリやビルドAPIの違いによって、そのままコンパイルできない場合があります。
+本書が基準にしているZigのバージョンは`0.14.0`です。リポジトリの`Dockerfile`とCIもこのバージョンを使用します。異なるZigでは、標準ライブラリやビルドAPIの違いによって、そのままコンパイルできない場合があります。
 
 取得後は、まず完成版のテストを実行してください。
 
@@ -35,7 +35,7 @@ docker run --rm zig-blockchain-book zig build test
 実装を含む節は、原則として次の6項目を一組として読み進めます。
 
 1. **対象パス**
-   変更するファイルを、リポジトリルートからの相対パスで確認します。たとえば `src/blockchain.zig` や `references/chapter3/step2/src/main.zig` です。
+   変更するファイルを、リポジトリルートからの相対パスで確認します。たとえば`src/blockchain.zig`や`references/chapter3/step2/src/main.zig`です。
 2. **開始地点**
    その節の変更前に相当するチェックポイントを確認します。本文の途中から始める場合も、先に開始地点がテストを通ることを確かめます。
 3. **今回の変更**
@@ -43,7 +43,7 @@ docker run --rm zig-blockchain-book zig build test
 4. **テスト**
    変更した関数や型に近いテストを実行します。成功ケースだけでなく、不正な入力や改ざんを拒否するケースも確認します。
 5. **実行**
-   `zig build run` または本文で指定したDocker／複数ノード用コマンドを実行します。
+   `zig build run`または本文で指定したDocker／複数ノード用コマンドを実行します。
 6. **期待する結果**
    ログの形、ブロックの連結、先頭ゼロの個数、エラーの種類など、その節で成立すべき条件を確認します。タイムスタンプ、nonce、ハッシュ値、ポート番号を含むログの値は、実行ごとに変わる場合があります。本文と一字一句同じ値ではなく、節で説明した条件を満たすかを見てください。
 
@@ -66,16 +66,16 @@ docker run --rm zig-blockchain-book zig build test
 chNN-secNN-short-name
 ```
 
-- `NN` は2桁の章番号と節番号です。
-- `short-name` は、その節で完成する機能を小文字の英単語とハイフンで表します。
-- 例は `ch03-sec02-hash`、`ch04-sec02-mine-block`、`ch08-sec03-relay-block` です。
+- `NN`は2桁の章番号と節番号です。
+- `short-name`は、その節で完成する機能を小文字の英単語とハイフンで表します。
+- 例は`ch03-sec02-hash`、`ch04-sec02-mine-block`、`ch08-sec03-relay-block`です。
 - ある節の「開始地点」は、原則として直前のチェックポイントです。
 
-現在の `references/` は、執筆途中から存在する `chapter3/step1` のような名前も含みます。これらを本文の論理名へ読み替えるため、次節の対応表を使います。将来Gitタグを追加する場合は `book/ch04-sec02-mine-block` のように、論理名へ `book/` を付けます。ただし、現時点ですべての節にGitタグがあるわけではありません。対応表で「未提供」とした地点は、存在するものとして `git checkout` しないでください。
+現在の`references/`は、執筆途中から存在する`chapter3/step1`のような名前も含みます。これらを本文の論理名へ読み替えるため、次節の対応表を使います。将来Gitタグを追加する場合は`book/ch04-sec02-mine-block`のように、論理名へ`book/`を付けます。ただし、現時点ですべての節にGitタグがあるわけではありません。対応表で「未提供」とした地点は、存在するものとして`git checkout`しないでください。
 
 ## 章とコードスナップショットの対応
 
-`references/` の各スナップショットは、原則としてそれぞれのディレクトリ内で `build.zig` を使う自己完結したプロジェクトです。第10章には独立したEVM実行エンジン、第11章にはブロックチェインへ統合したEVM、第12章にはCLIとP2Pまで統合したEVMのスナップショットがあります。節とファイル、テストの対応は、後述の「EVM編の節とコードの対応」で固定します。
+`references/`の各スナップショットは、原則としてそれぞれのディレクトリ内で`build.zig`を使う自己完結したプロジェクトです。第10章には独立したEVM実行エンジン、第11章にはブロックチェインへ統合したEVM、第12章にはCLIとP2Pまで統合したEVMのスナップショットがあります。節とファイル、テストの対応は、後述の「EVM編の節とコードの対応」で固定します。
 
 第7章、第8章、第10章は、Zennの1ファイルあたり50,000文字という上限に収めるため、それぞれ前半と後半の2ファイルに分かれています。前後半は同じ章の連続した作業であり、作業ディレクトリと章末スナップショットは共通です。
 
@@ -94,12 +94,12 @@ chNN-secNN-short-name
 | 第12章 | CLI、P2P、EVMトランザクション | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter) | 第11章スナップショットへ第12章の完全差分を適用した章スナップショット |
 | 第13章 | EVM、P2P、PoWのテスト | [`references/EVMchapter/`](https://github.com/susumutomita/BlockChain/tree/main/references/EVMchapter)、[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) | 完成版の各モジュールに同居するテストを実行 |
 | 第14章 | 完成ノードの受け入れ確認 | [`contract/`](https://github.com/susumutomita/BlockChain/tree/main/contract)、[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) | ルート完成版を使う統合シナリオ |
-| 第15章 | PoSの設計案 | なし | **未提供**。学習用の設計案であり、現在のルート `src/` に未統合 |
+| 第15章 | PoSの設計案 | なし | **未提供**。学習用の設計案であり、現在のルート`src/`に未統合 |
 | 第16章 | zkEVM、最適化、今後の発展 | なし | **未提供**。概念と発展課題を扱う章 |
 
-`references/chapter4/step1` から `step3` までにもPoWに近いコードがあります。現在の本文の第4章と対応させる際は、上表の `references/chapter3/step4`、`step4-2`、`step5` を使います。似たディレクトリ名だけで判断せず、本文で指定した開始地点を確認してください。
+`references/chapter4/step1`から`step3`までにもPoWに近いコードがあります。現在の本文の第4章と対応させる際は、上表の`references/chapter3/step4`、`step4-2`、`step5`を使います。似たディレクトリ名だけで判断せず、本文で指定した開始地点を確認してください。
 
-また、`references/books/` は過去の原稿を保存したディレクトリです。現在公開している本文の基準ではありません。
+また、`references/books/`は過去の原稿を保存したディレクトリです。現在公開している本文の基準ではありません。
 
 ## EVM編の節とコードの対応
 
@@ -150,9 +150,9 @@ BOOK_REBUILD_ACCEPTANCE=1 sh scripts/rebuild-book-code.sh
 
 用途の違う2種類のコードを混同しないことが重要です。
 
-### `references/` は学習用スナップショット
+### `references/`は学習用スナップショット
 
-`references/` には、章や節を読み終えた時点のコードがあります。まだ導入していない機能を見ずに実装できるため、本文どおりに手を動かすときはこちらを使います。
+`references/`には、章や節を読み終えた時点のコードがあります。まだ導入していない機能を見ずに実装できるため、本文どおりに手を動かすときはこちらを使います。
 
 前の節との差を確認するには、たとえば次のように比較します。
 
@@ -162,19 +162,19 @@ git diff --no-index \
   references/chapter3/step2/src/main.zig
 ```
 
-`git diff --no-index` は差があると終了コード `1` を返します。これは比較に失敗したという意味ではありません。
+`git diff --no-index`は差があると終了コード`1`を返します。これは比較に失敗したという意味ではありません。
 
-### ルートの `src/` は進化する完成版
+### ルートの`src/`は進化する完成版
 
-ルートの [`src/`](https://github.com/susumutomita/BlockChain/tree/main/src) は、ブロックチェイン、P2P、EVM、CLIを統合した完成版です。不具合修正や改善によって、本文執筆時より先へ進むことがあります。
+ルートの[`src/`](https://github.com/susumutomita/BlockChain/tree/main/src)は、ブロックチェイン、P2P、EVM、CLIを統合した完成版です。不具合修正や改善によって、本文執筆時より先へ進むことがあります。
 
-完成後の設計を確認したいときはルートを参照し、本文の途中を再現したいときは `references/` を参照してください。ルートのコードを途中の節へそのままコピーすると、本文でまだ説明していない型や関数まで入る場合があります。
+完成後の設計を確認したいときはルートを参照し、本文の途中を再現したいときは`references/`を参照してください。ルートのコードを途中の節へそのままコピーすると、本文でまだ説明していない型や関数まで入る場合があります。
 
 第13章と第14章は新しい機能を追加する章ではなく、完成コードをテストして受け入れる章です。そのため、EVM完成版またはルートを参照します。第15章のPoSはルートへ統合されていないため、ルートのコードを「第15章の完成例」とは扱いません。
 
 ## スナップショットを検証する
 
-最初に作成したDockerイメージには、ルートと `references/` が含まれています。`-w` で対象スナップショットを選ぶと、同じZig 0.14.0環境でテストと実行ができます。
+最初に作成したDockerイメージには、ルートと`references/`が含まれています。`-w`で対象スナップショットを選ぶと、同じZig 0.14.0環境でテストと実行ができます。
 
 ```bash
 # 第3章ステップ2をテスト
@@ -227,7 +227,7 @@ zig build
 zig build run -- --listen 9000
 ```
 
-P2PやEVMの章では、複数のターミナル、`docker compose`、Solidityコンパイラの `solc` などが追加で必要です。その場合は各章に記載したコマンドを優先してください。
+P2PやEVMの章では、複数のターミナル、`docker compose`、Solidityコンパイラの`solc`などが追加で必要です。その場合は各章に記載したコマンドを優先してください。
 
 Composeの確認を終えたら、同じチェックポイントのディレクトリで必ず次を実行してから次章へ進みます。初期のスナップショットは学習しやすいように`node1`〜`node3`という固定コンテナ名を使うため、残したまま別のチェックポイントを起動すると名前が衝突します。
 
@@ -237,7 +237,7 @@ docker compose down --remove-orphans
 
 ## macOS 26ではDockerを使う
 
-macOS 26系では、Zig 0.14.0が参照するlibSystemのスタブとの組み合わせにより、ネイティブの `zig build` や `zig test` がリンク時に失敗する場合があります。本書のコードが原因とは限らないため、macOS 26では前述のDocker手順を標準とします。
+macOS 26系では、Zig 0.14.0が参照するlibSystemのスタブとの組み合わせにより、ネイティブの`zig build`や`zig test`がリンク時に失敗する場合があります。本書のコードが原因とは限らないため、macOS 26では前述のDocker手順を標準とします。
 
 `Dockerfile`は、Dockerが渡す`TARGETARCH`に応じて`amd64`と`arm64`のZig配布物を選びます。Apple Siliconでもエミュレーションを強制せず、Zig 0.14.0のLinux環境で再現できます。
 
@@ -247,7 +247,7 @@ macOS 26系では、Zig 0.14.0が参照するlibSystemのスタブとの組み�
 zig test src/blockchain.zig -target aarch64-macos.15.0.0
 ```
 
-ただし、`zig build` はビルドランナー自体のリンクが必要です。章全体、複数ファイル、P2P、EVMの確認ではDockerを使用してください。
+ただし、`zig build`はビルドランナー自体のリンクが必要です。章全体、複数ファイル、P2P、EVMの確認ではDockerを使用してください。
 
 ## 実行結果を読むときの注意
 
@@ -257,7 +257,7 @@ zig test src/blockchain.zig -target aarch64-macos.15.0.0
 
 1. ビルドとテストが成功したか。
 2. プロセスが指定したポートで待ち受けたか。
-3. ブロックの `prev_hash` が直前のブロックの `hash` と一致したか。
+3. ブロックの`prev_hash`が直前のブロックの`hash`と一致したか。
 4. PoWのハッシュが、その章で定義した難易度を満たしたか。
 5. 不正なブロックや命令を、想定したエラーとして拒否したか。
 6. P2Pでは、送信元だけでなく受信側のログにも反映されたか。
