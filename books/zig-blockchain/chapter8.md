@@ -254,7 +254,7 @@ zig build
 
 本章で組み立てるネットワーク層は **“シンプルさ > 完全性”** を最優先にしています。
 
-- **伝送単位**は `TEXT(JSON) + 改行` —— *Wireshark で即読可能*
+- **伝送単位**は`TEXT(JSON) + 改行` —— *Wireshark で即読可能*
 - **RPC** は2種のみ
   - `BLOCK:<json>` : 新規ブロックのゴシップ
   - `GET_CHAIN`    : レイジー同期要求
@@ -352,12 +352,12 @@ pub fn listenLoop(port: u16) !void {
 
 着信接続を受け入れるまでの流れは以下の通りです。
 
-1. `std.net.Address.resolveIp` で **0.0.0.0:port** をバインドし全インタフェースで待ち受け。
-2. `addr.listen().accept()` は *ブロッキング*。OSカーネルに制御が移ります。
-3. 新規接続を `types.Peer` にラップし、`addPeer`を通して`peer_list`へ追加。
+1. `std.net.Address.resolveIp`で **0.0.0.0:port** をバインドし全インタフェースで待ち受け。
+2. `addr.listen().accept()`は *ブロッキング*。OSカーネルに制御が移ります。
+3. 新規接続を`types.Peer`にラップし、`addPeer`を通して`peer_list`へ追加。
    - 目的: 全スレッド共有の接続テーブルを維持
-4. 受け入れと同時に `std.Thread.spawn` で専用スレッドを生成。
-5. 親スレッドは次の `accept()` へ戻り、無限ループでリッスン継続。
+4. 受け入れと同時に`std.Thread.spawn`で専用スレッドを生成。
+5. 親スレッドは次の`accept()`へ戻り、無限ループでリッスン継続。
 
 ```mermaid
 sequenceDiagram
@@ -507,10 +507,10 @@ fn removePeerFromList(target: types.Peer) void {
 
 ### connectToPeer — アウトバウンド接続と再接続
 
-1. `while (true)` で永続的に接続を試行。失敗時は `std.time.sleep(5秒)`（指数バックオフへ置換可能）。
-2. 成功したら `types.Peer` を生成し `peer_list` へ登録。
-3. 直後に `requestChain(peer)` を送信し **最新チェインの取得** をリクエスト。
-4. 続けて **同じスレッド**で `peerCommunicationLoop` を呼び出し、通信ループへ。
+1. `while (true)`で永続的に接続を試行。失敗時は`std.time.sleep(5秒)`（指数バックオフへ置換可能）。
+2. 成功したら`types.Peer`を生成し`peer_list`へ登録。
+3. 直後に`requestChain(peer)`を送信し **最新チェインの取得** をリクエスト。
+4. 続けて **同じスレッド**で`peerCommunicationLoop`を呼び出し、通信ループへ。
 
 ```mermaid
 flowchart LR
@@ -523,7 +523,7 @@ flowchart LR
 
 ### broadcastBlock — ゴシップのコア
 
-- シリアル化は `parser.serializeBlock` に集約し **I/O と計算を分離**。
+- シリアル化は`parser.serializeBlock`に集約し **I/O と計算を分離**。
 - `from_peer`で直前の送信元を除外し、さらに`addBlock == .added`のときだけ再送します。三角トポロジーで別経路から戻る重複は`addBlock`が拒否するため、ゴシップが循環し続けません。
 - `copyPeerSnapshot`はmutex内でピア一覧を複製し、ネットワーク書き込みはロック解放後に行います。`writeBlockFrame`は`BLOCK:`、JSON、改行の3回の書き込みを`frame_write_mutex`で1つのフレームとして直列化します。
 - 書き込み失敗時はログのみ残してループ継続 —— *ネットワーク全断* を回避します。
@@ -737,7 +737,7 @@ peerCommunicationLoop関数は受信・整形・デコードの三段階で構�
 | ステップ | 処理内容 | 役割 |
 |---------|----------|------|
 | (1) **read**  | `reader.read(buf[n..])` | ソケットから *生バイト列* を取得 |
-| (2) **frame** | バッファ内を `\n` でスキャン | **メッセージ境界** を検出 |
+| (2) **frame** | バッファ内を`\n`でスキャン | **メッセージ境界** を検出 |
 | (3) **handle**| `handleMessage(msg, peer)` | コマンド種別で振り分け |
 
 改行デリミタのみを規約にした **最小限の状態機械** です。実装はシンプルで、処理の流れも追いやすくなります。ただし、1メッセージが4096バイトを超える場合は接続を切断します。
