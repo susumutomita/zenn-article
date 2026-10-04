@@ -14,7 +14,7 @@ free: true
 - [ ] READMEと実装の点数、Output、ヒントが一致している
 - [ ] `make agent-gate`が成功した
 
-## TenkaCloud Lite
+## TenkaCloud
 
 - [ ] LPの`deploy-tenkacloud-lite`を最後まで実行した
 - [ ] `tenkacloud-lite`が作成完了している
@@ -60,7 +60,7 @@ free: true
 - [ ] 不正解時に`/verify`が答えを漏らさない
 - [ ] `make local`でPortalを起動し、カタログから`sqli-demo`を開始できる
 - [ ] Participant Portalから正答と誤答を確認した
-- [ ] `make local-down`で終了した
+- [ ] `make down`で終了した
 
 ## 当日
 
@@ -81,3 +81,9 @@ free: true
 - [ ] `tenkacloud-lite-launcher`を削除した
 - [ ] EC2 instanceとDynamoDB tableの残存を確認した
 - [ ] 次回直す問題文、ヒント、運営手順を記録した
+
+## 停止・消去・キー再発行の区別
+
+`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart / resumeで再開します。
+
+`make local-clear`は確認後に競技データと所有するDocker問題データを消去します。`make local-reset`は主催者アクセスを再発行し、大会・参加者データを保持します。対話的な`make local`起動ごとに新しい主催者キーを一度表示し、古い主催者アクセスを失効させます。起動中の`make local-reset`は別の対話端末から同じデータディレクトリへ実行します。非TTY・public/container起動は既存キーを保持し、ログに表示しません。このキー説明は未マージの#3321を含む文書候補で、公開前に対応する実装へ揃える必要があります。

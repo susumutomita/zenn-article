@@ -154,12 +154,12 @@ AWS問題は、テスト用AWSアカウントへデプロイし、参加者用Ro
 make local
 ```
 
-問題はコマンド引数では選びません。起動後にParticipant Portalのカタログから対象問題を選んで開始します。
+問題はコマンド引数では選びません。開催者が大会・チーム・問題を選び、jobsを準備してScheduleから開始します。参加者URLとチームキーを渡し、参加者がStart / resumeで開始します。
 
 Participant Portalから問題を開き、想定した解答で得点し、誤答では得点しないことを確認します。終了時は次を実行します。
 
 ```bash
-make local-down
+make down
 ```
 
 最後に、TenkaCloudChallengeのルートで完了条件を実行します。
@@ -195,7 +195,7 @@ make pack-install ARGS="./my-pack"
 
 この経路なら、パックの中身をどこにも公開せずに`pack-activate`で特定のテナントへ有効化できます。ただし2026年8月時点で、Problem Packsが対応するruntimeは4種類だけです。対応先は`aws/cloudformation`・`gcp/infra-manager`・`azure/bicep`・`sakura/apprun`です。この章の「ローカルChallengeを作る」で説明したDocker版のローカル問題（`docker/compose`）は、まだ対応していません。
 
-TenkaCloud Lite launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジトリの代わりには使えません。launcherがカタログを取得するGitのcheckoutは、認証情報を一切使わない設計です。private repoを指定すると、すぐに失敗します。「自分のforkを指定できる」というのは、そのforkも公開リポジトリである場合の話です。
+TenkaCloud launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジトリの代わりには使えません。launcherがカタログを取得するGitのcheckoutは、認証情報を一切使わない設計です。private repoを指定すると、すぐに失敗します。「自分のforkを指定できる」というのは、そのforkも公開リポジトリである場合の話です。
 
 ## 読み終えたあとの進み方
 
@@ -204,10 +204,16 @@ TenkaCloud Lite launcherの`ProblemsRepoUrl`（第21章）は、非公開リポ�
 1. **試す** — [デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面を触るか、[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)でブラウザだけで1問解きます。手元に何も用意せずに始められます。
 2. **動かす** — [TenkaCloud](https://github.com/susumutomita/TenkaCloud)をクローンし、`make local`でローカル問題を起動します。本書の第3章から第4章がこの段階に対応します。
 3. **作る** — [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)へ自分の問題を1問足します。既存の問題ディレクトリが、そのままテンプレートとして読めます。完了条件は`make agent-gate`です。
-4. **開く** — TenkaCloud LiteをAWSへデプロイし、チームを登録してイベントを開催します。第10章以降がこの段階です。
+4. **開く** — TenkaCloudをAWSへデプロイし、チームを登録してイベントを開催します。第10章以降がこの段階です。
 
 公式サイトは[日本語](https://www.tenkacloud.com/?lang=ja)と[英語](https://www.tenkacloud.com/?lang=en)があり、役割別のマニュアルもそこから辿れます。
 
 作った問題を公開する義務はありませんが、公開すると他の主催者がそのまま使えます。逆に、自分が問題を作る前に[問題カタログ](https://github.com/susumutomita/TenkaCloudChallenge)を眺めておくと、すでにある問題と重ならない題材を選べます。
 
 うまく動かないところや、本書の説明で足りなかったところは、[GitHub Discussions](https://github.com/susumutomita/TenkaCloud/discussions)へ書いてもらえると、本書とプラットフォームの両方の改善につながります。
+
+## 停止・消去・キー再発行の区別
+
+`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart / resumeで再開します。
+
+`make local-clear`は確認後に競技データと所有するDocker問題データを消去します。`make local-reset`は主催者アクセスを再発行し、大会・参加者データを保持します。対話的な`make local`起動ごとに新しい主催者キーを一度表示し、古い主催者アクセスを失効させます。起動中の`make local-reset`は別の対話端末から同じデータディレクトリへ実行します。非TTY・public/container起動は既存キーを保持し、ログに表示しません。このキー説明は未マージの#3321を含む文書候補で、公開前に対応する実装へ揃える必要があります。

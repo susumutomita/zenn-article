@@ -3,9 +3,9 @@ title: "競技を終了してAWSリソースを削除する"
 free: true
 ---
 
-クラウド競技は、得点を止めただけでは終わりません。問題stack、TenkaCloud Lite、launcherを削除し、課金対象が残っていないことを確認して完了です。
+クラウド競技は、得点を止めただけでは終わりません。問題stack、TenkaCloud、launcherを削除し、課金対象が残っていないことを確認して完了です。
 
-画面に沿って作業する場合は、ランディングページの[TenkaCloud Liteを片付ける](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0M0CLEANUPTENKA0001)を開きます。本章では、何をどの順番で削除するのかを説明します。
+画面に沿って作業する場合は、ランディングページの[TenkaCloudを片付ける](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0M0CLEANUPTENKA0001)を開きます。本章では、何をどの順番で削除するのかを説明します。
 
 ## 問題stackを削除する
 
@@ -15,7 +15,7 @@ free: true
 
 `hello-world`のSSM Parameter、`hello-world-battle`のVPC、EC2、IAM RoleはCloudFormationで作成しています。参加者が新しいtop-levelリソースを手作業で作らない設計なので、stack削除で片付けられます。
 
-## TenkaCloud Liteを完全削除する
+## TenkaCloudを完全削除する
 
 デプロイに使ったCodeBuild projectを開きます。
 
@@ -25,7 +25,7 @@ free: true
 ACTION=destroy-all
 ```
 
-`destroy-all`は、Liteのstackだけでなく、保持されたDynamoDB tableと問題デプロイ用logも削除します。
+`make destroy`は基盤とデフォルトの所有データを削除し、外部Tursoの行は保持します。`make destroy-all`は対象を確認して保持データと選択したTursoの行も消去します。継承したTurso tokenがあればdirect経路、なければ既存SSM parameterを使い、新しいtoken保存は行いません。問題環境は先に大会のTeardownで撤収してください。source bucketなど別途残る課金対象も確認します。
 
 履歴を意図的に残す場合だけ`ACTION=destroy`を使います。`destroy`では保持されたDynamoDB tableが残るため、再デプロイ前と費用確認時に注意が必要です。
 
@@ -33,7 +33,7 @@ ACTION=destroy-all
 
 ## launcherを削除する
 
-TenkaCloud Liteの削除が成功したら、CloudFormationから`tenkacloud-lite-launcher` stackを削除します。
+TenkaCloudの削除が成功したら、CloudFormationから`tenkacloud-lite-launcher` stackを削除します。
 
 これにより、launcherが作成した次のリソースも削除されます。
 

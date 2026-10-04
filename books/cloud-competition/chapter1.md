@@ -105,9 +105,9 @@ Battleを最後にするのは、3問の中で最も多くの設計が必要だ�
 
 ## この後の流れ
 
-次章では、ローカルモードとTenkaCloud Liteの違いを整理します。その後は、ローカルChallenge、AWS Challenge、AWS Battleを順番に設計して実装します。
+次章では、Local開催とCloud開催の違いを整理します。その後は、ローカルChallenge、AWS Challenge、AWS Battleを順番に設計して実装します。
 
-3問が完成してから、TenkaCloud LiteをAWSへデプロイし、AWS ChallengeとBattleを複数チームへ配ります。最後に、開催、障害注入、復旧、削除までを通します。
+3問が完成してから、TenkaCloudをAWSへデプロイし、AWS ChallengeとBattleを複数チームへ配ります。最後に、開催、障害注入、復旧、削除までを通します。
 
 本書とTenkaCloudは独立したOSSプロジェクトであり、Amazon Web Services, Inc.との提携、承認、後援関係はありません。AWSと関連する名称は、Amazon.com, Inc.またはその関連会社の商標です。本書はAWS公式のGameDayを再現するものではなく、同種の実践型クラウド演習を自作する方法を扱います。
 

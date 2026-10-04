@@ -71,7 +71,7 @@ sudo systemctl status nginx
 
 当日は、次の順で進めます。
 
-1. TenkaCloud Liteの2 stackが正常であることを確認する
+1. TenkaCloudの2 stackが正常であることを確認する
 2. Application Admin ConsoleとParticipant Portalを開く
 3. 全チームの問題stackが作成済みであることを確認する
 4. Participant PortalのURLとログイン鍵を配る
@@ -79,7 +79,7 @@ sudo systemctl status nginx
 6. `hello-world-battle`でendpoint登録を確認する
 7. 全チームの採点開始後に障害を実行する
 8. 終了時刻で順位を確定する
-9. 問題stackとTenkaCloud Liteを削除する
+9. 問題stackとTenkaCloudを削除する
 
 問題の説明を始める前に、参加者全員がParticipant Portalへ入れたことを確認します。Battleの障害は、全チームのURL登録と初回採点が終わってから実行します。
 
