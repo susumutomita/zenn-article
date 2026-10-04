@@ -187,7 +187,7 @@ make agent-gate
 
 **ローカルChallenge・Battleは、そもそもどこにも push しなくて構いません。** `make local`は`problems/`ディレクトリの中身をそのまま読みます。自分のPCで問題を作り、コミットせずに`make local`で起動して遊ぶだけなら、この章のここまでの手順（`cp -R` → 編集 → `make agent-gate`）で完結します。「公開」が必要になるのは、他の主催者や参加者へ配りたいときだけです。
 
-**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init` / `pack-validate` / `pack-install` / `pack-activate`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
+**AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init`/`pack-validate`/`pack-install`/`pack-activate`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
 
 ```bash
 make pack-install ARGS="./my-pack"

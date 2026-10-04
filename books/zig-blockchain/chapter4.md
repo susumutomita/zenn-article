@@ -273,9 +273,9 @@ node3 exited with code 0
 ブロックの**PoWマイニング**を実装するには、以下の2つの関数を用意します。
 
 1. **`meetsDifficulty(hash: [32]u8, difficulty: u8) bool`**
-   - ハッシュ配列の先頭 `difficulty` バイトがすべて `0x00` かを確認する関数。
+   - ハッシュ配列の先頭`difficulty`バイトがすべて`0x00`かを確認する関数。
    - 先頭Nバイトが0なら「条件を満たした」と判断し、`true`を返します。
-   - 例えば `difficulty = 2`なら、`hash[0] == 0`かつ`hash[1] == 0`であればOK(=先頭16ビットが0)。
+   - 例えば`difficulty = 2`なら、`hash[0] == 0`かつ`hash[1] == 0`であればOK(=先頭16ビットが0)。
 
 2. **`mineBlock(block: *Block, difficulty: u8) void`**
    - 無限ループの中で`calculateHash`を呼び出し、`meetsDifficulty`で合格か判定。
@@ -309,8 +309,8 @@ fn mineBlock(block: *Block, difficulty: u8) void {
 }
 ```
 
-- `difficulty` は先頭に何バイト `0x00` が並んでいれば良いかを指定します。
-- `difficulty = 2` でも場合によっては何万回とハッシュ計算が繰り返されるため、テスト時は**値を小さめ**にするのがおすすめです。
+- `difficulty`は先頭に何バイト`0x00`が並んでいれば良いかを指定します。
+- `difficulty = 2`でも場合によっては何万回とハッシュ計算が繰り返されるため、テスト時は**値を小さめ**にするのがおすすめです。
 
 `meetsDifficulty`はハッシュ配列の先頭から指定バイト数をチェックし、すべて`0x00`ならtrueを返す関数です。`mineBlock`では無限ループの中で`calculateHash`を呼び出し、難易度条件を満たしたらループを抜けます。見つからなければ`nonce`を増やして再度ハッシュ計算、という流れです。
 
@@ -714,7 +714,7 @@ pub fn main() !void {
 
 ## 実行結果
 
-このチェックポイントは `references/chapter3/step4-2` と同じ `difficulty = 2` です。`nonce`が0から始まり、**ハッシュの先頭2バイトが「00 00」になるまで**試行します。
+このチェックポイントは`references/chapter3/step4-2`と同じ`difficulty = 2`です。`nonce`が0から始まり、**ハッシュの先頭2バイトが「00 00」になるまで**試行します。
 
 ```bash
 ❯ zig build run
