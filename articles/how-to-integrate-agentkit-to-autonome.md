@@ -667,7 +667,7 @@ Apple SiliconのMacを使っていたのですが、Dockerイメージをビル�
 
 ### コード
 
-最後に、今回解説したコード一式はGitHubにアップロードしてあります [autonome-coinbase-agentkit-integration](https://github.com/susumutomita/autonome-coinbase-agentkit-integration)
+最後に、今回解説したコード一式はGitHubにアップロードしてあります[autonome-coinbase-agentkit-integration](https://github.com/susumutomita/autonome-coinbase-agentkit-integration)
 
 #### 参考リンク集
 

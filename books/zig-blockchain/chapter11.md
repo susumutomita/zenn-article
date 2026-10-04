@@ -8,15 +8,15 @@ free: true
 第10章で作ったEVMへ、Solidityと同じABI形式のcalldataを渡します。ここでは次の境界を固めます。
 
 - Solidityのcreation codeとruntime codeの違いを確認する
-- `add(uint256,uint256)` の関数セレクタと引数配置を理解する
-- 同じ処理を `src/evm.zig` のテストで再現する
+- `add(uint256,uint256)`の関数セレクタと引数配置を理解する
+- 同じ処理を`src/evm.zig`のテストで再現する
 - デプロイ処理がruntime codeを保存し、採掘済みブロックへ記録する流れを確認する
 
 この章の完成コードと完全差分は次のとおりです。
 
 - 章チェックポイント: `references/chapter11/`
 - 第8章と第10章からの完全差分: `references/book-patches/chapter11.patch`
-- 本書の完成形: リポジトリ直下の `src/` と `contract/`
+- 本書の完成形: リポジトリ直下の`src/`と`contract/`
 
 `references/chapter11/`は、第12章で追加する`--deploy`、`--call`、`EVM_TX`、64 KiBフレームをまだ含まない、第11章だけのスナップショットです。実装は、第8章のP2Pスナップショットと第10章のEVMスナップショットから作業コピーを組み立て、章の完全差分を適用して始めます。以降の各節はpatch内の変更と同じ順序で、なぜそのコードが必要かを確認します。
 
@@ -492,11 +492,11 @@ contract Adder {
 }
 ```
 
-本章で呼び出すのは`add`だけです。`sub`、`mul`、`div`も含めることで、creation codeとruntime codeを含む実際のP2Pフレームが4 KiBを超える境界も第12章で確認します。コントラクト名は `Adder` です。そのため、`solc -o` が作るファイル名も `Adder.bin` と `Adder.abi` になります。
+本章で呼び出すのは`add`だけです。`sub`、`mul`、`div`も含めることで、creation codeとruntime codeを含む実際のP2Pフレームが4 KiBを超える境界も第12章で確認します。コントラクト名は`Adder`です。そのため、`solc -o`が作るファイル名も`Adder.bin`と`Adder.abi`になります。
 
 ### コンパイルする
 
-ローカルにsolcを入れず、バージョンを固定したコンテナを使います。生成物は、macOSからも共有しやすいリポジトリ直下の `.zig-book-out/` へ置きます。
+ローカルにsolcを入れず、バージョンを固定したコンテナを使います。生成物は、macOSからも共有しやすいリポジトリ直下の`.zig-book-out/`へ置きます。
 
 ```bash
 mkdir -p .zig-book-out
@@ -510,7 +510,7 @@ docker run --rm \
 ls .zig-book-out/Adder.bin .zig-book-out/Adder.abi
 ```
 
-`--evm-version berlin`は省略しません。コンパイラのデフォルトターゲットに依存せず、本章で受け入れ確認した命令構成へcreation codeを固定するためです。期待する結果は、両ファイルが存在することです。`Adder.bin` はデプロイ時に実行するcreation codeを16進文字列で保持します。creation codeを実行した戻り値がruntime codeです。
+`--evm-version berlin`は省略しません。コンパイラのデフォルトターゲットに依存せず、本章で受け入れ確認した命令構成へcreation codeを固定するためです。期待する結果は、両ファイルが存在することです。`Adder.bin`はデプロイ時に実行するcreation codeを16進文字列で保持します。creation codeを実行した戻り値がruntime codeです。
 
 ## 2. 関数セレクタとcalldataを組み立てる
 
@@ -529,7 +529,7 @@ EVMの関数呼び出しでは、calldataを次の順に並べます。
 2. 32バイトへ左ゼロ埋めした第1引数
 3. 32バイトへ左ゼロ埋めした第2引数
 
-`add(uint256,uint256)` のセレクタをsolcで確認します。
+`add(uint256,uint256)`のセレクタをsolcで確認します。
 
 ```bash
 docker run --rm \
@@ -544,14 +544,14 @@ docker run --rm \
 771602f7: add(uint256,uint256)
 ```
 
-`add(5, 3)` のcalldataはシェルでも組み立てられます。
+`add(5, 3)`のcalldataはシェルでも組み立てられます。
 
 ```bash
 DATA="0x771602f7$(printf '%064x' 5)$(printf '%064x' 3)"
 printf '%s\n' "$DATA"
 ```
 
-全体は `0x` を除いて136桁、つまり68バイトになります。
+全体は`0x`を除いて136桁、つまり68バイトになります。
 
 ## 3. ABI形式をEVMテストへ落とす
 
@@ -614,7 +614,7 @@ test "ABI calldataでadd関数を実行" {
 }
 ```
 
-ジャンプ先は `0x10` です。配列の16バイト目にある `JUMPDEST` と一致しない値を指定すると、EVMは不正ジャンプとして拒否します。
+ジャンプ先は`0x10`です。配列の16バイト目にある`JUMPDEST`と一致しない値を指定すると、EVMは不正ジャンプとして拒否します。
 
 ### テストする
 
@@ -634,7 +634,7 @@ docker run --rm \
   zig test src/evm.zig --test-filter "ABI calldata"
 ```
 
-`All 1 tests passed.` になれば成功です。章末見本との一致はリポジトリの`rebuild-book-code.sh`が別に検査するため、ここで見本のテストを読者実装の代わりにはしません。
+`All 1 tests passed.`になれば成功です。章末見本との一致はリポジトリの`rebuild-book-code.sh`が別に検査するため、ここで見本のテストを読者実装の代わりにはしません。
 
 ## 4. 詳細な失敗情報を返す
 
@@ -647,7 +647,7 @@ docker run --rm \
 期待結果:   success=falseでerror_type、error_pc、error_messageがすべて設定される
 ```
 
-完成形には通常の `execute` に加えて、エラー種別、失敗したPC、メッセージを返す `executeWithErrorInfo` があります。
+完成形には通常の`execute`に加えて、エラー種別、失敗したPC、メッセージを返す`executeWithErrorInfo`があります。
 
 ### 対象ファイル
 
@@ -721,7 +721,7 @@ docker run --rm zig-blockchain-book \
   zig test src/evm.zig --test-filter "EVM execution with error info"
 ```
 
-期待する結果は `All 1 tests passed.` です。
+期待する結果は`All 1 tests passed.`です。
 
 ## 5. デプロイをブロックへ記録する
 
@@ -1155,8 +1155,8 @@ sh scripts/rebuild-book-code.sh
 ## まとめ
 
 - Solidity ABIは4バイトのセレクタと32バイト単位の引数で構成する
-- `CALLDATALOAD` の引数位置はセレクタを含めて4、36となる
-- 掲載テストと `src/evm.zig` のテストを同じコードにした
+- `CALLDATALOAD`の引数位置はセレクタを含めて4、36となる
+- 掲載テストと`src/evm.zig`のテストを同じコードにした
 - デプロイはEVM実行後のruntime codeを保存し、PoW済みブロックとして伝播する
 - 第11章の完全差分と専用スナップショットを、読者の作業コピー上の全テストで確認した
 - 次章では、このブロックを2ノード間で同期して呼び出す

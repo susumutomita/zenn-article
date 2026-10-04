@@ -23,12 +23,12 @@
   "devDependencies": {
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
     "husky": "^9.1.7",
-    "jsdom": "29.1.1",
+    "jsdom": "30.1.1",
     "mermaid": "12.0.0",
     "textlint": "^15.8.0",
     "textlint-rule-no-mixed-zenkaku-and-hankaku-alphabet": "^1.0.1",
     "textlint-rule-no-mixed-zenkaku-and-hankaku-number": "^1.0.0",
-    "textlint-rule-preset-ja-spacing": "^2.4.3",
+    "textlint-rule-preset-ja-spacing": "^3.0.3",
     "textlint-rule-preset-ja-technical-writing": "^8.0.0",
     "textlint-rule-spellcheck-tech-word": "^5.0.0"
   }
