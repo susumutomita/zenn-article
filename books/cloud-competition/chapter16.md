@@ -29,7 +29,7 @@ ACTION=destroy-all
 
 `ACTION=destroy`でも、デフォルトではstackが所有するDynamoDB tableとデータを削除します。配置時に`RetainDataTables=true`を選んだ場合など、配置済みtemplateにRetain policyがあるときだけ保持されます。削除直前にlauncherの設定値を変えても配置済みpolicyは変わりません。履歴を残す目的でdestroyを選ぶ前に、配置済みpolicyとバックアップを確認します。通常のdestroyは外部Tursoの行を保持します。
 
-古いlauncherを使っている場合は、`destroy-all`の実行前に対応するActionと配置先の互換性を確認します。現行templateは`infrastructure/templates/cloud-pipeline.yaml`です。既存の物理名を維持してlauncher stackを更新します。古いbuildspecへ未知の`ACTION`を渡しません。
+古いlauncherを使っている場合は、`destroy-all`の実行前にその版が受け付けるActionと削除対象のstackを確認します。現行templateは`infrastructure/templates/cloud-pipeline.yaml`です。既存の物理名を維持してlauncher stackを更新します。古いbuildspecへ未知の`ACTION`を渡しません。
 
 ## launcherを削除する
 

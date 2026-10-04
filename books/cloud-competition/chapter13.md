@@ -9,7 +9,7 @@ free: true
 
 TenkaCloudの開催方式はLocalとCloudです。Localは単一のBunプロセスと永続SQLiteで大会を開催します。Cloudは自分のAWSアカウントでLambda・Cognitoを使い、保存先をTursoまたはDynamoDBから選びます。開催者と参加者の画面、チーム、採点、問題配置を提供します。
 
-AWSサービスを扱う問題はCloud、Docker/Compose問題はLocalで動かします。組み込みのCryptography Battleは両方で利用できます。現在のCloud構成はSBTを使いません。新規stackは`tenkacloud-cloud`系で、既存の`tenkacloud-lite`系は互換性のため維持します。物理名を手作業で変更しないでください。
+AWSサービスを扱う問題はCloud、Docker/Compose問題はLocalで動かします。組み込みのCryptography Battleは両方で利用できます。現在のCloud構成はSBTを使いません。新規stackは`tenkacloud-cloud`系で、既存環境は配置済みの`tenkacloud-lite`系stackを使い続けます。名前を変えて別のstackを作らないでください。
 
 環境ファイルで`CDK_PARAM_CONTROL_DATA_BACKEND=turso`または`dynamodb`を指定します。TursoはDB URLと既存のSSM token parameterが必要です。公開cloud-v1のデータは自動移行されません。両DBとも99チーム、SQL coordinationは4 MiB上限です。9個の大型templateは現行のTemplateBody上限を超え、全AWS問題の配置を保証していません。
 
@@ -59,7 +59,7 @@ TenkaCloudのランディングページには、AWS上へTenkaCloudをデプロ
 
 `infrastructure/templates/cloud-pipeline.yaml`からlauncher stackを作ります。TenkaCloud本体とは別です。既存環境の物理名の例は`tenkacloud-lite-launcher`です。TenkaCloudのソースと問題カタログを取得し、デプロイを実行するCodeBuild projectを作ります。
 
-以下の図のstack名は既存環境の互換識別子です。新規配置の`tenkacloud-cloud`系と取り違えず、実際のstack名を使います。
+以下の図には既存環境のstack名を使っています。新規配置の`tenkacloud-cloud`系と取り違えず、実際のstack名を使います。
 
 ```mermaid
 flowchart LR

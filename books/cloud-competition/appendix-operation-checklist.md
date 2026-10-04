@@ -16,7 +16,7 @@ free: true
 
 ## TenkaCloud
 
-- [ ] LPのCloud配置ガイドを最後まで実行した（problemIDは互換性のため維持）
+- [ ] LPのCloud配置ガイドを最後まで実行した
 - [ ] 配置した基盤stackが作成完了している（新規は`tenkacloud-cloud`系、以下の`tenkacloud-lite`系は既存環境の例）
 - [ ] 選択layoutの問題配置stackが作成完了している
 - [ ] Application Admin Consoleへサインインできる

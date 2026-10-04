@@ -193,7 +193,19 @@ make agent-gate
 make pack-install ARGS="./my-pack"
 ```
 
-この経路では、パックを公開せずに検証し、不変revisionとしてローカルstoreへ保存できます。installだけで現在の大会カタログへ問題は追加されません。`make pack-activate`は現行のMakefileにはありません。CLIに残るactivateもオフラインのカタログ記録であり、現在の開催環境へ配信・有効化する機能ではありません。manifestの検証成功と開催環境での実行対応は別です。Cloudで使う問題は、現行のカタログ取得経路と対応runtimeを確認してリハーサルしてください。Docker/Compose問題はLocal開催で使います。
+Problem Packは、非公開の企業問題や、イベント終了後に公開する予定の問題を、公開カタログとは別に管理するための仕組みです。installだけでは問題を有効化しません。
+
+Cloudではリポジトリのルートで次を実行します。`<id@version>` はmanifestのIDとversionに置き換えます。
+
+```sh
+bun run pack activate <id@version> --tenant local
+```
+
+`local` はCloudのカタログ読込処理が使う固定の選択名で、Local開催を指定する値ではありません。保存先は `.tenkacloud/pack-store` です。`make pack-activate` はありません。activate自体はAWSを操作しません。通常のCloud配置でこのstoreが非公開のsource archiveに含まれ、有効化した問題と実行素材が読み込まれます。開催間に `make deploy` で更新し、新しい大会で対象問題を選びます。既存大会の保存済みカタログは変わりません。問題のruntimeと採点対応を確認し、開催前に解答・採点・撤収をリハーサルしてください。
+
+LocalではPack storeから大会カタログへの接続は未対応です。公開せずに使う対応Docker/Compose問題は手元の `problems/` に作成し、検証して `make local` で起動します。AWS問題はCloudで使います。非公開Git repositoryから取得する場合は、運営者が権限を持つ方法で手元へcheckoutし、そのローカルディレクトリをinstallしてください。Pack CLIのGit取得は認証情報を使いません。
+
+公開前でも開催できます。イベント後に公開したい場合は、社内情報や解答の扱いを確認し、作成者が公開先とタイミングを決めます。自動公開機能はありません。
 
 TenkaCloud launcherの`ProblemsRepoUrl`（第21章）は、非公開リポジトリの代わりには使えません。launcherがカタログを取得するGitのcheckoutは、認証情報を一切使わない設計です。private repoを指定すると、すぐに失敗します。「自分のforkを指定できる」というのは、そのforkも公開リポジトリである場合の話です。
 

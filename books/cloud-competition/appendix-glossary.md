@@ -41,7 +41,7 @@ TenkaCloudの採点API、Participant Portal、Docker問題を手元で動かす�
 
 ## Problem Pack
 
-公開カタログへ出さない問題を、ローカル記録へインストールする仕組みです。検証・インストールだけでは現行大会の実行カタログに追加されません。
+公開カタログへ登録せず、企業内の問題や公開前のイベント問題を管理する単位です。Cloudは有効化済みのAWS/CloudFormation Packを配置時に読み込みます。Localは手元の`problems/`を読み、Pack storeには未接続です。
 
 ## `metadata.json`
 

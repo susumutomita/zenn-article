@@ -103,7 +103,7 @@ Application Admin Console
 
 TenkaCloudは、1人の運営者が自分のAWSアカウントで競技を開くための、開催者自身が管理するCloud構成です。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。
 
-CloudはLambda・Cognitoと、選択したTursoまたはDynamoDBを使います。Local/Cloudが現行の開催方式です。既存のstack名や教材のproblemIDに残るliteは互換識別子で、開催方式を表しません。
+CloudはLambda・Cognitoと、選択したTursoまたはDynamoDBを使います。Local/Cloudが現行の開催方式です。既に配置した環境のstack名はそのまま使います。教材の問題名にliteが残っていても、開催方式はCloudです。
 
 ローカルモードと異なり、TenkaCloudの運営基盤と各チームの問題環境にはAWS利用料が発生します。デプロイ前に費用の対象と削除手順を確認し、イベント終了後は問題環境と運営基盤を片付けます。
 
