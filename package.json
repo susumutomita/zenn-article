@@ -18,7 +18,7 @@
   "author": "",
   "license": "GNU AGPLv3",
   "dependencies": {
-    "zenn-cli": "^0.5.3"
+    "zenn-cli": "^0.5.4"
   },
   "devDependencies": {
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
