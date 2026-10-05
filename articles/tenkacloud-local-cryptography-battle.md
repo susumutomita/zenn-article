@@ -3,7 +3,7 @@ title: "4つに増えたモードを整理して、TenkaCloudを作り直した"
 emoji: "🔐"
 type: "tech"
 topics: [OSS, 暗号, Bun, SQLite, AWS]
-published: false
+published: true
 ---
 
 [TenkaCloud](https://github.com/susumutomita/TenkaCloud)という、クラウドの問題をチームで解いて競うOSSを作っています。マルチクラウドの問題を共通形式で作れるようにしていますが、クラウド上での競技はAWSを中心に実装してきました。
