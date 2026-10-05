@@ -58,7 +58,7 @@ make local
   → start the organizer console and Participant Portal
   → create an event, team, and problem environments
   → start the event from Schedule
-  → participants use Start/resume to start their Docker environment
+  → participants use Start / resume to start their Docker environment
   → forward submissions to the team’s /verify endpoint
 ```
 

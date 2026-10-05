@@ -33,7 +33,7 @@ TenkaCloudが読み込む公開問題カタログです。1問を1ディレク�
 
 ## ローカル開催とクラウド開催
 
-TenkaCloudの2つの開催方式です。ローカル開催は、1台のPCで1つのBunプロセスと永続SQLiteを使います。クラウド開催は、自分のAWSアカウントでLambdaとCognitoを使い、データをTursoかDynamoDBへ保存します。
+TenkaCloudの2つの開催方式です。ローカル開催（本書の「ローカルモード」）は、1台のPCで1つのBunプロセスと永続SQLiteを使います。クラウド開催は、自分のAWSアカウントでLambdaとCognitoを使い、データをTursoかDynamoDBへ保存します。
 
 ## ローカルモード
 

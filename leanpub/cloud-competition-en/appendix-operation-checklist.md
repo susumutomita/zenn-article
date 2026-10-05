@@ -59,7 +59,7 @@ free: true
 - [ ] The flag is generated from a new `FLAG_SEED` for each run.
 - [ ] `/verify` does not reveal the answer after an incorrect submission.
 - [ ] `make local` starts the organizer console and Portal; an event, team, and problem environments have been prepared.
-- [ ] The participant joins with a team key and starts the Docker environment with Start/resume.
+- [ ] The participant joins with a team key and starts the Docker environment with Start / resume.
 - [ ] Correct and incorrect submissions were tested through the Participant Portal.
 - [ ] `make down` stops the environment while preserving progress; clear and key reset are separate operations.
 

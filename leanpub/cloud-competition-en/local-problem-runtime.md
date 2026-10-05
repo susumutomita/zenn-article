@@ -205,7 +205,7 @@ When finished, run the following command from the TenkaCloud root.
 make down
 ```
 
-`make down` stops the host and containers while preserving events, scores, keys, Docker writable layers, and volumes. It does not preserve RAM. Restart with the same data directory and use Start/resume. `make local-clear` deletes competition data and owned Docker data after confirmation; `make local-reset` reissues organizer access while preserving competition data. Noninteractive startup retains the existing key and does not print it.
+`make down` stops the host and containers while preserving events, scores, keys, Docker writable layers, and volumes. It does not preserve process memory. Restart with the same data directory and use Start / resume. `make local-clear` deletes competition data and owned Docker data after confirmation; `make local-reset` reissues organizer access while preserving competition data. Noninteractive startup retains the existing key and does not print it.
 
 ## Review the Completed Implementation
 
