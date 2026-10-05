@@ -3,15 +3,7 @@ title: "Choose Where Each Problem Runs"
 free: true
 ---
 
-TenkaCloud is designed for multiple cloud providers rather than being permanently tied to one. The available features and level of verification still differ by provider.
-
-In addition to AWS, TenkaCloud currently offers beta support for:
-
-- [Microsoft Azure](https://azure.microsoft.com/)
-- [Google Cloud](https://cloud.google.com/)
-- [Sakura Cloud](https://cloud.sakura.ad.jp/)
-
-In these beta integrations, supported services and verified operations vary by provider. This book uses AWS for every problem that runs in a public cloud.
+Cloud hosting runs on AWS Lambda and Cognito with a choice of Turso or DynamoDB. The cloud problems deployed in this book use AWS and CloudFormation. Docker/Compose problems run in Local hosting.
 
 We first build a local problem in Docker, then build problems that deploy to AWS.
 
@@ -32,7 +24,7 @@ The first problem, `sqli-demo`, is a local Challenge that runs in Docker. The se
 
 Local mode runs TenkaCloud's Participant Portal, scoring API, and problem environment on one computer. It does not use an AWS account or AWS credentials.
 
-Its primary use case is repeatable, self-paced practice for one person. You can open a problem without preparing an event or team. After inspecting an application and submitting an answer, you immediately see the scoring result.
+Local hosting uses events and teams. The organizer creates an event, teams, and selected problems, prepares the jobs, and starts the event from Schedule. Participants join with the participant URL and team key, then use Start/resume to start their Docker environment. Individual practice uses an event with one team.
 
 Because the same problem can be restarted from the beginning, local mode works well as a drill after reading a lesson or as practice for an unfamiliar operation.
 
@@ -42,7 +34,7 @@ Local mode does not send `template.yaml` to CloudFormation. Because it creates n
 
 ### Start Without Cloud Charges
 
-TenkaCloud and the public problem catalog are open source. Local mode creates no AWS resources, so it incurs no AWS usage charges. You can begin on any computer that runs Docker, without preparing an AWS account, credit card, team, or event.
+TenkaCloud and the public problem catalog are open source. Local mode creates no AWS resources, so it incurs no AWS usage charges. You can begin on any computer that runs Docker, without preparing an AWS account or credit card. You still create an event and team in the organizer console.
 
 ### Application-Only Practice Is Still Valuable
 
@@ -62,11 +54,12 @@ That sequence—observe, decide, act, and verify—can be learned without deploy
 TenkaCloudChallenge starts a local environment from `local/docker-compose.yml`.
 
 ```text
-make local PROBLEM=<problem-id>
-  → start the Participant Portal
-  → start the local scoring API
-  → start the problem environment with Docker Compose
-  → forward participant submissions to /verify in the problem container
+make local
+  → start the organizer console and Participant Portal
+  → create an event, team, and problem jobs
+  → start the event from Schedule
+  → participants use Start/resume to start their Docker environment
+  → forward submissions to the team’s /verify endpoint
 ```
 
 A local problem contains these files:
@@ -101,19 +94,15 @@ Application Admin Console
   → score the result
 ```
 
-To deliver AWS problems to multiple teams, deploy TenkaCloud Lite to the organizer's AWS account.
+To deliver AWS problems to multiple teams, deploy Cloud hosting to the organizer’s AWS account. Lambda and Cognito provide the runtime and authentication, with Turso or DynamoDB for persistent data. Existing stack names may contain `lite`; use the deployed names when operating or removing an existing environment.
 
-TenkaCloud Lite is a single-tenant configuration for one organizer running a competition in their own AWS account. It runs the Application Admin Console, Participant Portal, scoring, and problem deployment processes on AWS.
+Cloud hosting and each team’s AWS problem environment incur cloud usage charges. Review costs and teardown before deployment.
 
-"Lite" does not mean a simplified local demo. It deploys to real AWS. The Lite configuration omits the management plane and tenant provisioning pipeline needed by a multi-organization SaaS, allowing one tenant to operate independently. A later chapter explains the distinction in detail.
+The landing page includes a guided deployment tutorial:
 
-Unlike local mode, the TenkaCloud Lite platform and every team problem environment incur AWS usage charges. Review the cost sources and cleanup procedure before deploying, then remove both the problems and platform when the event ends.
+[Open the Cloud deployment tutorial](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
-The TenkaCloud landing page includes a guided problem for deploying TenkaCloud Lite:
-
-[Open the Deploy TenkaCloud Lite problem](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
-
-We build the problems first. Deployment of TenkaCloud Lite and delivery to multiple teams come only after the local Challenge, AWS Challenge, and AWS Battle are complete.
+We build the problems first, then deploy the hosting environment and deliver them to teams.
 
 ## Focus on the Local Challenge First
 

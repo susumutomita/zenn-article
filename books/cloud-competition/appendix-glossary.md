@@ -31,7 +31,7 @@ TenkaCloudが読み込む公開問題カタログです。1問を1ディレク�
 
 参加者が問題文、ヒント、提出欄、endpoint登録、得点を確認する画面です。
 
-## TenkaCloud
+## 開催方法
 
 Cloud開催はLambda・Cognitoと選択したTurso/DynamoDBで大会を運営します。Local開催は単一Bunプロセスと永続SQLiteです。
 

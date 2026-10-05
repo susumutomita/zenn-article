@@ -11,7 +11,7 @@ TenkaCloudの開催方式はLocalとCloudです。Localは単一のBunプロセ�
 
 AWSサービスを扱う問題はCloud、Docker/Compose問題はLocalで動かします。組み込みのCryptography Battleは両方で利用できます。現在のCloud構成はSBTを使いません。新規stackは`tenkacloud-cloud`系で、既存環境は配置済みの`tenkacloud-lite`系stackを使い続けます。名前を変えて別のstackを作らないでください。
 
-環境ファイルで`CDK_PARAM_CONTROL_DATA_BACKEND=turso`または`dynamodb`を指定します。TursoはDB URLと既存のSSM token parameterが必要です。公開cloud-v1のデータは自動移行されません。両DBとも99チーム、SQL coordinationは4 MiB上限です。9個の大型templateは現行のTemplateBody上限を超え、全AWS問題の配置を保証していません。
+環境ファイルで`CDK_PARAM_CONTROL_DATA_BACKEND=turso`または`dynamodb`を指定します。TursoはDB URLと既存のSSM token parameterが必要です。以前のCloud構成からのデータは自動移行されません。Cloud開催は統合検証中です。本書の問題を使って、参加者のアクセス、採点、撤収まで実際のAWSアカウントでリハーサルしてください。チーム数や配置できるtemplateの制限は、[現行の互換性ガイド](https://github.com/susumutomita/TenkaCloud/blob/main/docs/book-compatibility.md)で確認します。
 
 ## デプロイ前に費用と終了方法を確認する
 

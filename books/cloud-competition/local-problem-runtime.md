@@ -187,7 +187,7 @@ make local
 
 TenkaCloudは、公開されている問題カタログを`problems/`というGit submoduleから読み込みます。これはTenkaCloudChallengeを参照するための仕組みであり、TenkaCloud本体へ問題を追加するという意味ではありません。
 
-本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。`make local`で開催者・参加者画面を起動します。開催者が大会・チーム・`sqli-demo`を選び、jobsを準備し、Scheduleから開始します。参加者URLとチームキーで入り、Start/resumeでDocker問題を起動します。`Web` endpointからログイン画面へ進みます。
+本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。`make local`で開催者・参加者画面を起動します。対話端末に一度表示される主催者キーを使い、開催者URLからログインします。開催者が大会・チーム・`sqli-demo`を選び、jobsを準備し、Scheduleから開始します。参加者URLとチームキーで入り、Start/resumeでDocker問題を起動します。`Web` endpointからログイン画面へ進みます。
 
 確認する流れは次のとおりです。
 

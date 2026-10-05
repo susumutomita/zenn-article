@@ -21,7 +21,7 @@ TenkaCloudと問題環境を同じAWSアカウントへ置く場合は、問題�
 チーム用AWSアカウントには、`competitor-bootstrap.yaml`を使って`TenkaCloud-CompetitorDeploy-Role`を作ります。このRoleは、次の2つが一致した場合だけTenkaCloudからの`sts:AssumeRole`を許可します。
 
 - TenkaCloudを動かしているAWSアカウントID
-- イベントごとに設定する`ExternalId`
+- 運営基盤のSSM設定に保存したデプロイRole用の`ExternalId`
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,7 @@ sequenceDiagram
 
 TenkaCloudへチームのアクセスキーを保存する必要はありません。Roleを引き受けたときに発行される、有効期限付きの一時認証情報を使います。
 
-`ExternalId`は、TenkaCloudが別のチームからの依頼を取り違えてRoleを引き受けることを防ぐ追加条件です。AWSアカウントIDだけではなく、対象チームに対応する`ExternalId`も一致しなければアクセスできません。
+`ExternalId`は、TenkaCloudが別のチームからの依頼を取り違えてRoleを引き受けることを防ぐ追加条件です。AWSアカウントIDだけではなく、運営基盤と競技者bootstrapで一致させた`ExternalId`も一致しなければアクセスできません。
 
 デプロイ処理では、Application Admin Consoleからの要求を受けたAPIが、すぐにCloudFormationの完了を待つわけではありません。要求と状態を記録し、後続のworkerがRoleを引き受けてstackを作ります。複数チームへ配る処理を、画面の1回のHTTP要求から切り離すためです。
 

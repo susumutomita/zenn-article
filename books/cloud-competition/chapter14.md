@@ -28,9 +28,11 @@ TenkaCloudリポジトリの`infrastructure/templates/competitor-bootstrap.yaml`
 このtemplateは`TenkaCloud-CompetitorDeploy-Role`を作ります。信頼ポリシーは、次の2項目が一致したTenkaCloudだけを許可します。
 
 - TenkaCloudをデプロイしたAWSアカウントID
-- イベント運営側で設定した`ExternalId`
+- 運営基盤が参照するSSM設定のデプロイRole用`ExternalId`
 
 競技者アカウント側で作成されたRole ARNを、Application Admin Consoleへ登録します。
+
+bootstrapには既存SSM設定と同じ値を指定します。問題templateが作る参加者Roleの`ExternalId`とは用途が異なるため、混同しないでください。bootstrapは実際に問題を配置するリージョンで行います。
 
 このRoleを使う理由と`ExternalId`の働きは、「TenkaCloudがチームのAWSへアクセスする仕組み」で説明しました。コードまで確認したい場合は、[クロスアカウント設計の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)も参照してください。
 

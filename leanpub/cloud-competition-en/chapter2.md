@@ -88,7 +88,7 @@ Recovery when stuck:
   Progress from examining input handling to a concrete SQL injection input
 
 Shutdown:
-  Stop the local environment with make local-down
+  Stop the local environment with make down
 ```
 
 At this stage, we have not decided the fields in `metadata.json` or the contents of the Dockerfile. We first fix the participant experience, then convert it into a story, win condition, and safety boundary in the next chapter.

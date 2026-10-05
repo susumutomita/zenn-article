@@ -71,7 +71,7 @@ This single rehearsal covers red-team target selection, fault injection, manual 
 
 On the day of the event:
 
-1. Confirm that both TenkaCloud Lite stacks are healthy.
+1. Confirm that the deployed Cloud hosting stacks are healthy.
 2. Open the Application Admin Console and Participant Portal.
 3. Confirm that every team's problem stacks are complete.
 4. Distribute the Participant Portal URL and login keys.
@@ -79,7 +79,7 @@ On the day of the event:
 6. Use `hello-world-battle` to confirm endpoint registration.
 7. Trigger the disruption after scoring has started for every team.
 8. Finalize the standings at the announced end time.
-9. Delete the problem stacks and TenkaCloud Lite.
+9. Delete the problem stacks and TenkaCloud Cloud hosting.
 
 Before explaining the problems, confirm that every participant can enter the Participant Portal. Do not trigger the Battle disruption until every team has registered its URLs and completed the first scoring interval.
 

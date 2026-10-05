@@ -14,11 +14,11 @@ free: true
 - [ ] Points, outputs, and hints match between the README and implementation.
 - [ ] `make agent-gate` succeeds.
 
-## TenkaCloud Lite
+## Cloud Hosting
 
 - [ ] The `deploy-tenkacloud-lite` tutorial is complete.
-- [ ] `tenkacloud-lite` is in a completed state.
-- [ ] `tenkacloud-lite-problem-deploy` is in a completed state.
+- [ ] The deployed Cloud stack is in a completed state; existing physical names may contain `lite`.
+- [ ] The deployed problem-deployment stack is in a completed state.
 - [ ] The organizer can sign in to the Application Admin Console.
 - [ ] The Participant Portal opens.
 - [ ] The production `ProblemsRepoRef` is pinned to a reviewed tag or commit SHA.
@@ -58,9 +58,10 @@ free: true
 - [ ] Published ports bind to `127.0.0.1`.
 - [ ] The flag is generated from a new `FLAG_SEED` for each run.
 - [ ] `/verify` does not reveal the answer after an incorrect submission.
-- [ ] `make local PROBLEM=sqli-demo` starts the problem.
+- [ ] `make local` starts the organizer console and Portal; an event, team, and problem jobs have been prepared.
+- [ ] The participant joins with a team key and starts the Docker environment with Start/resume.
 - [ ] Correct and incorrect submissions were tested through the Participant Portal.
-- [ ] `make local-down` stops the environment.
+- [ ] `make down` stops the environment while preserving progress; clear and key reset are separate operations.
 
 ## Event Day
 
@@ -79,5 +80,7 @@ free: true
 - [ ] `tenkacloud-lite` no longer exists.
 - [ ] `tenkacloud-lite-problem-deploy` no longer exists.
 - [ ] `tenkacloud-lite-launcher` is deleted.
-- [ ] EC2 and DynamoDB have been checked for leftover resources.
+- [ ] EC2, DynamoDB, S3, logs, and selected Turso competition rows have been checked.
+- [ ] Private source archives and retained buckets have been deleted or assigned a retention period and cost owner.
+- [ ] Shared CDKToolkit, assets, and competitor roles have an agreed retention or deletion decision.
 - [ ] Story, hint, and operating-procedure improvements are recorded.

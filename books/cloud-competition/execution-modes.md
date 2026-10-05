@@ -3,15 +3,7 @@ title: "問題を動かす場所を区別する"
 free: true
 ---
 
-TenkaCloudは、特定のクラウドだけに固定しないマルチクラウド対応を想定した設計です。ただし、利用できる機能と検証状況はクラウドごとに異なります。
-
-AWS以外では、次のクラウドをβ版としてサポートしています。
-
-- [Microsoft Azure](https://azure.microsoft.com/ja-jp)
-- [Google Cloud](https://cloud.google.com/?hl=ja)
-- [さくらのクラウド](https://cloud.sakura.ad.jp/)
-
-β版では、利用できるサービスと検証済みの操作がクラウドごとに異なります。本書では、クラウド上で動かす問題の題材をAWSに絞ります。
+TenkaCloudのCloud開催は、AWS上のLambda・Cognitoと、選択したTursoまたはDynamoDBで動きます。本書で配置するクラウド問題もAWS/CloudFormation形式です。Docker/Compose問題はLocal開催で使います。
 
 最初に、手元のDockerでローカル問題を作ります。その後、AWS上にデプロイする問題を作ります。
 

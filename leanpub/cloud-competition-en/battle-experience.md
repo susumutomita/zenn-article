@@ -66,9 +66,9 @@ sequenceDiagram
 
 TenkaCloud calls this independent scoring of multiple URLs `uptime-flat`.
 
-- Add 100 points when frontend `/` returns HTTP 200
-- Add 100 points when API `/healthz` returns HTTP 200
-- Deduct 100 points for each URL that fails its check
+- Check frontend `/` and API `/healthz` in each scoring cycle
+- Add 100 points when both return HTTP 200
+- Deduct 100 points when either check fails
 - Repeat the same checks every minute
 
 The scoring result tells participants which service is healthy and which one needs recovery.

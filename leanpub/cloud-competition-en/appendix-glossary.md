@@ -31,9 +31,9 @@ The organizer interface for managing events, teams, problem deployments, and dis
 
 The interface where participants read the story and hints, submit answers, register endpoints, and view scores.
 
-## TenkaCloud Lite
+## Hosting Modes
 
-The single-tenant edition used by one organizer to run an event.
+Cloud hosting runs on Lambda and Cognito with Turso or DynamoDB. Local hosting runs as one Bun process with persistent SQLite.
 
 ## Local Mode
 
@@ -105,11 +105,11 @@ The initial setup that creates a dedicated IAM role so TenkaCloud can deploy pro
 
 ## launcher stack
 
-A CloudFormation stack that creates the CodeBuild project used to deploy TenkaCloud Lite. It is separate from TenkaCloud itself.
+A CloudFormation stack that creates the CodeBuild project used to deploy TenkaCloud. It is separate from TenkaCloud itself.
 
 ## `destroy-all`
 
-The operation that completely removes TenkaCloud Lite stacks, retained DynamoDB tables, and problem-deployment logs.
+The operation that removes hosting stacks and purges owned retained content and selected external Turso competition rows after checking the target. Retained bucket containers and shared bootstrap resources require a separate retention or deletion decision.
 
 ## `runtime`
 
@@ -118,3 +118,7 @@ A `metadata.json` section that defines the Docker Compose file used to start a l
 ## `/verify`
 
 The loopback API that judges submissions for a local problem. TenkaCloud does not store the answer; it sends the submission to this API and receives a `correct` result.
+
+## Problem Pack
+
+A unit for keeping internal or pre-publication event problems outside the public catalog. Cloud deployments load activated AWS/CloudFormation Packs. Local hosting reads the local `problems/` tree and does not load the Pack store.

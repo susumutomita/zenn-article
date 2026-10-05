@@ -185,11 +185,14 @@ make agent-gate
 
 ここまでの流れは、TenkaCloudChallengeへPull Requestを送る前提で説明してきました。社内の脆弱性やインシデント事例を題材にしていて、問題そのものを公開したくない場合は、経路が変わります。
 
-**ローカルChallenge・Battleは、そもそもどこにも push しなくて構いません。** `make local`は`problems/`ディレクトリの中身をそのまま読みます。自分のPCで問題を作り、コミットせずに`make local`で起動して遊ぶだけなら、この章のここまでの手順（`cp -R` → 編集 → `make agent-gate`）で完結します。「公開」が必要になるのは、他の主催者や参加者へ配りたいときだけです。
+Local開催では、手元の`problems/`に対応するDocker/Compose問題を置いて使えます。公開カタログへのpushは不要です。`make agent-gate`で検証した後、開催者コンソールで大会とチームを作り、問題を選んで開始します。
 
 **AWS Challenge・Battleを非公開のまま配りたい場合**は、TenkaCloudChallengeへPRを送る代わりに[Problem Packs](https://github.com/susumutomita/TenkaCloud) CLIを使います。TenkaCloudリポジトリのルートで、`make pack-init`/`make pack-validate`/`make pack-install`/`make pack-list`を実行します。`pack install`はGitのURLだけでなく、ローカルのディレクトリも受け付けます。
 
 ```bash
+make pack-init ARGS="./my-pack --runtime aws/cloudformation"
+# manifestと問題のファイルを編集してから検証する
+make pack-validate ARGS="./my-pack"
 make pack-install ARGS="./my-pack"
 ```
 

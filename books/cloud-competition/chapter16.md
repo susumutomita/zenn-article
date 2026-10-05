@@ -15,7 +15,7 @@ free: true
 
 `hello-world`のSSM Parameter、`hello-world-battle`のVPC、EC2、IAM RoleはCloudFormationで作成しています。参加者が新しいtop-levelリソースを手作業で作らない設計なので、stack削除で片付けられます。
 
-## TenkaCloudを完全削除する
+## TenkaCloudの基盤と競技データを削除する
 
 デプロイに使ったCodeBuild projectを開きます。
 
@@ -50,7 +50,9 @@ TenkaCloudの削除が成功したら、デプロイに使ったlauncher stack�
 - `tenkacloud-lite-problem-deploy`
 - `tenkacloud-lite-launcher`
 
-さらに、EC2 instance、DynamoDB table、S3の保持bucketとsource bucket、log、CDKToolkitと共有assetを確認します。destroy-allでもRetain policyのbucket本体や共有bootstrapは残ります。Tursoを選んだ場合は対象DBの行も確認します。削除失敗がある場合は、CloudFormation eventとCodeBuild logを確認してから終了します。
+さらに、EC2 instance、DynamoDB table、S3の保持bucketとsource bucket、logを確認します。destroy-allでもRetain policyのbucket本体は残ります。イベント専用のbucketは所有者とバックアップを確認し、全versionとdelete markerを含む内容を消してからbucketを削除します。非公開Problem Packのarchiveを保存したsource bucketも対象です。次回のために残す場合は、保存期限と費用の確認担当者を記録します。
+
+CDKToolkitと共有asset、競技者bootstrapのRoleは基盤削除の対象外です。他のstackや大会が使っていないかを確認し、共有物はその管理者と保持・削除を決めます。Tursoを選んだ場合は対象DBの行も確認します。削除失敗がある場合は、CloudFormation eventとCodeBuild logを確認してから終了します。
 
 ## 振り返りを残す
 

@@ -58,7 +58,8 @@ free: true
 - [ ] 公開portを`127.0.0.1`へbindしている
 - [ ] flagを実行ごとの`FLAG_SEED`から生成している
 - [ ] 不正解時に`/verify`が答えを漏らさない
-- [ ] `make local`でPortalを起動し、カタログから`sqli-demo`を開始できる
+- [ ] `make local`の主催者キーでログインし、大会・チーム・`sqli-demo`を準備して開始できる
+- [ ] 参加者URLとチームキーで入り、Start/resumeでDocker環境を起動できる
 - [ ] Participant Portalから正答と誤答を確認した
 - [ ] `make down`で終了した
 
@@ -80,6 +81,8 @@ free: true
 - [ ] 選択layoutの問題配置stackが残っていない
 - [ ] デプロイに使ったlauncher stackを削除した
 - [ ] EC2、DynamoDB、S3、logと、選択したTursoの行の残存を確認した
+- [ ] 非公開source archiveと保持bucketを削除したか、保存期限と費用の確認担当者を決めた
+- [ ] 共有CDKToolkit、asset、競技者Roleの保持・削除を管理者と確認した
 - [ ] 次回直す問題文、ヒント、運営手順を記録した
 
 ## 停止・消去・キー再発行の区別

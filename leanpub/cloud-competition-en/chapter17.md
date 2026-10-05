@@ -157,13 +157,13 @@ For an AWS problem, deploy to a test AWS account and complete the participant fl
 Start a local problem from the root of the TenkaCloud repository:
 
 ```bash
-make local PROBLEM=<new-slug>
+make local
 ```
 
-Open the problem from the Participant Portal. Confirm that the intended solution earns points and an incorrect submission does not. When finished:
+Use the organizer key displayed at startup to create an event and team, select the new problem, prepare the jobs, and start from Schedule. Join the Participant Portal with the team key and use Start/resume. Confirm that the intended solution earns points and an incorrect submission does not. When finished:
 
 ```bash
-make local-down
+make down
 ```
 
 Finally, run the completion gate from the TenkaCloudChallenge root:
@@ -189,13 +189,29 @@ None of the three problems in this book began with “Which AWS service should I
 
 Finishing the book is not the end state. This order gets what you have read into something running in your own environment.
 
-1. Try it. Open the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) to use the participant's screen, or solve one problem in the browser with [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud). Neither needs anything installed locally.
+1. Try it. Open the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) to use the participant's screen, or open a development environment with [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud). For Docker problems, verify Docker startup and forwarded-port access.
 2. Run it. Clone [TenkaCloud](https://github.com/susumutomita/TenkaCloud) and start a local problem with `make local`. Chapters 3 and 4 cover this stage.
 3. Build one. Add a problem to [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge). The existing problem directories read as templates, and `make agent-gate` is the completion contract.
-4. Host one. Deploy TenkaCloud Lite to AWS, register teams, and run the event. Chapter 10 onwards covers this stage.
+4. Host one. Deploy TenkaCloud Cloud hosting to AWS, register teams, and run the event. Chapter 10 onwards covers this stage.
 
 The project site is available in [English](https://www.tenkacloud.com/?lang=en) and [Japanese](https://www.tenkacloud.com/?lang=ja), with role-by-role manuals linked from there.
 
 You are under no obligation to publish the problems you write, but publishing them lets other organisers run them as they are. In the other direction, reading the [problem catalog](https://github.com/susumutomita/TenkaCloudChallenge) before you start helps you pick a subject that does not duplicate one already there.
 
 If something does not work, or this book left a gap where you needed detail, [GitHub Discussions](https://github.com/susumutomita/TenkaCloud/discussions) is the place to say so — it improves both the book and the platform.
+
+## Keep Problems Private with Problem Packs
+
+For an internal AWS exercise or a problem you plan to publish after an event, use a Problem Pack instead of a public catalog pull request. Run the CLI from the TenkaCloud repository:
+
+```bash
+make pack-init ARGS="./my-pack --runtime aws/cloudformation"
+make pack-validate ARGS="./my-pack"
+make pack-install ARGS="./my-pack"
+make pack-list
+bun run pack activate <id@version> --tenant local
+```
+
+Edit the generated manifest and problem assets before validation. Replace `<id@version>` with the pack ID and version from that manifest. Install stores the pack but does not activate it. Here, `local` is the fixed selector consumed by Cloud catalog loading; it does not select Local hosting. Activation updates `.tenkacloud/pack-store` without deploying AWS resources. The next Cloud deployment includes the store and problem assets in a private source archive. Redeploy between events, then select the problems in a new event. Existing event catalog snapshots remain unchanged.
+
+Local hosting does not load the Pack store. For supported private Docker/Compose problems, put the problem in the local `problems/` tree, validate it, and run `make local`. Use AWS problems in Cloud hosting. The Pack CLI’s Git fetch is unauthenticated; check out private repositories using your authorized method and install the resulting local directory. Rehearse solving, scoring, and teardown before the event.

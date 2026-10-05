@@ -61,7 +61,7 @@ The problem statement omits the vulnerability name. Only participants who need m
 - Use separate ports for the target and scoring API
 - Do not hard-code the flag in source code
 - Do not return the correct flag or comparison details after a wrong answer
-- Stop both the problem and scoring environments with `make local-down`
+- Stop both the problem and scoring environments with `make down`
 
 Running locally does not guarantee safety by itself. Docker Compose port bindings must prevent external access, and the scoring API must not leak the answer.
 
@@ -84,7 +84,7 @@ Win condition:
 Safety boundary:
   Expose the web page and /verify only on 127.0.0.1
   Generate a fresh flag for every run
-  Use make local-down at the end
+  Use make down at the end
 ```
 
 The next chapter prepares TenkaCloudChallenge and creates the directory that will hold this design.
