@@ -63,6 +63,10 @@ ZeroKeyMateでは、同じ`jpki_age`回路と公開の合成データで、同�
 
 Macの計測ではWHIRのほうが証明は速かったのですが、この版にはWHIRの証明をEVMで検証する手段がありませんでした。EVMで検証するには、WHIRの検証をgnarkの再帰回路で行い、その結果をGroth16の証明に包む必要があります。
 
+包む理由の1つは、ノードが受け付ける取引の大きさです。コントラクトの引数の型に上限はありませんが、Amoyのノードは131,072 bytes（128 KiB）を超える取引を受け付けません。残高のない使い捨て鍵で200 KBのデータを付けた取引を送ると、`oversized data`で拒否されました。ProveKitの形式のWHIRの証明は約3.3 MBで、この上限の約25倍です。EVMに渡す形式とは別なので倍率は目安ですが、そのままでは1つの取引に載りません。
+
+Groth16の証明は384 bytesで、大きさは回路の規模によらず一定です。デプロイしたverifierは、BN254の点の加算と乗算をEVMのprecompile（EIP-196、EIP-197）で計算します。ペアリングの確認も、6組をprecompileの1回の呼び出しにまとめています。
+
 `dd237e5`の`generate-gnark-inputs`は動き、`narg_string`と`hints`を含むJSONを出力しました。ただし出力には、Goの再帰verifierが読む`io_pattern`と`transcript`がありませんでした。`transcript_len`やhiding-Spartanの設定、statementの評価値も欠けていました。そのため、ラップした証明は作れず、EVMでのWHIRの検証もしていません。
 
 2026年9月13日に確認した上流のmain（`11fba77`）も、ZookコミットメントとGoのverifierをそろえて更新するまで、gnark向けのexportを受け付けないとしていました。
