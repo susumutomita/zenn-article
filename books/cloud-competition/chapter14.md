@@ -3,7 +3,7 @@ title: "作った競技を複数チームへ配る"
 free: true
 ---
 
-TenkaCloud Liteをデプロイしただけでは、まだ参加者は競技を遊べません。チーム用AWSアカウントを接続し、イベントへ2問を登録し、各チームへ問題環境を配ります。
+TenkaCloudをデプロイしただけでは、まだ参加者は競技を遊べません。チーム用AWSアカウントを接続し、イベントへ2問を登録し、各チームへ問題環境を配ります。
 
 流れは次のとおりです。
 
@@ -28,9 +28,11 @@ TenkaCloudリポジトリの`infrastructure/templates/competitor-bootstrap.yaml`
 このtemplateは`TenkaCloud-CompetitorDeploy-Role`を作ります。信頼ポリシーは、次の2項目が一致したTenkaCloudだけを許可します。
 
 - TenkaCloudをデプロイしたAWSアカウントID
-- イベント運営側で設定した`ExternalId`
+- TenkaCloudがSSMに保存している、デプロイRole用の`ExternalId`
 
 競技者アカウント側で作成されたRole ARNを、Application Admin Consoleへ登録します。
+
+bootstrapの`ExternalId`には、TenkaCloudのSSM設定にある値をそのまま指定します。問題の`template.yaml`が作る参加者用Roleの`ExternalId`とは別の値なので、取り違えないでください。bootstrapは、1つのAWSアカウントにつき1つのリージョンで1回だけ実行します。チームが別のリージョンへ問題を配置する場合も、同じRoleを使います。
 
 このRoleを使う理由と`ExternalId`の働きは、「TenkaCloudがチームのAWSへアクセスする仕組み」で説明しました。コードまで確認したい場合は、[クロスアカウント設計の記事](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy)も参照してください。
 

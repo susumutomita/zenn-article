@@ -64,14 +64,14 @@ sequenceDiagram
 
 ## Define Continuous Scoring
 
-TenkaCloud calls this independent scoring of multiple URLs `uptime-flat`.
+TenkaCloud calls this method `uptime-flat`: it checks each URL separately, then turns both results into one score for the cycle.
 
-- Add 100 points when frontend `/` returns HTTP 200
-- Add 100 points when API `/healthz` returns HTTP 200
-- Deduct 100 points for each URL that fails its check
+- Check frontend `/` and API `/healthz` in each scoring cycle
+- Add 100 points when both return HTTP 200
+- Deduct 100 points when either check fails
 - Repeat the same checks every minute
 
-The scoring result tells participants which service is healthy and which one needs recovery.
+When the score starts falling, participants investigate whether the frontend or the API stopped, then recover it.
 
 ## Do Not Award Points for Deployment Alone
 

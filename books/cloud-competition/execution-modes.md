@@ -3,15 +3,7 @@ title: "問題を動かす場所を区別する"
 free: true
 ---
 
-TenkaCloudは、特定のクラウドだけに固定しないマルチクラウド対応を想定した設計です。ただし、利用できる機能と検証状況はクラウドごとに異なります。
-
-AWS以外では、次のクラウドをβ版としてサポートしています。
-
-- [Microsoft Azure](https://azure.microsoft.com/ja-jp)
-- [Google Cloud](https://cloud.google.com/?hl=ja)
-- [さくらのクラウド](https://cloud.sakura.ad.jp/)
-
-β版では、利用できるサービスと検証済みの操作がクラウドごとに異なります。本書では、クラウド上で動かす問題の題材をAWSに絞ります。
+TenkaCloudのクラウド開催は、AWSのLambdaとCognitoに、選択したTursoまたはDynamoDBを組み合わせて動きます。本書でクラウドへ配置する問題も、AWSのCloudFormation形式です。Docker/Compose形式の問題は、ローカル開催で使います。
 
 最初に、手元のDockerでローカル問題を作ります。その後、AWS上にデプロイする問題を作ります。
 
@@ -32,9 +24,7 @@ AWS以外では、次のクラウドをβ版としてサポートしています
 
 ローカルモードでは、TenkaCloudのParticipant Portal、採点API、問題環境を1台のPCで動かします。AWSアカウントとAWS認証情報は使いません。
 
-主な用途は、一人で基礎知識を身につけるための反復練習です。イベントやチームを準備せずに問題を開けます。アプリケーションを調べ、答えを提出すると、採点結果を確認できます。
-
-同じ問題を最初からやり直せるため、講義を読んだ後のドリルに向いています。苦手な操作の復習にも使えます。
+ローカルモードでも、イベントとチームを作ります。主催者がイベント、チーム、問題を選び、問題環境を準備してからイベントを開始します。主催者は参加者URLとチームキーを各チームへ渡し、参加者は「起動・再開」でDocker環境を起動します。1人で練習する場合も、1チームだけのイベントを作ります。
 
 本書で扱うローカルモードの操作対象は、Dockerコンテナ内で動くアプリケーションです。`local/docker-compose.yml`から、Webアプリケーションと採点用`/verify`を手元に起動します。
 
@@ -42,7 +32,7 @@ AWS以外では、次のクラウドをβ版としてサポートしています
 
 ### 無料で始められる
 
-TenkaCloudと公開問題はOSSとして利用できます。ローカルモードではAWSリソースを作らないため、AWS利用料も発生しません。AWSアカウント、クレジットカード、チーム、イベントを準備せず、Dockerを動かせるPCから始められます。
+TenkaCloudと公開問題はOSSとして利用できます。ローカルモードではAWSリソースを作らないため、AWS利用料も発生しません。AWSアカウントやクレジットカードを用意せずに、Dockerを動かせるPCでイベントとチームを作って始められます。
 
 ### アプリケーションだけでも練習できることは多い
 
@@ -63,9 +53,9 @@ TenkaCloudと公開問題はOSSとして利用できます。ローカルモー�
 
 ```text
 make local
-  → Participant Portalを起動
-  → ローカル採点APIを起動
-  → Portalで選んだ問題をDocker Composeで起動
+  → 主催者画面、参加者画面、採点処理を1つのBunプロセスで起動
+  → 主催者がイベントとチームを作り、問題環境を準備して開始
+  → 参加者が参加者URLとチームキーでログインし、「起動・再開」でDockerを起動
   → 参加者の提出を問題コンテナの/verifyへ渡す
 ```
 
@@ -88,7 +78,7 @@ challenges/<問題ID>/
 
 ## 本書で使うAWS問題
 
-TenkaCloud全体がAWS専用という意味ではありません。本書では、実装するChallengeとBattleのクラウド環境としてAWSを使います。
+本書では、実装するChallengeとBattleのクラウド環境としてAWSを使います。
 
 本書のAWS問題では、`template.yaml`からチーム用AWSアカウントへCloudFormation stackを作ります。参加者は、問題専用の一時的な権限でAWS ConsoleまたはCLIを使います。
 
@@ -101,19 +91,19 @@ Application Admin Console
   → 結果を採点
 ```
 
-複数チームへAWS問題を配るときは、TenkaCloud Liteを運営者のAWSアカウントへデプロイします。
+複数チームへAWS問題を配るときは、TenkaCloudを運営者のAWSアカウントへデプロイします。
 
-TenkaCloud Liteは、1人の運営者が自分のAWSアカウントで競技を開くための、単一テナント構成です。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。
+クラウド開催では、1人の運営者が自分のAWSアカウントにTenkaCloudを構築して管理します。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。基盤にはLambdaとCognitoを使い、データは選択したTursoまたはDynamoDBへ保存します。
 
-「Lite」は、ローカルで動く簡易デモという意味ではありません。実際のAWSへデプロイします。複数の利用組織を管理するSaaS向けの管理基盤とテナント作成パイプラインを省き、1つのテナントで完結させたことを表します。詳しい違いは、AWSへデプロイする章で説明します。
+LPの手順で作るlauncher stackの名前（`tenkacloud-lite-launcher`）には「lite」が残っていますが、作られるのはクラウド開催の環境です。
 
-ローカルモードと異なり、TenkaCloud Liteの運営基盤と各チームの問題環境にはAWS利用料が発生します。デプロイ前に費用の対象と削除手順を確認し、イベント終了後は問題環境と運営基盤を片付けます。
+ローカルモードと異なり、TenkaCloudの運営基盤と各チームの問題環境にはAWS利用料が発生します。デプロイ前に費用の対象と削除手順を確認し、イベント終了後は問題環境と運営基盤を片付けます。
 
-TenkaCloud LiteをAWSへ作る手順は、ランディングページの問題として公開しています。
+TenkaCloudをAWSへ作る手順は、ランディングページの問題として公開しています。
 
-[TenkaCloud Liteのデプロイ問題を開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
+[「自分のTenkaCloudを立てる」を開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
-本書では、先に問題そのものを作ります。TenkaCloud Liteのデプロイと複数チームへの配布は、ローカルChallenge、AWS Challenge、AWS Battleが完成した後に扱います。
+本書では、先に問題そのものを作ります。TenkaCloudのデプロイと複数チームへの配布は、ローカルChallenge、AWS Challenge、AWS Battleが完成した後に扱います。
 
 ## 最初はローカルChallengeに集中する
 

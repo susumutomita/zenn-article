@@ -14,11 +14,11 @@ free: true
 - [ ] READMEと実装の点数、Output、ヒントが一致している
 - [ ] `make agent-gate`が成功した
 
-## TenkaCloud Lite
+## TenkaCloud
 
-- [ ] LPの`deploy-tenkacloud-lite`を最後まで実行した
-- [ ] `tenkacloud-lite`が作成完了している
-- [ ] `tenkacloud-lite-problem-deploy`が作成完了している
+- [ ] LPの「自分のTenkaCloudを立てる」を最後まで実行した
+- [ ] `tenkacloud-cloud`（既存環境では`tenkacloud-lite`）の作成が完了している
+- [ ] `tenkacloud-cloud-problem-deploy`（既存環境では`tenkacloud-lite-problem-deploy`）の作成が完了している
 - [ ] Application Admin Consoleへサインインできる
 - [ ] Participant Portalが開く
 - [ ] 本番用の`ProblemsRepoRef`を確認済みのtagかcommit SHAへ固定した
@@ -58,9 +58,10 @@ free: true
 - [ ] 公開portを`127.0.0.1`へbindしている
 - [ ] flagを実行ごとの`FLAG_SEED`から生成している
 - [ ] 不正解時に`/verify`が答えを漏らさない
-- [ ] `make local`でPortalを起動し、カタログから`sqli-demo`を開始できる
+- [ ] `make local`が表示した主催者キーでログインし、イベント、チーム、`sqli-demo`を準備して開始できる
+- [ ] 参加者URLとチームキーでログインし、「起動・再開」でDocker環境を起動できる
 - [ ] Participant Portalから正答と誤答を確認した
-- [ ] `make local-down`で終了した
+- [ ] `make down`で停止した（データは残る。消去は`make local-clear`、主催者キーの再発行は`make local-reset`）
 
 ## 当日
 
@@ -76,8 +77,10 @@ free: true
 - [ ] 順位と必要な記録を保存した
 - [ ] 各チームの問題stackを削除した
 - [ ] CodeBuildで`ACTION=destroy-all`を実行した
-- [ ] `tenkacloud-lite`が残っていない
-- [ ] `tenkacloud-lite-problem-deploy`が残っていない
-- [ ] `tenkacloud-lite-launcher`を削除した
-- [ ] EC2 instanceとDynamoDB tableの残存を確認した
+- [ ] `tenkacloud-cloud`（既存環境では`tenkacloud-lite`）が残っていない
+- [ ] `tenkacloud-cloud-problem-deploy`（既存環境では`tenkacloud-lite-problem-deploy`）が残っていない
+- [ ] launcher stack（LPの手順では`tenkacloud-lite-launcher`）を削除した
+- [ ] EC2、DynamoDB、S3、logが残っていない。Tursoを選んだ場合は、そのDBに競技データが残っていない
+- [ ] 非公開のsource archiveと、残したS3 bucketを削除した。残す場合は、保存期限と費用を確認する担当者を決めた
+- [ ] CDKToolkit、共有asset、競技者用Roleを残すか削除するかを、それぞれの管理者と決めた
 - [ ] 次回直す問題文、ヒント、運営手順を記録した

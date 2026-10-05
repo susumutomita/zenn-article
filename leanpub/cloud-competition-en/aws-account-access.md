@@ -14,14 +14,14 @@ When teams use separate AWS accounts, the permission to deploy a problem and the
 
 Prepare the first role once in the team AWS account. Each problem's `template.yaml` creates the second role as part of its CloudFormation stack.
 
-If TenkaCloud Lite and the problem environment share one AWS account, the deployment process can run in that same account and omit the cross-account role. This chapter describes the cross-account configuration used to isolate multiple teams.
+If TenkaCloud Cloud hosting and the problem environment share one AWS account, the deployment process can run in that same account and omit the cross-account role. This chapter describes the cross-account configuration used to isolate multiple teams.
 
 ## The Problem Deployment Path
 
 Use `competitor-bootstrap.yaml` to create `TenkaCloud-CompetitorDeploy-Role` in a team AWS account. The role permits `sts:AssumeRole` from TenkaCloud only when two values match:
 
 - The AWS account ID that runs TenkaCloud
-- The event-specific `ExternalId`
+- The deployment-role `ExternalId` stored in the hosting environment’s SSM configuration
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,7 @@ sequenceDiagram
 
 TenkaCloud does not need to store a team's access keys. It uses temporary, expiring credentials issued when it assumes the role.
 
-`ExternalId` is an additional condition that prevents TenkaCloud from confusing one team's request with another. Access requires both the AWS account ID and the `ExternalId` assigned to the target team.
+`ExternalId` is an additional condition that prevents TenkaCloud from confusing one team's request with another. Access requires both the AWS account ID and the `ExternalId` configured in both the hosting environment and competitor bootstrap.
 
 The API receiving a request from the Application Admin Console does not wait synchronously for CloudFormation to finish. It records the request and state, then a worker assumes the role and creates the stack. This separates multi-team delivery from one browser HTTP request.
 

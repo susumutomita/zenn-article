@@ -179,30 +179,42 @@ make agent-gate
 
 ```bash
 cd ..
-git clone https://github.com/susumutomita/TenkaCloud.git
+git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
+make install
 make local
 ```
 
 TenkaCloudは、公開されている問題カタログを`problems/`というGit submoduleから読み込みます。これはTenkaCloudChallengeを参照するための仕組みであり、TenkaCloud本体へ問題を追加するという意味ではありません。
 
-本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。`make local`でローカル採点APIとParticipant Portalを起動し、Portalの問題カタログから`sqli-demo`を選んで開始します。問題を選ぶと、Docker Composeの問題コンテナへ接続されます。`Web` endpointからログイン画面へ進みます。
+本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。
+
+`make local`を実行すると、主催者用と参加者用の画面が起動します。対話できるターミナルで起動すると、主催者キーが一度だけ表示されます。表示された主催者用のURLを開き、このキーでログインします。
+
+主催者としてイベントとチームを作り、`sqli-demo`を選びます。「スケジュール」タブで問題環境を準備し、イベントを開始します。次に、参加者URLとチームキーで参加者としてログインし、「起動・再開」で問題環境を起動します。`Web` endpointからログイン画面へ進みます。
 
 確認する流れは次のとおりです。
 
 1. `Web` endpointでログイン画面が開く
 2. 攻略に成功すると実行ごとのflagが表示される
 3. Participant Portalへflagを提出する
-4. 提出内容が`127.0.0.1:18081/verify`へ渡る
+4. 提出内容がそのチームの問題環境の`/verify`へ渡る
 5. 正解すると得点が記録される
 
 終了するときは、TenkaCloudのルートで次を実行します。
 
 ```bash
-make local-down
+make down
 ```
 
-コンテナだけを手作業で停止せず、ローカル採点API、Portalの設定、保存された進捗をTenkaCloudの終了手順で片付けます。
+コンテナだけを手作業で停止せず、`make down`を使います。`make down`は、主催者画面、参加者画面、採点処理と、TenkaCloudが起動したDocker環境を停止します。イベント、得点、キー、コンテナの書き込み領域、volumeは残ります。プロセスのメモリーの内容は残りません。再開するときは、同じデータディレクトリで`make local`を実行し、参加者が「起動・再開」を押します。
+
+データの消去と主催者キーの再発行には、`make down`とは別のコマンドを使います。
+
+- `make local-clear`は、確認のあとで、イベントの履歴とTenkaCloudが作ったDocker問題のデータを削除します。主催者キーと設定は残ります。先に`make down`で停止してから実行します。
+- `make local-reset`は、主催者キーを再発行し、古いキーとログインを無効にします。イベント、得点、参加者のキー、問題のデータは残ります。起動中に実行する場合は、別の対話できるターミナルから、同じデータディレクトリを指定して実行します。
+
+対話できるターミナルで`make local`を起動したときも、毎回新しい主催者キーが発行され、古いキーは無効になります。対話できない環境や、公開用・コンテナ用の設定で起動した場合は、既存のキーを使い続け、キーをログに出しません。
 
 ## 実装結果を確認する
 

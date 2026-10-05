@@ -179,36 +179,33 @@ Next, clone TenkaCloud into a directory separate from TenkaCloudChallenge.
 
 ```bash
 cd ..
-git clone https://github.com/susumutomita/TenkaCloud.git
+git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
-make local-onboard
+make install
+make local
 ```
 
 TenkaCloud reads the published problem catalog through a Git submodule named `problems/`. This is how it references TenkaCloudChallenge; it does not mean that problems belong to the TenkaCloud platform repository.
 
-The completed `sqli-demo` built in this book is already published on TenkaCloudChallenge's `main` branch. You do not create an authoring branch in TenkaCloud. Start the published implementation by problem ID.
+The completed `sqli-demo` built in this book is already published on TenkaCloudChallenge's `main` branch. You do not create an authoring branch in TenkaCloud. Start the organizer console and Participant Portal with `make local`. In an interactive terminal, startup displays a new organizer key once and invalidates the previous organizer access. Open the organizer URL and sign in with that key.
 
-```bash
-make local PROBLEM=sqli-demo
-```
-
-`make local` connects the local scoring API, Participant Portal, and selected problem container. Open the Participant Portal in a browser and follow the `Web` endpoint to the login page.
+Create an event and team, select `sqli-demo`, prepare the problem environments, and start from Schedule. Join with the participant URL and team key, then choose Start / resume to start the Docker environment. Follow the `Web` endpoint to the login page.
 
 Verify the complete path:
 
 1. The `Web` endpoint opens the login page
 2. Solving the target reveals a flag unique to this run
 3. Submit the flag through the Participant Portal
-4. The submission is sent to `127.0.0.1:18081/verify`
+4. The submission is sent to that team’s problem environment at `/verify`
 5. A correct answer records points
 
 When finished, run the following command from the TenkaCloud root.
 
 ```bash
-make local-down
+make down
 ```
 
-Do not stop only the container by hand. TenkaCloud's shutdown command removes the local scoring API, Portal configuration, and stored progress together.
+`make down` stops the host and containers while preserving events, scores, keys, Docker writable layers, and volumes. It does not preserve process memory. Restart with the same data directory and use Start / resume. `make local-clear` deletes competition data and owned Docker data after confirmation; `make local-reset` reissues organizer access while preserving competition data. Noninteractive startup retains the existing key and does not print it.
 
 ## Review the Completed Implementation
 

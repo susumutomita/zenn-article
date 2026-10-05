@@ -38,7 +38,7 @@ Participants use the Participant Portal to read a problem and its hints, submit 
 
 The problem content lives in a separate open-source project called [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge). Each problem keeps its participant-facing text, environment, scoring conditions, hints, and faults in one directory.
 
-If you would rather see it before reading about it, the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) puts you in the participant's screen directly, and [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud) runs a problem end to end in the browser with nothing installed locally. Most of what this book describes is quicker to recognise once you have seen the actual screen.
+If you would rather see it before reading about it, the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) puts you in the participant's screen directly, and [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud) opens a development environment in the browser. Solving problems inside Codespaces is still being verified by the TenkaCloud project, so use `make local` on your own computer to try a problem. Most of what this book describes is quicker to recognise once you have seen the actual screen.
 
 The responsibilities are separated like this:
 
@@ -105,9 +105,9 @@ The goal is not merely to read completed files. We start by deciding what experi
 
 ## What Comes Next
 
-The next chapter distinguishes local mode from TenkaCloud Lite. We then design and implement the local Challenge, AWS Challenge, and AWS Battle in that order.
+The next chapter distinguishes local mode from TenkaCloud Cloud hosting. We then design and implement the local Challenge, AWS Challenge, and AWS Battle in that order.
 
-After all three problems are complete, we deploy TenkaCloud Lite to AWS and deliver the AWS Challenge and Battle to multiple teams. Finally, we run the event, inject a fault, recover the service, and clean up every resource.
+After all three problems are complete, we deploy TenkaCloud Cloud hosting to AWS and deliver the AWS Challenge and Battle to multiple teams. Finally, we run the event, inject a fault, recover the service, and clean up every resource.
 
 This book and TenkaCloud are independent open-source projects. They are not affiliated with, endorsed by, or sponsored by Amazon Web Services, Inc. AWS and related marks are trademarks of Amazon.com, Inc. or its affiliates. This book does not reproduce an official AWS GameDay; it teaches you how to build a similar style of hands-on cloud exercise.
 

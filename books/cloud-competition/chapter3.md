@@ -61,7 +61,7 @@ flowchart LR
 - 攻略対象と採点APIを別のportに分ける
 - flagをソースコードへ固定しない
 - 不正解時に、正しいflagや比較結果を返さない
-- `make local-down`で問題環境と採点環境を終了する
+- `make down`で問題環境と採点環境を終了する
 
 ローカルで動かすことは、安全を自動で保証するという意味ではありません。Docker Composeのport設定で外部公開を防ぎ、採点APIから答えが漏れないように実装します。
 
@@ -84,7 +84,7 @@ sqli-demo
 安全境界:
   Web画面と/verifyを127.0.0.1だけへ公開する
   flagを実行ごとに生成する
-  終了時はmake local-downを使う
+  終了時はmake downを使う
 ```
 
 次章では、TenkaCloudChallengeを準備し、この設計を置くディレクトリと作成手順を確認します。

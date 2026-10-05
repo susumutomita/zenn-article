@@ -3,7 +3,7 @@ title: "Deploy the Competition to Multiple Teams"
 free: true
 ---
 
-Deploying TenkaCloud Lite does not yet give participants a playable competition. You still need to connect team AWS accounts, add the two problems to an event, and deploy a problem environment to every team.
+Deploying TenkaCloud Cloud hosting does not yet give participants a playable competition. You still need to connect team AWS accounts, add the two problems to an event, and deploy a problem environment to every team.
 
 The complete flow is:
 
@@ -28,9 +28,11 @@ Deploy `infrastructure/templates/competitor-bootstrap.yaml` from the TenkaCloud 
 This template creates `TenkaCloud-CompetitorDeploy-Role`. Its trust policy accepts TenkaCloud only when both of these values match:
 
 - The AWS account ID where TenkaCloud is deployed
-- The `ExternalId` configured by the organizer
+- The deployment-role `ExternalId` from the SSM configuration used by the hosting environment
 
 Register the role ARN created in the team account with the Application Admin Console.
+
+Use the existing SSM value for bootstrap. This deployment-role value is separate from the participant-role `ExternalId` created by the problem template. Run the bootstrap once per AWS account, in a single region. IAM roles are global, so teams that deploy problems to other regions use the same role.
 
 The earlier chapter, “How TenkaCloud Accesses Team AWS Accounts,” explained why the role exists and how `ExternalId` works. For an implementation-level explanation, see the [Japanese-language article on TenkaCloud's cross-account design](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy).
 
