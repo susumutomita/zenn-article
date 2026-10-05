@@ -63,7 +63,11 @@ ZeroKeyMateでは、同じ`jpki_age`回路と公開の合成データで、同�
 
 Macの計測ではWHIRのほうが証明は速かったのですが、この版にはWHIRの証明をEVMで検証する手段がありませんでした。EVMで検証するには、WHIRの検証をgnarkの再帰回路で行い、その結果をGroth16の証明に包む必要があります。
 
-包む理由の1つは、ノードが受け付ける取引の大きさに上限があることです。コントラクトの引数の型に上限はありませんが、Amoyのノードは131,072 bytes（128 KiB）を超える取引を受け付けません。残高のない使い捨て鍵で200 KBのデータを付けた取引を送ると、`oversized data`で拒否されました。ProveKitの形式のWHIRの証明は約3.3 MBで、この上限の約25倍です。EVMに渡す形式とは別なので倍率は目安ですが、そのままでは1つの取引に載りません。
+包む理由の1つは、ノードが受け付ける取引の大きさに上限があることです。コントラクトの引数の型には上限がありません。[Polygonのサポート記事](https://support.polygon.technology/support/solutions/articles/82000902350-what-is-the-limit-of-transaction-data-on-polygon-theoretically-and-practically-)によると、プロトコルにも1つの取引のデータ量の固定の上限がなく、理論上はブロックのガス上限まで使えます。
+
+一方、Polygon PoSのノードソフトウェアであるBorは、[`txMaxSize`](https://github.com/0xPolygon/bor/blob/9c445ef603e71469e1c176d8e57e7cf94864ade7/core/txpool/legacypool/legacypool.go#L51-L57)で1つの取引の大きさを131,072 bytes（128 KiB）までに制限しています。[README](https://github.com/0xPolygon/bor/blob/9c445ef603e71469e1c176d8e57e7cf94864ade7/README.md?plain=1#L22)によると、BorはメインネットとAmoyの両方に対応しています。上限を超えた取引は、[検証処理](https://github.com/0xPolygon/bor/blob/9c445ef603e71469e1c176d8e57e7cf94864ade7/core/txpool/validation.go#L71-L75)で`oversized data`のエラーになり、取引プール（txpool）に入りません。[エラーの定義](https://github.com/0xPolygon/bor/blob/9c445ef603e71469e1c176d8e57e7cf94864ade7/core/txpool/errors.go#L56-L59)のコメントにあるとおり、この制限はコンセンサスのルールではなく、DoS攻撃を防ぐためのものです。Borの[テスト](https://github.com/0xPolygon/bor/blob/9c445ef603e71469e1c176d8e57e7cf94864ade7/core/txpool/legacypool/legacypool_test.go#L1510-L1545)も、131,072 bytesの取引を受け付け、1 byte超えた取引を拒否することを確かめています。
+
+残高のない使い捨て鍵で200 KBのデータを付けた取引を送ると、`oversized data`で拒否されました。ProveKitの形式のWHIRの証明は約3.3 MBで、この上限の約25倍です。EVMに渡す形式とは別なので倍率は目安ですが、そのままでは1つの取引に載りません。
 
 Groth16の証明は384 bytesで、大きさは回路の規模によらず一定です。デプロイしたverifierは、BN254の点の加算と乗算をEVMのprecompile（EIP-196、EIP-197）で計算します。ペアリングの確認も、6組をprecompileの1回の呼び出しにまとめています。
 
