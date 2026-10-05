@@ -25,15 +25,17 @@ free: true
 ACTION=destroy-all
 ```
 
-`make destroy`は基盤とデフォルトの所有データを削除し、外部Tursoの行は保持します。`make destroy-all`は対象を確認して保持データと選択したTursoの行も消去します。destroy-allは配置済みstackから検証したTursoのDBと既存SSM parameterを使い、新しいtoken保存は行いません。問題環境は先に大会のTeardownで撤収してください。source bucketなど別途残る課金対象も確認します。
+`destroy-all`は、TenkaCloudの基盤stackと、そのstackが所有する保持データを削除します。S3 bucketの中身、DynamoDB table、logが対象です。Tursoを選んだ場合は、そのDBの競技データも削除します。このとき使うTursoのDBとSSM parameterは、配置済みのstackから読み取ります。新しいtokenは保存しません。
 
-`ACTION=destroy`でも、デフォルトではstackが所有するDynamoDB tableとデータを削除します。配置時に`RetainDataTables=true`を選んだ場合など、配置済みtemplateにRetain policyがあるときだけ保持されます。削除直前にlauncherの設定値を変えても配置済みpolicyは変わりません。履歴を残す目的でdestroyを選ぶ前に、配置済みpolicyとバックアップを確認します。通常のdestroyは外部Tursoの行を保持します。
+各チームの問題stackは、前の手順で削除が完了していることを確認してから実行します。
 
-古いlauncherを使っている場合は、`destroy-all`の実行前にその版が受け付けるActionと削除対象のstackを確認します。現行templateは`infrastructure/templates/cloud-pipeline.yaml`です。既存の物理名を維持してlauncher stackを更新します。古いbuildspecへ未知の`ACTION`を渡しません。
+`ACTION=destroy`も、デフォルトではstackが所有するDynamoDB tableとそのデータを削除します。DynamoDB tableが残るのは、配置時にlauncherの`RetainDataTables`を`true`にした場合だけです。この設定はデプロイ時にtemplateへ書き込まれるため、削除の直前に変えても効きません。履歴を残すために`destroy`を選ぶ場合は、先に配置済みの設定を確認し、バックアップを取ります。`destroy`は、Tursoの競技データを削除しません。
+
+古いlauncherを使っている場合は、`destroy-all`を実行する前に、そのlauncherのbuildspecが受け付ける`ACTION`と、削除するstackを確認します。現行のtemplateは`infrastructure/templates/cloud-pipeline.yaml`です。launcher stackは、名前を変えずにこのtemplateで更新します。古いbuildspecが受け付けない`ACTION`は渡さないでください。
 
 ## launcherを削除する
 
-TenkaCloudの削除が成功したら、デプロイに使ったlauncher stackをCloudFormationから削除します。既存環境の`tenkacloud-lite-launcher`などの物理名は変更せず、実際に配置したstackを確認します。
+TenkaCloudの削除が成功したら、デプロイに使ったlauncher stackをCloudFormationから削除します。LPの手順どおりに作った場合、stack名は`tenkacloud-lite-launcher`です。
 
 これにより、launcherが作成した次のリソースも削除されます。
 
@@ -43,16 +45,18 @@ TenkaCloudの削除が成功したら、デプロイに使ったlauncher stack�
 
 ## 最後に残存を確認する
 
-以下は既存環境の物理名の例です。新規環境では`tenkacloud-cloud`系になるため、配置時のstack名と削除planを照合して残存を確認します。
+次のstackが残っていないことを確認します。
 
 - 各チームの問題stack
-- `tenkacloud-lite`
-- `tenkacloud-lite-problem-deploy`
-- `tenkacloud-lite-launcher`
+- `tenkacloud-cloud`（既存環境では`tenkacloud-lite`）
+- `tenkacloud-cloud-problem-deploy`（既存環境では`tenkacloud-lite-problem-deploy`）
+- launcher stack（LPの手順では`tenkacloud-lite-launcher`）
 
-さらに、EC2 instance、DynamoDB table、S3の保持bucketとsource bucket、logを確認します。destroy-allでもRetain policyのbucket本体は残ります。イベント専用のbucketは所有者とバックアップを確認し、全versionとdelete markerを含む内容を消してからbucketを削除します。非公開Problem Packのarchiveを保存したsource bucketも対象です。次回のために残す場合は、保存期限と費用の確認担当者を記録します。
+さらに、EC2 instance、DynamoDB table、S3 bucket、logを確認します。Retain policyを持つS3 bucketは、`destroy-all`で中身が消えても、bucket自体は残ります。デプロイ用のsource bucketは、`destroy`と`destroy-all`のどちらを実行しても残ります。source bucketには、非公開Problem Packを含むsource archiveが入っている場合があります。
 
-CDKToolkitと共有asset、競技者bootstrapのRoleは基盤削除の対象外です。他のstackや大会が使っていないかを確認し、共有物はその管理者と保持・削除を決めます。Tursoを選んだ場合は対象DBの行も確認します。削除失敗がある場合は、CloudFormation eventとCodeBuild logを確認してから終了します。
+イベント専用のbucketは、所有者とバックアップを確認してから、全versionとdelete markerを含めて中身を消し、bucketを削除します。次のイベントのために残す場合は、保存期限と、費用を確認する担当者を記録します。
+
+CDKToolkit、共有のasset、競技者bootstrapで作ったRoleは、TenkaCloudの削除対象に含まれません。他のstackやイベントが使っていないかを確認し、残すか削除するかを、それぞれの管理者と決めます。Tursoを選んだ場合は、そのDBに競技データが残っていないかも確認します。削除に失敗したものがあれば、CloudFormation eventとCodeBuild logを確認してから作業を終えます。
 
 ## 振り返りを残す
 

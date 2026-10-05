@@ -16,9 +16,9 @@ free: true
 
 ## TenkaCloud
 
-- [ ] LPのCloud配置ガイドを最後まで実行した
-- [ ] 配置した基盤stackが作成完了している（新規は`tenkacloud-cloud`系、以下の`tenkacloud-lite`系は既存環境の例）
-- [ ] 選択layoutの問題配置stackが作成完了している
+- [ ] LPの「自分のTenkaCloudを立てる」を最後まで実行した
+- [ ] `tenkacloud-cloud`（既存環境では`tenkacloud-lite`）の作成が完了している
+- [ ] `tenkacloud-cloud-problem-deploy`（既存環境では`tenkacloud-lite-problem-deploy`）の作成が完了している
 - [ ] Application Admin Consoleへサインインできる
 - [ ] Participant Portalが開く
 - [ ] 本番用の`ProblemsRepoRef`を確認済みのtagかcommit SHAへ固定した
@@ -58,10 +58,10 @@ free: true
 - [ ] 公開portを`127.0.0.1`へbindしている
 - [ ] flagを実行ごとの`FLAG_SEED`から生成している
 - [ ] 不正解時に`/verify`が答えを漏らさない
-- [ ] `make local`の主催者キーでログインし、大会・チーム・`sqli-demo`を準備して開始できる
-- [ ] 参加者URLとチームキーで入り、Start/resumeでDocker環境を起動できる
+- [ ] `make local`が表示した主催者キーでログインし、イベント、チーム、`sqli-demo`を準備して開始できる
+- [ ] 参加者URLとチームキーでログインし、「起動・再開」でDocker環境を起動できる
 - [ ] Participant Portalから正答と誤答を確認した
-- [ ] `make down`で終了した
+- [ ] `make down`で停止した（データは残る。消去は`make local-clear`、主催者キーの再発行は`make local-reset`）
 
 ## 当日
 
@@ -77,16 +77,10 @@ free: true
 - [ ] 順位と必要な記録を保存した
 - [ ] 各チームの問題stackを削除した
 - [ ] CodeBuildで`ACTION=destroy-all`を実行した
-- [ ] 配置した基盤stackが残っていない
-- [ ] 選択layoutの問題配置stackが残っていない
-- [ ] デプロイに使ったlauncher stackを削除した
-- [ ] EC2、DynamoDB、S3、logと、選択したTursoの行の残存を確認した
-- [ ] 非公開source archiveと保持bucketを削除したか、保存期限と費用の確認担当者を決めた
-- [ ] 共有CDKToolkit、asset、競技者Roleの保持・削除を管理者と確認した
+- [ ] `tenkacloud-cloud`（既存環境では`tenkacloud-lite`）が残っていない
+- [ ] `tenkacloud-cloud-problem-deploy`（既存環境では`tenkacloud-lite-problem-deploy`）が残っていない
+- [ ] launcher stack（LPの手順では`tenkacloud-lite-launcher`）を削除した
+- [ ] EC2、DynamoDB、S3、logが残っていない。Tursoを選んだ場合は、そのDBに競技データが残っていない
+- [ ] 非公開のsource archiveと、残したS3 bucketを削除した。残す場合は、保存期限と費用を確認する担当者を決めた
+- [ ] CDKToolkit、共有asset、競技者用Roleを残すか削除するかを、それぞれの管理者と決めた
 - [ ] 次回直す問題文、ヒント、運営手順を記録した
-
-## 停止・消去・キー再発行の区別
-
-`make down`は停止操作です。大会、得点、キー、Dockerの書き込みレイヤーとvolumeを保持し、RAMは保持しません。同じデータディレクトリで`make local`を実行し、参加者がStart/resumeで再開します。
-
-`make local-clear`は確認後に競技データと所有するDocker問題データを消去します。`make local-reset`は主催者アクセスを再発行し、大会・参加者データを保持します。対話的な`make local`起動ごとに新しい主催者キーを一度表示し、古い主催者アクセスを失効させます。起動中の`make local-reset`は別の対話端末から同じデータディレクトリへ実行します。非TTY・public/container起動は既存キーを保持し、ログに表示しません。

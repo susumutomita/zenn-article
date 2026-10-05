@@ -189,7 +189,7 @@ TenkaCloud reads the published problem catalog through a Git submodule named `pr
 
 The completed `sqli-demo` built in this book is already published on TenkaCloudChallenge's `main` branch. You do not create an authoring branch in TenkaCloud. Start the organizer console and Participant Portal with `make local`. In an interactive terminal, startup displays a new organizer key once and invalidates the previous organizer access. Open the organizer URL and sign in with that key.
 
-Create an event and team, select `sqli-demo`, prepare the jobs, and start from Schedule. Join with the participant URL and team key, then choose Start/resume to start the Docker environment. Follow the `Web` endpoint to the login page.
+Create an event and team, select `sqli-demo`, prepare the problem environments, and start from Schedule. Join with the participant URL and team key, then choose Start / resume to start the Docker environment. Follow the `Web` endpoint to the login page.
 
 Verify the complete path:
 

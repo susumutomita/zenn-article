@@ -3,7 +3,7 @@ title: "問題を動かす場所を区別する"
 free: true
 ---
 
-TenkaCloudのCloud開催は、AWS上のLambda・Cognitoと、選択したTursoまたはDynamoDBで動きます。本書で配置するクラウド問題もAWS/CloudFormation形式です。Docker/Compose問題はLocal開催で使います。
+TenkaCloudのクラウド開催は、AWSのLambdaとCognitoに、選択したTursoまたはDynamoDBを組み合わせて動きます。本書でクラウドへ配置する問題も、AWSのCloudFormation形式です。Docker/Compose形式の問題は、ローカル開催で使います。
 
 最初に、手元のDockerでローカル問題を作ります。その後、AWS上にデプロイする問題を作ります。
 
@@ -24,7 +24,7 @@ TenkaCloudのCloud開催は、AWS上のLambda・Cognitoと、選択したTurso�
 
 ローカルモードでは、TenkaCloudのParticipant Portal、採点API、問題環境を1台のPCで動かします。AWSアカウントとAWS認証情報は使いません。
 
-Localも大会とチームを使います。開催者コンソールで大会・チーム・問題を選び、jobsを準備してScheduleから開始します。参加者URLとチームキーを渡し、参加者がStart/resumeでDocker環境を起動します。個人練習も1チームの大会として進めます。
+ローカルモードでも、イベントとチームを作ります。主催者がイベント、チーム、問題を選び、問題環境を準備してからイベントを開始します。主催者は参加者URLとチームキーを各チームへ渡し、参加者は「起動・再開」でDocker環境を起動します。1人で練習する場合も、1チームだけのイベントを作ります。
 
 本書で扱うローカルモードの操作対象は、Dockerコンテナ内で動くアプリケーションです。`local/docker-compose.yml`から、Webアプリケーションと採点用`/verify`を手元に起動します。
 
@@ -32,7 +32,7 @@ Localも大会とチームを使います。開催者コンソールで大会・
 
 ### 無料で始められる
 
-TenkaCloudと公開問題はOSSとして利用できます。ローカルモードではAWSリソースを作らないため、AWS利用料も発生しません。AWSアカウントやクレジットカードを用意せず、Dockerを動かせるPCで大会とチームを作成して始められます。
+TenkaCloudと公開問題はOSSとして利用できます。ローカルモードではAWSリソースを作らないため、AWS利用料も発生しません。AWSアカウントやクレジットカードを用意せずに、Dockerを動かせるPCでイベントとチームを作って始められます。
 
 ### アプリケーションだけでも練習できることは多い
 
@@ -53,9 +53,9 @@ TenkaCloudと公開問題はOSSとして利用できます。ローカルモー�
 
 ```text
 make local
-  → 開催者・参加者画面と採点処理を単一Bunプロセスで起動
-  → 開催者が大会とチームを作りjobsを準備、Scheduleから開始
-  → 参加者URLとチームキーでログイン、Start / resumeでDockerを起動
+  → 主催者画面、参加者画面、採点処理を1つのBunプロセスで起動
+  → 主催者がイベントとチームを作り、問題環境を準備して開始
+  → 参加者が参加者URLとチームキーでログインし、「起動・再開」でDockerを起動
   → 参加者の提出を問題コンテナの/verifyへ渡す
 ```
 
@@ -78,7 +78,7 @@ challenges/<問題ID>/
 
 ## 本書で使うAWS問題
 
-TenkaCloud全体がAWS専用という意味ではありません。本書では、実装するChallengeとBattleのクラウド環境としてAWSを使います。
+本書では、実装するChallengeとBattleのクラウド環境としてAWSを使います。
 
 本書のAWS問題では、`template.yaml`からチーム用AWSアカウントへCloudFormation stackを作ります。参加者は、問題専用の一時的な権限でAWS ConsoleまたはCLIを使います。
 
@@ -93,15 +93,15 @@ Application Admin Console
 
 複数チームへAWS問題を配るときは、TenkaCloudを運営者のAWSアカウントへデプロイします。
 
-TenkaCloudは、1人の運営者が自分のAWSアカウントで競技を開くための、開催者自身が管理するCloud構成です。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。
+クラウド開催では、1人の運営者が自分のAWSアカウントにTenkaCloudを構築して管理します。Application Admin Console、Participant Portal、採点、問題デプロイの処理をAWS上で動かします。基盤にはLambdaとCognitoを使い、データは選択したTursoまたはDynamoDBへ保存します。
 
-CloudはLambda・Cognitoと、選択したTursoまたはDynamoDBを使います。Local/Cloudが現行の開催方式です。既に配置した環境のstack名はそのまま使います。教材の問題名にliteが残っていても、開催方式はCloudです。
+LPの手順で作るlauncher stackの名前（`tenkacloud-lite-launcher`）には「lite」が残っていますが、作られるのはクラウド開催の環境です。
 
 ローカルモードと異なり、TenkaCloudの運営基盤と各チームの問題環境にはAWS利用料が発生します。デプロイ前に費用の対象と削除手順を確認し、イベント終了後は問題環境と運営基盤を片付けます。
 
 TenkaCloudをAWSへ作る手順は、ランディングページの問題として公開しています。
 
-[TenkaCloudのデプロイ問題を開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
+[「自分のTenkaCloudを立てる」を開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
 本書では、先に問題そのものを作ります。TenkaCloudのデプロイと複数チームへの配布は、ローカルChallenge、AWS Challenge、AWS Battleが完成した後に扱います。
 

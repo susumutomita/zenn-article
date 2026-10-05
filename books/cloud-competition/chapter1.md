@@ -38,7 +38,7 @@ flowchart LR
 
 問題の中身は、[TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge)という別のOSSで管理します。問題ごとに、参加者へ見せる文章、操作する環境、採点条件、ヒント、障害を1つのディレクトリへまとめます。
 
-読む前に動かしてみたい場合は、[デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面をそのまま触れます。[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)ではブラウザから開発環境を開けます。Docker問題を解く場合は、Dockerの起動と転送ポートへの接続も確認してください。本書の説明が具体的に何を指しているかは、実際の画面を見てからのほうが早く掴めます。
+読む前に動かしてみたい場合は、[デモポータル](https://tenkacloud.com/portal-demo/?demo=1)で参加者の画面をそのまま触れます。[GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud)では、ブラウザからTenkaCloudの開発環境を開けます。ただし、Codespaces上で問題を解く経路はTenkaCloud側でまだ検証中です。問題を解いて試すときは、手元のPCで`make local`を使ってください。本書の説明が具体的に何を指しているかは、実際の画面を見てからのほうが早く掴めます。
 
 役割の違いは次のとおりです。
 
@@ -105,7 +105,7 @@ Battleを最後にするのは、3問の中で最も多くの設計が必要だ�
 
 ## この後の流れ
 
-次章では、Local開催とCloud開催の違いを整理します。その後は、ローカルChallenge、AWS Challenge、AWS Battleを順番に設計して実装します。
+次章では、ローカル開催とクラウド開催の違いを整理します。その後は、ローカルChallenge、AWS Challenge、AWS Battleを順番に設計して実装します。
 
 3問が完成してから、TenkaCloudをAWSへデプロイし、AWS ChallengeとBattleを複数チームへ配ります。最後に、開催、障害注入、復旧、削除までを通します。
 

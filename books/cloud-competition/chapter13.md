@@ -5,13 +5,17 @@ free: true
 
 ここからは、作成したAWS問題を参加者へ届ける運営側の作業です。`hello-world`と`hello-world-battle`をチームへ配り、採点するため、TenkaCloudをAWSへデプロイします。
 
-## Cloud 開催とは
+## クラウド開催とは
 
-TenkaCloudの開催方式はLocalとCloudです。Localは単一のBunプロセスと永続SQLiteで大会を開催します。Cloudは自分のAWSアカウントでLambda・Cognitoを使い、保存先をTursoまたはDynamoDBから選びます。開催者と参加者の画面、チーム、採点、問題配置を提供します。
+TenkaCloudには、ローカル開催とクラウド開催の2つの開催方式があります。ローカル開催は、1台のPCで1つのBunプロセスと永続SQLiteを使います。クラウド開催は、自分のAWSアカウントにLambdaとCognitoで動く基盤を作り、データの保存先をTursoかDynamoDBから選びます。どちらの方式でも、主催者と参加者の画面、チーム管理、採点、問題の配置を使えます。
 
-AWSサービスを扱う問題はCloud、Docker/Compose問題はLocalで動かします。組み込みのCryptography Battleは両方で利用できます。現在のCloud構成はSBTを使いません。新規stackは`tenkacloud-cloud`系で、既存環境は配置済みの`tenkacloud-lite`系stackを使い続けます。名前を変えて別のstackを作らないでください。
+AWSのサービスを使う問題はクラウド開催で、Docker/Compose問題はローカル開催で動かします。組み込みのCryptography Battleは、どちらの方式でも使えます。
 
-環境ファイルで`CDK_PARAM_CONTROL_DATA_BACKEND=turso`または`dynamodb`を指定します。TursoはDB URLと既存のSSM token parameterが必要です。以前のCloud構成からのデータは自動移行されません。Cloud開催は統合検証中です。本書の問題を使って、参加者のアクセス、採点、撤収まで実際のAWSアカウントでリハーサルしてください。チーム数や配置できるtemplateの制限は、[現行の互換性ガイド](https://github.com/susumutomita/TenkaCloud/blob/main/docs/book-compatibility.md)で確認します。
+LPの手順で新しく作ると、基盤のstackは`tenkacloud-cloud`と`tenkacloud-cloud-problem-deploy`になります。以前のTenkaCloud Liteで作った環境は、`tenkacloud-lite`と`tenkacloud-lite-problem-deploy`の名前のまま更新します。既存環境があるAWSアカウントに、`tenkacloud-cloud`という名前の別のstackを追加しないでください。
+
+データの保存先は、launcherのparameter`ControlDataBackend`で選びます。デフォルトは`dynamodb`です。`turso`を選ぶ場合は、先にTursoのtokenをSSM parameterへ保存しておきます。`TursoDatabaseUrl`にはDBのURLを、`TursoAuthTokenParameterName`にはそのSSM parameterの名前を指定します。以前のクラウド構成のデータは、新しい構成へ自動では移行されません。
+
+クラウド開催は、TenkaCloud側でまだ統合検証中の候補版です。実際のAWSでのイベント全体のリハーサルと、Battleへの同時アクセスの性能は、検証が残っています。開催前に、本書の問題を使って、参加者のアクセス、採点、撤収までを自分のAWSアカウントでリハーサルしてください。チーム数や配置できるtemplateの制限は、[現行の互換性ガイド](https://github.com/susumutomita/TenkaCloud/blob/main/docs/book-compatibility.md)で確認します。
 
 ## デプロイ前に費用と終了方法を確認する
 
@@ -32,7 +36,7 @@ TenkaCloudはOSSですが、実行場所は実際のAWSです。ソフトウェ�
 1. 各チームへデプロイした問題stackを削除する
 2. CodeBuildで`ACTION=destroy-all`を実行し、TenkaCloud本体と保持データを削除する
 3. 削除が完了したことを確認してからlauncher stackを削除する
-4. CloudFormation、EC2、DynamoDB、logを確認し、残存リソースがないことを確かめる
+4. CloudFormation、EC2、DynamoDB、S3、logと、Tursoを選んだ場合はそのDBを確認し、残存リソースがないことを確かめる
 
 launcherは、TenkaCloudを削除する入口です。`destroy-all`が成功する前にlauncherを削除すると、削除をやり直す手順が増えます。
 
@@ -42,7 +46,7 @@ launcherは、TenkaCloudを削除する入口です。`destroy-all`が成功す�
 
 TenkaCloudのランディングページには、AWS上へTenkaCloudをデプロイする手順を問題形式で用意しています。
 
-[TenkaCloudのCloud配置ガイドを開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
+[「自分のTenkaCloudを立てる」を開く](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
 この問題は、自分のAWSアカウントへTenkaCloudを作るための案内です。前章で作ったDocker問題を動かすローカルモードとは別の入口です。
 
@@ -57,25 +61,25 @@ TenkaCloudのランディングページには、AWS上へTenkaCloudをデプロ
 
 ## launcherとTenkaCloudを分けて考える
 
-`infrastructure/templates/cloud-pipeline.yaml`からlauncher stackを作ります。TenkaCloud本体とは別です。既存環境の物理名の例は`tenkacloud-lite-launcher`です。TenkaCloudのソースと問題カタログを取得し、デプロイを実行するCodeBuild projectを作ります。
+launcher stackは、`infrastructure/templates/cloud-pipeline.yaml`から作ります。LPの手順では、stack名を`tenkacloud-lite-launcher`にします。名前に「lite」が残っていますが、作られるのはクラウド開催の環境です。
 
-以下の図には既存環境のstack名を使っています。新規配置の`tenkacloud-cloud`系と取り違えず、実際のstack名を使います。
+launcherはTenkaCloud本体ではありません。TenkaCloudのソースと問題カタログを取得し、デプロイを実行するCodeBuild projectを作ります。
 
 ```mermaid
 flowchart LR
     Template["cloud-pipeline.yaml"]
     Launcher["tenkacloud-lite-launcher"]
     Build["CodeBuild"]
-    Lite["tenkacloud-lite"]
-    Problem["tenkacloud-lite-problem-deploy"]
+    Platform["tenkacloud-cloud"]
+    Problem["tenkacloud-cloud-problem-deploy"]
 
     Template --> Launcher
     Launcher --> Build
-    Build --> Lite
+    Build --> Platform
     Build --> Problem
 ```
 
-launcher stackの`StartBuildConsoleUrl`からCodeBuildを開き、`Start build`を実行すると、TenkaCloudの2 stackが作られます。
+launcher stackの`StartBuildConsoleUrl`からCodeBuildを開き、`Start build`を実行します。CodeBuildが`tenkacloud-cloud`と`tenkacloud-cloud-problem-deploy`の2つのstackを作ります。
 
 この手動操作によって、課金の発生するデプロイを明示的に開始します。launcherの作成だけでTenkaCloud本体が起動することはありません。
 
@@ -96,10 +100,10 @@ launcher stackの`StartBuildConsoleUrl`からCodeBuildを開き、`Start build`�
 
 ## デプロイ完了を確認する
 
-CodeBuildの最後に、Application Admin ConsoleとParticipant PortalのURLが表示されます。同じURLは、配置したCloudFormation stackのOutputでも確認できます。以下は既存環境の物理名の例です。
+CodeBuildの最後に、Application Admin ConsoleとParticipant PortalのURLが表示されます。同じURLは、次のCloudFormation stackのOutputでも確認できます。既存環境では、`tenkacloud-lite`と`tenkacloud-lite-problem-deploy`です。
 
-- `tenkacloud-lite`
-- `tenkacloud-lite-problem-deploy`
+- `tenkacloud-cloud`
+- `tenkacloud-cloud-problem-deploy`
 
 `TenantAdminEmail`へ届いた案内を使い、Application Admin Consoleへサインインします。
 

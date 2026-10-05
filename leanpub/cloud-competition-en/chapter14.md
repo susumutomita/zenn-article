@@ -32,7 +32,7 @@ This template creates `TenkaCloud-CompetitorDeploy-Role`. Its trust policy accep
 
 Register the role ARN created in the team account with the Application Admin Console.
 
-Use the existing SSM value for bootstrap, in the region where the problems will be deployed. This deployment-role value is separate from the participant-role `ExternalId` created by the problem template.
+Use the existing SSM value for bootstrap. This deployment-role value is separate from the participant-role `ExternalId` created by the problem template. Run the bootstrap once per AWS account, in a single region. IAM roles are global, so teams that deploy problems to other regions use the same role.
 
 The earlier chapter, “How TenkaCloud Accesses Team AWS Accounts,” explained why the role exists and how `ExternalId` works. For an implementation-level explanation, see the [Japanese-language article on TenkaCloud's cross-account design](https://zenn.dev/bull/articles/tenkacloud-cross-account-deploy).
 

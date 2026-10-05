@@ -33,7 +33,7 @@ For an older launcher, first check which actions its buildspec accepts and which
 
 ## Delete the Launcher
 
-After TenkaCloud has been removed successfully, delete the deployed launcher stack from CloudFormation. Preserve existing physical names such as `tenkacloud-lite-launcher` when identifying the stack.
+After TenkaCloud has been removed successfully, delete the deployed launcher stack from CloudFormation. If you followed the tutorial, the stack is named `tenkacloud-lite-launcher`.
 
 This also removes:
 
@@ -43,12 +43,12 @@ This also removes:
 
 ## Check for Leftover Resources
 
-Match the deployed stack names against the deletion plan. These are examples of existing physical names; new environments use `tenkacloud-cloud` names:
+Confirm that none of these stacks remain:
 
 - Problem stacks in each team account
-- `tenkacloud-lite`
-- `tenkacloud-lite-problem-deploy`
-- `tenkacloud-lite-launcher`
+- `tenkacloud-cloud` (`tenkacloud-lite` in an existing environment)
+- `tenkacloud-cloud-problem-deploy` (`tenkacloud-lite-problem-deploy` in an existing environment)
+- The launcher stack (`tenkacloud-lite-launcher` in the tutorial)
 
 Also check EC2 instances, DynamoDB tables, retained S3 buckets, source buckets, and logs. A Retain-policy bucket itself can remain after `destroy-all`. For an event-only bucket, confirm ownership and backups, remove all object versions and delete markers, then delete the bucket. Include source archives containing private Problem Packs. If you retain a bucket for another event, record its expiry date and who will review its cost.
 

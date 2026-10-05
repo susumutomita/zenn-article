@@ -31,9 +31,9 @@ TenkaCloudが読み込む公開問題カタログです。1問を1ディレク�
 
 参加者が問題文、ヒント、提出欄、endpoint登録、得点を確認する画面です。
 
-## 開催方法
+## ローカル開催とクラウド開催
 
-Cloud開催はLambda・Cognitoと選択したTurso/DynamoDBで大会を運営します。Local開催は単一Bunプロセスと永続SQLiteです。
+TenkaCloudの2つの開催方式です。ローカル開催は、1台のPCで1つのBunプロセスと永続SQLiteを使います。クラウド開催は、自分のAWSアカウントでLambdaとCognitoを使い、データをTursoかDynamoDBへ保存します。
 
 ## ローカルモード
 
@@ -41,7 +41,7 @@ TenkaCloudの採点API、Participant Portal、Docker問題を手元で動かす�
 
 ## Problem Pack
 
-公開カタログへ登録せず、企業内の問題や公開前のイベント問題を管理する単位です。Cloudは有効化済みのAWS/CloudFormation Packを配置時に読み込みます。Localは手元の`problems/`を読み、Pack storeには未接続です。
+公開カタログへ登録せずに、社内向けの問題やイベント後に公開する予定の問題を管理する単位です。クラウド開催は、有効化したAWS/CloudFormationのPackを次のデプロイで読み込みます。ローカル開催はPackを読まず、手元の`problems/`にある問題を使います。
 
 ## `metadata.json`
 
@@ -81,7 +81,7 @@ TenkaCloudがHTTP要求を送り、サービスの状態を確認するURLです
 
 ## `uptime-flat`
 
-複数のendpointを個別に確認し、正常状態を継続的に採点する方式です。
+登録済みのendpointを定期的に確認し、すべて正常なら加点する継続採点の方式です。
 
 ## disruption
 
@@ -109,7 +109,7 @@ TenkaCloudをデプロイするCodeBuild projectを作るCloudFormation stackで
 
 ## `destroy-all`
 
-選択したクラウド基盤の保持データとTursoの行も確認後に削除する操作です。通常のdestroyは外部Turso行を保持します。
+TenkaCloudの基盤stackに加えて、stackが所有する保持データと、Tursoを選んだ場合はそのDBの競技データも削除する操作です。通常の`destroy`は、Tursoの競技データを残します。
 
 ## `runtime`
 

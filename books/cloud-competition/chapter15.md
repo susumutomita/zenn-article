@@ -71,7 +71,7 @@ sudo systemctl status nginx
 
 当日は、次の順で進めます。
 
-1. TenkaCloudの2 stackが正常であることを確認する
+1. TenkaCloudの2つのstackが正常であることを確認する
 2. Application Admin ConsoleとParticipant Portalを開く
 3. 全チームの問題stackが作成済みであることを確認する
 4. Participant PortalのURLとログイン鍵を配る

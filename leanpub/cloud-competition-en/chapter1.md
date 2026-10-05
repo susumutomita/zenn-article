@@ -38,7 +38,7 @@ Participants use the Participant Portal to read a problem and its hints, submit 
 
 The problem content lives in a separate open-source project called [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge). Each problem keeps its participant-facing text, environment, scoring conditions, hints, and faults in one directory.
 
-If you would rather see it before reading about it, the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) puts you in the participant's screen directly, and [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud) opens a development environment in the browser. For Docker problems, also check that Docker starts and the forwarded ports are reachable. Most of what this book describes is quicker to recognise once you have seen the actual screen.
+If you would rather see it before reading about it, the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) puts you in the participant's screen directly, and [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud) opens a development environment in the browser. Solving problems inside Codespaces is still being verified by the TenkaCloud project, so use `make local` on your own computer to try a problem. Most of what this book describes is quicker to recognise once you have seen the actual screen.
 
 The responsibilities are separated like this:
 

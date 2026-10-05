@@ -81,7 +81,7 @@ A URL that TenkaCloud probes over HTTP to observe service state. A participant m
 
 ## `uptime-flat`
 
-A scoring method that checks several endpoints independently and continuously awards points for healthy state.
+A continuous scoring method that checks each registered endpoint on a schedule and awards points when all of them are healthy.
 
 ## disruption
 

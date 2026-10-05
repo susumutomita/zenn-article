@@ -11,7 +11,7 @@ Cloud hosting provides the organizer console, Participant Portal, event and team
 
 The AWS problems in this book require Cloud hosting. Docker/Compose exercises run locally. The previous SaaS control plane and tenant-provisioning pipeline are not part of the current hosting configuration. Existing stack names may still contain `lite`; use the physical names shown by the deployed environment.
 
-Cloud hosting remains an integration candidate. Rehearse participant access, scoring, and teardown in the intended AWS accounts before an event.
+Cloud hosting remains an integration candidate: a full live-AWS event rehearsal and Battle load capacity are still unverified. Rehearse participant access, scoring, and teardown in the intended AWS accounts before an event.
 
 ## Review Cost and Cleanup Before Deployment
 
@@ -42,7 +42,7 @@ For a guided cleanup, open [Clean Up TenkaCloud](https://www.tenkacloud.com/port
 
 The TenkaCloud landing page provides an interactive tutorial for deploying TenkaCloud to AWS:
 
-[Open Deploy TenkaCloud](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
+[Open “Deploy your own TenkaCloud”](https://www.tenkacloud.com/portal-demo/?demo=1&goto=%2Fproblems%2F01HZX0KZZ3DR0PW9M4Q7XV2C5D)
 
 This tutorial guides you through creating TenkaCloud in your AWS account. It is separate from local mode, which runs the earlier Docker problem on one computer.
 
@@ -57,23 +57,23 @@ This chapter explains what each step creates and why. Follow the landing-page tu
 
 ## Distinguish the Launcher from TenkaCloud
 
-The first stack, `tenkacloud-lite-launcher`, is not TenkaCloud itself. It creates a CodeBuild project that fetches the TenkaCloud source and problem catalog, then performs the deployment.
+Create the launcher stack from `infrastructure/templates/cloud-pipeline.yaml`. The tutorial names it `tenkacloud-lite-launcher`; the name still contains `lite`, but it creates a Cloud hosting environment. The launcher is not TenkaCloud itself. It creates a CodeBuild project that fetches the TenkaCloud source and problem catalog, then performs the deployment.
 
 ```mermaid
 flowchart LR
     Template["cloud-pipeline.yaml"]
     Launcher["tenkacloud-lite-launcher"]
     Build["CodeBuild"]
-    Lite["tenkacloud-lite"]
-    Problem["tenkacloud-lite-problem-deploy"]
+    Platform["tenkacloud-cloud"]
+    Problem["tenkacloud-cloud-problem-deploy"]
 
     Template --> Launcher
     Launcher --> Build
-    Build --> Lite
+    Build --> Platform
     Build --> Problem
 ```
 
-Open CodeBuild from the launcher's `StartBuildConsoleUrl` output and choose `Start build`. CodeBuild then creates the TenkaCloud stacks.
+Open CodeBuild from the launcher's `StartBuildConsoleUrl` output and choose `Start build`. CodeBuild then creates `tenkacloud-cloud` and `tenkacloud-cloud-problem-deploy`.
 
 This manual action makes the start of the billable deployment explicit. Creating the launcher alone does not start TenkaCloud.
 
@@ -94,10 +94,10 @@ The two AWS problems built in this book already exist in the official catalog, s
 
 ## Confirm the Deployment
 
-At the end of the CodeBuild run, the logs display the URLs for the Application Admin Console and Participant Portal. The same URLs are available in the outputs of these CloudFormation stacks:
+At the end of the CodeBuild run, the logs display the URLs for the Application Admin Console and Participant Portal. The same URLs are available in the outputs of these CloudFormation stacks. An existing environment keeps the names `tenkacloud-lite` and `tenkacloud-lite-problem-deploy`.
 
-- `tenkacloud-lite`
-- `tenkacloud-lite-problem-deploy`
+- `tenkacloud-cloud`
+- `tenkacloud-cloud-problem-deploy`
 
 Select Turso or DynamoDB in the deployment configuration. If using Turso, configure its database URL and an existing SSM token parameter before deployment; follow the [current infrastructure guide](https://github.com/susumutomita/TenkaCloud/blob/main/infrastructure/README.md). The launcher may bootstrap CDKToolkit when missing; review its CodeBuild role and permissions before deployment.
 

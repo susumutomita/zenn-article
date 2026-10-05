@@ -24,7 +24,7 @@ The first problem, `sqli-demo`, is a local Challenge that runs in Docker. The se
 
 Local mode runs TenkaCloud's Participant Portal, scoring API, and problem environment on one computer. It does not use an AWS account or AWS credentials.
 
-Local hosting uses events and teams. The organizer creates an event, teams, and selected problems, prepares the jobs, and starts the event from Schedule. Participants join with the participant URL and team key, then use Start/resume to start their Docker environment. Individual practice uses an event with one team.
+Local hosting uses events and teams. The organizer creates an event, teams, and selected problems, prepares the problem environments, and starts the event from Schedule. Participants join with the participant URL and team key, then use Start / resume to start their Docker environment. Individual practice uses an event with one team.
 
 Because the same problem can be restarted from the beginning, local mode works well as a drill after reading a lesson or as practice for an unfamiliar operation.
 
@@ -56,7 +56,7 @@ TenkaCloudChallenge starts a local environment from `local/docker-compose.yml`.
 ```text
 make local
   → start the organizer console and Participant Portal
-  → create an event, team, and problem jobs
+  → create an event, team, and problem environments
   → start the event from Schedule
   → participants use Start/resume to start their Docker environment
   → forward submissions to the team’s /verify endpoint
@@ -81,7 +81,7 @@ With a local problem, a participant can read the scenario, operate the applicati
 
 ## The AWS Problems in This Book
 
-TenkaCloud itself is not AWS-only. This book simply uses AWS as the cloud environment for the Challenge and Battle we implement.
+This book uses AWS as the cloud environment for the Challenge and Battle we implement.
 
 For these AWS problems, `template.yaml` creates a CloudFormation stack in each team's AWS account. Participants use the AWS Console or CLI through temporary, problem-specific permissions.
 

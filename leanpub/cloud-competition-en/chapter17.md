@@ -113,8 +113,8 @@ The skill asks for one of these scoring methods:
 
 | Scoring method | Use |
 | --- | --- |
-| `uptime-flat` | Score several endpoints independently |
-| `uptime-multi` | Award points only when every endpoint is healthy |
+| `uptime-flat` | Award points when every registered endpoint is healthy |
+| `uptime-multi` | Check every declared endpoint and treat an unregistered one as a failure |
 | `phased-polling` | Change scoring conditions over time |
 | `attack-detection` | Convert statistics such as detection counts into points |
 
@@ -160,7 +160,7 @@ Start a local problem from the root of the TenkaCloud repository:
 make local
 ```
 
-Use the organizer key displayed at startup to create an event and team, select the new problem, prepare the jobs, and start from Schedule. Join the Participant Portal with the team key and use Start/resume. Confirm that the intended solution earns points and an incorrect submission does not. When finished:
+Use the organizer key displayed at startup to create an event and team, select the new problem, prepare the problem environments, and start from Schedule. Join the Participant Portal with the team key and use Start / resume. Confirm that the intended solution earns points and an incorrect submission does not. When finished:
 
 ```bash
 make down
@@ -189,7 +189,7 @@ None of the three problems in this book began with “Which AWS service should I
 
 Finishing the book is not the end state. This order gets what you have read into something running in your own environment.
 
-1. Try it. Open the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) to use the participant's screen, or open a development environment with [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud). For Docker problems, verify Docker startup and forwarded-port access.
+1. Try it. Open the [demo portal](https://tenkacloud.com/portal-demo/?demo=1) to use the participant's screen, or open a development environment with [GitHub Codespaces](https://codespaces.new/susumutomita/TenkaCloud). Solving problems inside Codespaces is still being verified.
 2. Run it. Clone [TenkaCloud](https://github.com/susumutomita/TenkaCloud) and start a local problem with `make local`. Chapters 3 and 4 cover this stage.
 3. Build one. Add a problem to [TenkaCloudChallenge](https://github.com/susumutomita/TenkaCloudChallenge). The existing problem directories read as templates, and `make agent-gate` is the completion contract.
 4. Host one. Deploy TenkaCloud Cloud hosting to AWS, register teams, and run the event. Chapter 10 onwards covers this stage.

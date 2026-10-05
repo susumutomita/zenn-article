@@ -16,9 +16,9 @@ free: true
 
 ## Cloud Hosting
 
-- [ ] The `deploy-tenkacloud-lite` tutorial is complete.
-- [ ] The deployed Cloud stack is in a completed state; existing physical names may contain `lite`.
-- [ ] The deployed problem-deployment stack is in a completed state.
+- [ ] The “Deploy your own TenkaCloud” tutorial is complete.
+- [ ] `tenkacloud-cloud` (`tenkacloud-lite` in an existing environment) is in a completed state.
+- [ ] `tenkacloud-cloud-problem-deploy` (`tenkacloud-lite-problem-deploy` in an existing environment) is in a completed state.
 - [ ] The organizer can sign in to the Application Admin Console.
 - [ ] The Participant Portal opens.
 - [ ] The production `ProblemsRepoRef` is pinned to a reviewed tag or commit SHA.
@@ -58,7 +58,7 @@ free: true
 - [ ] Published ports bind to `127.0.0.1`.
 - [ ] The flag is generated from a new `FLAG_SEED` for each run.
 - [ ] `/verify` does not reveal the answer after an incorrect submission.
-- [ ] `make local` starts the organizer console and Portal; an event, team, and problem jobs have been prepared.
+- [ ] `make local` starts the organizer console and Portal; an event, team, and problem environments have been prepared.
 - [ ] The participant joins with a team key and starts the Docker environment with Start/resume.
 - [ ] Correct and incorrect submissions were tested through the Participant Portal.
 - [ ] `make down` stops the environment while preserving progress; clear and key reset are separate operations.
@@ -77,9 +77,9 @@ free: true
 - [ ] Standings and required records are saved.
 - [ ] Problem stacks are deleted from every team.
 - [ ] `ACTION=destroy-all` has run in CodeBuild.
-- [ ] `tenkacloud-lite` no longer exists.
-- [ ] `tenkacloud-lite-problem-deploy` no longer exists.
-- [ ] `tenkacloud-lite-launcher` is deleted.
+- [ ] `tenkacloud-cloud` (`tenkacloud-lite` in an existing environment) no longer exists.
+- [ ] `tenkacloud-cloud-problem-deploy` (`tenkacloud-lite-problem-deploy` in an existing environment) no longer exists.
+- [ ] The launcher stack (`tenkacloud-lite-launcher` in the tutorial) is deleted.
 - [ ] EC2, DynamoDB, S3, logs, and selected Turso competition rows have been checked.
 - [ ] Private source archives and retained buckets have been deleted or assigned a retention period and cost owner.
 - [ ] Shared CDKToolkit, assets, and competitor roles have an agreed retention or deletion decision.
