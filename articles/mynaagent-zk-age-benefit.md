@@ -34,13 +34,40 @@ Claudeは給付の検索、申請作成、証明作成の依頼、証明の提�
 
 ## ProveKitでGroth16を使った理由
 
-端末上の証明生成には、ProveKitのGroth16バックエンドを使いました。必要だったのは、iPhoneで生成した証明をSolidityのコントラクトで検証し、給付まで実行することでした。
+証明の生成と検証には、World Foundationの[ProveKit](https://github.com/worldfnd/provekit)を使い、バックエンドにはGroth16を選びました。iPhoneで作った証明をSolidityのコントラクトで検証し、同じトランザクションでJPYCを払うところまで、この組み合わせで動かせたからです。
 
-ZeroKeyMateで調べたWHIRは、同じ年齢回路と公開された合成入力で、証明生成とローカル検証まで動いています。ただ、採用したProveKitの実験ブランチ、revision `dd237e5`では、gnark向けexporterの出力は、Goの再帰verifierが要求する形式と合いませんでした。transcriptや設定の項目が不足し、WHIRの証明をEVM向けにラップするところまで進めませんでした。
+ProveKitには、次の3つの作業を任せています。
 
-当時調べた上流mainも、新しいプロトコル設定でのgnark exportを明示的に未対応としていました。一方、Groth16ではSolidity verifierの出力から実際のEVM検証まで通せたため、この給付デモにはGroth16を使いました。[WHIR比較の記録](https://github.com/susumutomita/ZeroKeyMate/blob/d78122c5f2e2b490356419d054e80ecebbdde74c/docs/age-proof-benchmark.md)にも、この制約を残しています。
+1. `prepare`で、Noirの回路をR1CSに変換し、Groth16の証明鍵と検証鍵を作ります。
+2. ProveKitのproverをRustのライブラリとしてビルドし、MynaWalletのExpoモジュールから呼んでiPhone上で証明を作ります。
+3. `export-solidity`で、検証鍵からSolidityのverifierを生成します。生成したverifierはPolygon Amoyにデプロイしました。
 
-WHIRの比較はMacとSimulator上の合成入力によるものです。実カードでのプライバシーやiPhone実機の性能まで確認した結果ではありません。Groth16を選んだ理由は、この版でオンチェインの給付までつなげられたことです。
+給付1件の`claim()`には669,349 gasかかり、そのうち証明の検証はフォーク上の見積もりで約37万gasです。
+
+使ったのは、Groth16とBSB22コミットメントのSolidity verifierを加える[PR #447](https://github.com/worldfnd/provekit/pull/447)のrevision `dd237e5`です。このPRは執筆時点でもマージされておらず、上流のmainには入っていません。
+
+この版のGroth16は、回路内のチャレンジを作るために、秘密のwitnessに対するPedersenコミットメント（BSB22）を証明に含めます。このコミットメントには乱数のマスクが入っていませんでした。gnarkでは、同じ形のコミットメントからwitnessの値を総当たりで推測できる問題が報告されています（[GHSA-9xcg-3q8v-7fq6](https://github.com/advisories/GHSA-9xcg-3q8v-7fq6)）。
+
+年齢の回路は生年月日を秘密の入力に持つので、ZeroKeyMateでgnarkの修正に倣った[パッチ](https://github.com/susumutomita/ZeroKeyMate/blob/d78122c5f2e2b490356419d054e80ecebbdde74c/patches/provekit-groth16-hiding.patch)を書いて当てました。パッチは、コミットメントの対象に乱数のwireを1本加え、証明を作るたびに新しい乱数を入れます。セットアップでは、このwireの基底がゼロでないことを確かめます。デプロイしたverifierも、このパッチを当てた状態で生成しています。
+
+## WHIRを使わなかった理由
+
+ZeroKeyMateでは、同じ`jpki_age`回路と公開の合成データで、同じrevisionのWHIRとGroth16を比べました。Apple M5のMacでRayonのスレッドを2つに固定し、それぞれ2回ずつ試しています。
+
+| バックエンド | 証明 | 検証 | 証明ファイル |
+| --- | --- | --- | --- |
+| WHIR | 6.2秒 / 5.8秒 | 0.73秒 / 0.72秒 | 約3.3 MB |
+| Groth16 | 10.2秒 / 9.7秒 | 0.18秒 / 0.19秒 | 299 bytes |
+
+証明の時間は、CLIの起動から鍵の読み込み、witnessの計算、ファイルの書き出しまでを含みます。ファイルの大きさはProveKitの圧縮形式のもので、EVMに渡す384 bytesの形式とは別です。
+
+Macの計測ではWHIRのほうが証明は速かったのですが、この版にはWHIRの証明をEVMで検証する手段がありませんでした。EVMで検証するには、WHIRの検証をgnarkの再帰回路で行い、その結果をGroth16の証明に包む必要があります。
+
+`dd237e5`の`generate-gnark-inputs`は動き、`narg_string`と`hints`を含むJSONを出力しました。ただし出力には、Goの再帰verifierが読む`io_pattern`と`transcript`がありませんでした。`transcript_len`やhiding-Spartanの設定、statementの評価値も欠けていました。そのため、ラップした証明は作れず、EVMでのWHIRの検証もしていません。
+
+2026年9月13日に確認した上流のmain（`11fba77`）も、ZookコミットメントとGoのverifierをそろえて更新するまで、gnark向けのexportを受け付けないとしていました。
+
+WHIRの比較は、MacとSimulator上の合成データによるものです。iPhone実機でのWHIRの速さと、実カードのデータでのWHIRのゼロ知識性は確かめていません。比較の手順は[WHIR比較の記録](https://github.com/susumutomita/ZeroKeyMate/blob/d78122c5f2e2b490356419d054e80ecebbdde74c/docs/age-proof-benchmark.md)に、計測値は[issue #54](https://github.com/susumutomita/ZeroKeyMate/issues/54)に残しています。
 
 ## 証明を別の給付に使い回せないようにした
 
