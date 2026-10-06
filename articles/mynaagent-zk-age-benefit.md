@@ -3,7 +3,7 @@ title: "MynaAgentを作った：マイナンバーカードの年齢証明から
 emoji: "🪪"
 type: "tech"
 topics: [AI, ZK, Solidity, blockchain, マイナンバーカード]
-published: false
+published: true
 ---
 
 ETHGlobal Tokyo 2026で、MynaWalletの中で動くAIエージェント、MynaAgentを作りました。「受け取れる給付を探して」と頼むと、給付の条件を調べ、本人の同意を得て申請を進めます。
