@@ -13,7 +13,7 @@ importers:
     dependencies:
       zenn-cli:
         specifier: ^0.5.4
-        version: 0.5.4
+        version: 0.5.4(supports-color@7.2.0)
     devDependencies:
       '@textlint-ja/textlint-rule-preset-ai-writing':
         specifier: ^1.6.1
@@ -25,11 +25,11 @@ importers:
         specifier: 30.1.1
         version: 30.1.1
       mermaid:
-        specifier: 12.0.0
-        version: 12.0.0
+        specifier: 12.1.0
+        version: 12.1.0
       textlint:
         specifier: ^15.8.0
-        version: 15.8.0
+        version: 15.8.0(supports-color@7.2.0)
       textlint-rule-no-mixed-zenkaku-and-hankaku-alphabet:
         specifier: ^1.0.1
         version: 1.0.1
@@ -41,10 +41,10 @@ importers:
         version: 3.0.3
       textlint-rule-preset-ja-technical-writing:
         specifier: ^8.0.0
-        version: 8.0.0(textlint@15.8.0)
+        version: 8.0.0(supports-color@7.2.0)(textlint@15.8.0(supports-color@7.2.0))
       textlint-rule-spellcheck-tech-word:
         specifier: ^5.0.0
-        version: 5.0.0(textlint@15.8.0)
+        version: 5.0.0(textlint@15.8.0(supports-color@7.2.0))
 
 packages:
 
@@ -137,20 +137,20 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@chevrotain/cst-dts-gen@11.1.2':
-    resolution: {integrity: sha512-XTsjvDVB5nDZBQB8o0o/0ozNelQtn2KrUVteIHSlPd2VAV2utEb6JzyCJaJ8tGxACR4RiBNWy5uYUHX2eji88Q==}
+  '@chevrotain/cst-dts-gen@13.2.0':
+    resolution: {integrity: sha512-bA9dvWlhAUcHkNwU+8w9yiUxJPlj/Lm3VqS7MD+NbIR/7LmpNLuK/AWNFdCo/T3SK5ND0/UHf3IJvl/Jn/i6yg==}
 
-  '@chevrotain/gast@11.1.2':
-    resolution: {integrity: sha512-Z9zfXR5jNZb1Hlsd/p+4XWeUFugrHirq36bKzPWDSIacV+GPSVXdk+ahVWZTwjhNwofAWg/sZg58fyucKSQx5g==}
+  '@chevrotain/gast@13.2.0':
+    resolution: {integrity: sha512-bCARdAsG+eEbOveSXcOAC7pVxA04I1ionzeMOwIYf5NX7SaS7zgn4Dgug2BSqoL+iyKeMNSorQjsFSHJHsCNwg==}
 
-  '@chevrotain/regexp-to-ast@11.1.2':
-    resolution: {integrity: sha512-nMU3Uj8naWer7xpZTYJdxbAs6RIv/dxYzkYU8GSwgUtcAAlzjcPfX1w+RKRcYG8POlzMeayOQ/znfwxEGo5ulw==}
+  '@chevrotain/regexp-to-ast@13.2.0':
+    resolution: {integrity: sha512-kxpUkLtiaK09ph+dib+Yvm+3sWSnuwlo25gqfKRgTPNmF6H7uW4gVkMjaRdtnN783S9sM6vUNWh9CsxYX4QwKw==}
 
-  '@chevrotain/types@11.1.2':
-    resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
+  '@chevrotain/types@13.2.0':
+    resolution: {integrity: sha512-7qrYHRlKfWf2AvBfJi5eVOrKAkbxvMFsy/iIHTGIiApNcEecCaVIdR+mIQhyCBsTDJxBz4JWXHMo6krbhR9hVg==}
 
-  '@chevrotain/utils@11.1.2':
-    resolution: {integrity: sha512-4mudFAQ6H+MqBTfqLmU7G1ZwRzCLfJEooL/fsF6rCX5eePMbGhoy5n4g+G4vlh2muDcsCTJtL+uKbOzWxs5LHA==}
+  '@chevrotain/utils@13.2.0':
+    resolution: {integrity: sha512-SzKYY68rseOrb9KILVzPsl6SjkQtdWw01SRGB5aCVI5kFcHltQsOYV3JB0Ffst72DgkvHCyDQ0NLwxtmCCf97Q==}
 
   '@csstools/color-helpers@6.1.2':
     resolution: {integrity: sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow==}
@@ -227,8 +227,8 @@ packages:
   '@kvs/types@2.1.4':
     resolution: {integrity: sha512-XtTOUatnJrDcuYNPfN+9x1xuVp11IuyPi9zOLVJPpfnKp+vUCatka/Crp2cfz0uKt4QE1Pb4Dg/TNYgVYA2Org==}
 
-  '@mermaid-js/parser@2.0.0':
-    resolution: {integrity: sha512-K8BeapFUfrfxbRAUQAG5oBOCwo1+bNWzaVnPxTCutkfrTBn6T/j91FIhqxWJ32SUeQ9T3iy1zcmPZ5ROZEvDrg==}
+  '@mermaid-js/parser@2.0.1':
+    resolution: {integrity: sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==}
     engines: {node: '>=22.12.0'}
 
   '@modelcontextprotocol/core@2.0.0':
@@ -640,8 +640,9 @@ packages:
   check-ends-with-period@3.0.2:
     resolution: {integrity: sha512-/Bw+avucqqZ7PjKCVDod1QDGyZjo7Ht2701pdgcpTXzK5jI73/OUh3VR+m18jNUoJx5DSOUv0AxELZF7FYtcDA==}
 
-  chevrotain@11.1.2:
-    resolution: {integrity: sha512-opLQzEVriiH1uUQ4Kctsd49bRoFDXGGSC4GUqj7pGyxM3RehRhvTlZJc1FL/Flew2p5uwxa1tUDWKzI4wNM8pg==}
+  chevrotain@13.2.0:
+    resolution: {integrity: sha512-GTouk5YzgBxlTPCaDn5q0q2EJKkrYmnPF+HmF8v0Qo4r3iyPG7HJivkN1wthCXZcm3sIcZFpGTRovLPNdJNRCA==}
+    engines: {node: '>=22.0.0'}
 
   clone-regexp@1.0.1:
     resolution: {integrity: sha512-Fcij9IwRW27XedRIJnSOEupS7RVcXtObJXbcUOX93UCLqqOdRpkvzKywOOSizmEK/Is3S/RHX9dLdfo6R1Q1mw==}
@@ -1395,9 +1396,6 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
-  lodash-es@4.17.23:
-    resolution: {integrity: sha512-kVI48u3PZr38HdYz98UmfPnXl2DXrpdctLrFLCd3kOx1xUkOmpFPx7gCWWM5MPkL/fD8zb+Ph0QzjGFs4+hHWg==}
-
   lodash-es@4.18.1:
     resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
@@ -1487,8 +1485,8 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  mermaid@12.0.0:
-    resolution: {integrity: sha512-/wQXC9iBxoGV8p3erbvaXs9h77VyLDBH6GdayVjj3hEcSQhFU4N1WUhUppotCEqlIxI2pRMwjwBSwTB1MfZBgQ==}
+  mermaid@12.1.0:
+    resolution: {integrity: sha512-wlVCp+8eTupfCeeFvoZNNiTuHrvag0P2jz/ILgb/f/6jkVokUefOcujefi8qUe/j2asHiSePncVsz/xzzA80LQ==}
     engines: {node: '>=22.12.0'}
 
   micromark-extension-footnote@0.3.2:
@@ -2348,22 +2346,20 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@chevrotain/cst-dts-gen@11.1.2':
+  '@chevrotain/cst-dts-gen@13.2.0':
     dependencies:
-      '@chevrotain/gast': 11.1.2
-      '@chevrotain/types': 11.1.2
-      lodash-es: 4.17.23
+      '@chevrotain/gast': 13.2.0
+      '@chevrotain/types': 13.2.0
 
-  '@chevrotain/gast@11.1.2':
+  '@chevrotain/gast@13.2.0':
     dependencies:
-      '@chevrotain/types': 11.1.2
-      lodash-es: 4.17.23
+      '@chevrotain/types': 13.2.0
 
-  '@chevrotain/regexp-to-ast@11.1.2': {}
+  '@chevrotain/regexp-to-ast@13.2.0': {}
 
-  '@chevrotain/types@11.1.2': {}
+  '@chevrotain/types@13.2.0': {}
 
-  '@chevrotain/utils@11.1.2': {}
+  '@chevrotain/utils@13.2.0': {}
 
   '@csstools/color-helpers@6.1.2': {}
 
@@ -2428,9 +2424,9 @@ snapshots:
 
   '@kvs/types@2.1.4': {}
 
-  '@mermaid-js/parser@2.0.0':
+  '@mermaid-js/parser@2.0.1':
     dependencies:
-      '@chevrotain/types': 11.1.2
+      '@chevrotain/types': 13.2.0
 
   '@modelcontextprotocol/core@2.0.0':
     dependencies:
@@ -2441,35 +2437,35 @@ snapshots:
       '@modelcontextprotocol/core': 2.0.0
       zod: 4.6.5
 
-  '@secretlint/config-loader@11.7.1':
+  '@secretlint/config-loader@11.7.1(supports-color@7.2.0)':
     dependencies:
       '@secretlint/profiler': 11.7.1
       '@secretlint/resolver': 11.7.1
       '@secretlint/types': 11.7.1
       ajv: 8.20.0
-      debug: 4.4.3
-      rc-config-loader: 4.1.4
+      debug: 4.4.3(supports-color@7.2.0)
+      rc-config-loader: 4.1.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/core@11.7.1':
+  '@secretlint/core@11.7.1(supports-color@7.2.0)':
     dependencies:
       '@secretlint/profiler': 11.7.1
       '@secretlint/types': 11.7.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       structured-source: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/formatter@11.7.1':
+  '@secretlint/formatter@11.7.1(supports-color@7.2.0)':
     dependencies:
       '@secretlint/resolver': 11.7.1
       '@secretlint/types': 11.7.1
-      '@textlint/linter-formatter': 15.8.0
+      '@textlint/linter-formatter': 15.8.0(supports-color@7.2.0)
       '@textlint/module-interop': 15.8.0
       '@textlint/types': 15.8.0
       chalk: 5.6.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       pluralize: 8.0.0
       strip-ansi: 7.2.0
       table: 6.9.0
@@ -2477,15 +2473,15 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/node@11.7.1':
+  '@secretlint/node@11.7.1(supports-color@7.2.0)':
     dependencies:
-      '@secretlint/config-loader': 11.7.1
-      '@secretlint/core': 11.7.1
-      '@secretlint/formatter': 11.7.1
+      '@secretlint/config-loader': 11.7.1(supports-color@7.2.0)
+      '@secretlint/core': 11.7.1(supports-color@7.2.0)
+      '@secretlint/formatter': 11.7.1(supports-color@7.2.0)
       '@secretlint/profiler': 11.7.1
       '@secretlint/source-creator': 11.7.1
       '@secretlint/types': 11.7.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       p-map: 7.0.7
     transitivePeerDependencies:
       - supports-color
@@ -2526,17 +2522,17 @@ snapshots:
 
   '@textlint/ast-node-types@4.4.3': {}
 
-  '@textlint/ast-tester@13.4.1':
+  '@textlint/ast-tester@13.4.1(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 13.4.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/ast-tester@15.8.0':
+  '@textlint/ast-tester@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -2548,15 +2544,15 @@ snapshots:
     dependencies:
       '@textlint/ast-node-types': 15.8.0
 
-  '@textlint/config-loader@15.8.0':
+  '@textlint/config-loader@15.8.0(supports-color@7.2.0)':
     dependencies:
-      '@textlint/kernel': 15.8.0
+      '@textlint/kernel': 15.8.0(supports-color@7.2.0)
       '@textlint/module-interop': 15.8.0
       '@textlint/resolver': 15.8.0
       '@textlint/types': 15.8.0
       '@textlint/utils': 15.8.0
-      debug: 4.4.3
-      rc-config-loader: 4.1.4
+      debug: 4.4.3(supports-color@7.2.0)
+      rc-config-loader: 4.1.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -2564,12 +2560,12 @@ snapshots:
 
   '@textlint/feature-flag@15.8.0': {}
 
-  '@textlint/fixer-formatter@15.8.0':
+  '@textlint/fixer-formatter@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@textlint/module-interop': 15.8.0
       '@textlint/resolver': 15.8.0
       '@textlint/types': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       diff: 8.0.4
       string-width: 4.2.3
       strip-ansi: 6.0.1
@@ -2577,44 +2573,44 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/kernel@13.4.1':
+  '@textlint/kernel@13.4.1(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 13.4.1
-      '@textlint/ast-tester': 13.4.1
+      '@textlint/ast-tester': 13.4.1(supports-color@7.2.0)
       '@textlint/ast-traverse': 13.4.1
       '@textlint/feature-flag': 13.4.1
-      '@textlint/source-code-fixer': 13.4.1
+      '@textlint/source-code-fixer': 13.4.1(supports-color@7.2.0)
       '@textlint/types': 13.4.1
       '@textlint/utils': 13.4.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fast-equals: 4.0.3
       structured-source: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/kernel@15.8.0':
+  '@textlint/kernel@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 15.8.0
-      '@textlint/ast-tester': 15.8.0
+      '@textlint/ast-tester': 15.8.0(supports-color@7.2.0)
       '@textlint/ast-traverse': 15.8.0
       '@textlint/feature-flag': 15.8.0
-      '@textlint/source-code-fixer': 15.8.0
+      '@textlint/source-code-fixer': 15.8.0(supports-color@7.2.0)
       '@textlint/types': 15.8.0
       '@textlint/utils': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fast-equals: 4.0.3
       structured-source: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/linter-formatter@15.8.0':
+  '@textlint/linter-formatter@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@azu/format-text': 1.0.2
       '@azu/style-format': 1.0.1
       '@textlint/module-interop': 15.8.0
       '@textlint/resolver': 15.8.0
       '@textlint/types': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       js-yaml: 4.3.2
       lodash: 4.18.1
       pluralize: 2.0.0
@@ -2625,30 +2621,30 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/markdown-to-ast@13.4.1':
+  '@textlint/markdown-to-ast@13.4.1(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 13.4.1
-      debug: 4.4.3
-      mdast-util-gfm-autolink-literal: 0.1.3
-      remark-footnotes: 3.0.0
+      debug: 4.4.3(supports-color@7.2.0)
+      mdast-util-gfm-autolink-literal: 0.1.3(supports-color@7.2.0)
+      remark-footnotes: 3.0.0(supports-color@7.2.0)
       remark-frontmatter: 3.0.0
-      remark-gfm: 1.0.0
-      remark-parse: 9.0.0
+      remark-gfm: 1.0.0(supports-color@7.2.0)
+      remark-parse: 9.0.0(supports-color@7.2.0)
       traverse: 0.6.11
       unified: 9.2.2
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/markdown-to-ast@15.8.0':
+  '@textlint/markdown-to-ast@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@textlint/ast-node-types': 15.8.0
-      debug: 4.4.3
-      mdast-util-gfm-autolink-literal: 0.1.3
+      debug: 4.4.3(supports-color@7.2.0)
+      mdast-util-gfm-autolink-literal: 0.1.3(supports-color@7.2.0)
       neotraverse: 0.6.18
-      remark-footnotes: 3.0.0
+      remark-footnotes: 3.0.0(supports-color@7.2.0)
       remark-frontmatter: 3.0.0
-      remark-gfm: 1.0.0
-      remark-parse: 9.0.0
+      remark-gfm: 1.0.0(supports-color@7.2.0)
+      remark-parse: 9.0.0(supports-color@7.2.0)
       structured-source: 4.0.0
       unified: 9.2.2
     transitivePeerDependencies:
@@ -2676,17 +2672,17 @@ snapshots:
 
   '@textlint/resolver@15.8.0': {}
 
-  '@textlint/source-code-fixer@13.4.1':
+  '@textlint/source-code-fixer@13.4.1(supports-color@7.2.0)':
     dependencies:
       '@textlint/types': 13.4.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/source-code-fixer@15.8.0':
+  '@textlint/source-code-fixer@15.8.0(supports-color@7.2.0)':
     dependencies:
       '@textlint/types': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -2698,15 +2694,15 @@ snapshots:
     dependencies:
       '@textlint/ast-node-types': 15.8.0
 
-  '@textlint/textlint-plugin-markdown@13.4.1':
+  '@textlint/textlint-plugin-markdown@13.4.1(supports-color@7.2.0)':
     dependencies:
-      '@textlint/markdown-to-ast': 13.4.1
+      '@textlint/markdown-to-ast': 13.4.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@textlint/textlint-plugin-markdown@15.8.0':
+  '@textlint/textlint-plugin-markdown@15.8.0(supports-color@7.2.0)':
     dependencies:
-      '@textlint/markdown-to-ast': 15.8.0
+      '@textlint/markdown-to-ast': 15.8.0(supports-color@7.2.0)
       '@textlint/types': 15.8.0
     transitivePeerDependencies:
       - supports-color
@@ -3007,14 +3003,13 @@ snapshots:
     dependencies:
       emoji-regex: 10.6.0
 
-  chevrotain@11.1.2:
+  chevrotain@13.2.0:
     dependencies:
-      '@chevrotain/cst-dts-gen': 11.1.2
-      '@chevrotain/gast': 11.1.2
-      '@chevrotain/regexp-to-ast': 11.1.2
-      '@chevrotain/types': 11.1.2
-      '@chevrotain/utils': 11.1.2
-      lodash-es: 4.17.23
+      '@chevrotain/cst-dts-gen': 13.2.0
+      '@chevrotain/gast': 13.2.0
+      '@chevrotain/regexp-to-ast': 13.2.0
+      '@chevrotain/types': 13.2.0
+      '@chevrotain/utils': 13.2.0
 
   clone-regexp@1.0.1:
     dependencies:
@@ -3272,9 +3267,11 @@ snapshots:
 
   dayjs@1.11.23: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   decimal.js@10.6.0: {}
 
@@ -3843,8 +3840,6 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  lodash-es@4.17.23: {}
-
   lodash-es@4.18.1: {}
 
   lodash.sortby@4.7.0: {}
@@ -3891,18 +3886,18 @@ snapshots:
       unist-util-is: 4.1.0
       unist-util-visit-parents: 3.1.1
 
-  mdast-util-footnote@0.1.7:
+  mdast-util-footnote@0.1.7(supports-color@7.2.0):
     dependencies:
       mdast-util-to-markdown: 0.6.5
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  mdast-util-from-markdown@0.8.5:
+  mdast-util-from-markdown@0.8.5(supports-color@7.2.0):
     dependencies:
       '@types/mdast': 3.0.15
       mdast-util-to-string: 2.0.0
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
       parse-entities: 2.0.0
       unist-util-stringify-position: 2.0.3
     transitivePeerDependencies:
@@ -3912,11 +3907,11 @@ snapshots:
     dependencies:
       micromark-extension-frontmatter: 0.2.2
 
-  mdast-util-gfm-autolink-literal@0.1.3:
+  mdast-util-gfm-autolink-literal@0.1.3(supports-color@7.2.0):
     dependencies:
       ccount: 1.1.0
       mdast-util-find-and-replace: 1.1.1
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -3933,9 +3928,9 @@ snapshots:
     dependencies:
       mdast-util-to-markdown: 0.6.5
 
-  mdast-util-gfm@0.1.2:
+  mdast-util-gfm@0.1.2(supports-color@7.2.0):
     dependencies:
-      mdast-util-gfm-autolink-literal: 0.1.3
+      mdast-util-gfm-autolink-literal: 0.1.3(supports-color@7.2.0)
       mdast-util-gfm-strikethrough: 0.2.3
       mdast-util-gfm-table: 0.1.6
       mdast-util-gfm-task-list-item: 0.1.6
@@ -3956,14 +3951,14 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  mermaid@12.0.0:
+  mermaid@12.1.0:
     dependencies:
       '@braintree/sanitize-url': 7.1.2
       '@iconify/utils': 3.1.7
-      '@mermaid-js/parser': 2.0.0
+      '@mermaid-js/parser': 2.0.1
       '@types/d3': 7.4.3
       '@upsetjs/venn.js': 2.0.0
-      chevrotain: 11.1.2
+      chevrotain: 13.2.0
       cytoscape: 3.34.3
       cytoscape-cose-bilkent: 4.1.0(cytoscape@3.34.3)
       cytoscape-fcose: 2.2.0(cytoscape@3.34.3)
@@ -3982,9 +3977,9 @@ snapshots:
       ts-dedent: 2.3.0
       uuid: 14.0.2
 
-  micromark-extension-footnote@0.3.2:
+  micromark-extension-footnote@0.3.2(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -3992,46 +3987,46 @@ snapshots:
     dependencies:
       fault: 1.0.4
 
-  micromark-extension-gfm-autolink-literal@0.5.7:
+  micromark-extension-gfm-autolink-literal@0.5.7(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  micromark-extension-gfm-strikethrough@0.6.5:
+  micromark-extension-gfm-strikethrough@0.6.5(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  micromark-extension-gfm-table@0.4.3:
+  micromark-extension-gfm-table@0.4.3(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
   micromark-extension-gfm-tagfilter@0.3.0: {}
 
-  micromark-extension-gfm-task-list-item@0.3.3:
+  micromark-extension-gfm-task-list-item@0.3.3(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
+      micromark: 2.11.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  micromark-extension-gfm@0.3.3:
+  micromark-extension-gfm@0.3.3(supports-color@7.2.0):
     dependencies:
-      micromark: 2.11.4
-      micromark-extension-gfm-autolink-literal: 0.5.7
-      micromark-extension-gfm-strikethrough: 0.6.5
-      micromark-extension-gfm-table: 0.4.3
+      micromark: 2.11.4(supports-color@7.2.0)
+      micromark-extension-gfm-autolink-literal: 0.5.7(supports-color@7.2.0)
+      micromark-extension-gfm-strikethrough: 0.6.5(supports-color@7.2.0)
+      micromark-extension-gfm-table: 0.4.3(supports-color@7.2.0)
       micromark-extension-gfm-tagfilter: 0.3.0
-      micromark-extension-gfm-task-list-item: 0.3.3
+      micromark-extension-gfm-task-list-item: 0.3.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  micromark@2.11.4:
+  micromark@2.11.4(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       parse-entities: 2.0.0
     transitivePeerDependencies:
       - supports-color
@@ -4177,9 +4172,9 @@ snapshots:
     dependencies:
       hookified: 2.2.0
 
-  rc-config-loader@4.1.4:
+  rc-config-loader@4.1.4(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       js-yaml: 4.3.2
       json5: 2.2.3
       require-from-string: 2.0.2
@@ -4239,10 +4234,10 @@ snapshots:
       parse5: 5.1.1
       xtend: 4.0.2
 
-  remark-footnotes@3.0.0:
+  remark-footnotes@3.0.0(supports-color@7.2.0):
     dependencies:
-      mdast-util-footnote: 0.1.7
-      micromark-extension-footnote: 0.3.2
+      mdast-util-footnote: 0.1.7(supports-color@7.2.0)
+      micromark-extension-footnote: 0.3.2(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -4251,16 +4246,16 @@ snapshots:
       mdast-util-frontmatter: 0.2.0
       micromark-extension-frontmatter: 0.2.2
 
-  remark-gfm@1.0.0:
+  remark-gfm@1.0.0(supports-color@7.2.0):
     dependencies:
-      mdast-util-gfm: 0.1.2
-      micromark-extension-gfm: 0.3.3
+      mdast-util-gfm: 0.1.2(supports-color@7.2.0)
+      micromark-extension-gfm: 0.3.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  remark-parse@9.0.0:
+  remark-parse@9.0.0(supports-color@7.2.0):
     dependencies:
-      mdast-util-from-markdown: 0.8.5
+      mdast-util-from-markdown: 0.8.5(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -4648,10 +4643,10 @@ snapshots:
       match-index: 1.0.3
       textlint-rule-helper: 2.3.1
 
-  textlint-rule-no-hankaku-kana@2.0.1:
+  textlint-rule-no-hankaku-kana@2.0.1(supports-color@7.2.0):
     dependencies:
       textlint-rule-helper: 2.3.1
-      textlint-tester: 13.4.1
+      textlint-tester: 13.4.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -4693,7 +4688,7 @@ snapshots:
       textlint-rule-ja-space-around-strong: 3.0.3
       textlint-rule-ja-space-between-half-and-full-width: 3.0.3
 
-  textlint-rule-preset-ja-technical-writing@8.0.0(textlint@15.8.0):
+  textlint-rule-preset-ja-technical-writing@8.0.0(supports-color@7.2.0)(textlint@15.8.0(supports-color@7.2.0)):
     dependencies:
       '@textlint-rule/textlint-rule-no-invalid-control-character': 2.1.0
       '@textlint-rule/textlint-rule-no-unmatched-pair': 1.0.9
@@ -4713,17 +4708,17 @@ snapshots:
       textlint-rule-no-doubled-joshi: 4.1.0
       textlint-rule-no-dropping-the-ra: 3.0.0
       textlint-rule-no-exclamation-question-mark: 1.1.0
-      textlint-rule-no-hankaku-kana: 2.0.1
+      textlint-rule-no-hankaku-kana: 2.0.1(supports-color@7.2.0)
       textlint-rule-no-mix-dearu-desumasu: 5.0.0
       textlint-rule-no-nfd: 2.0.2
       textlint-rule-no-zero-width-spaces: 1.0.1
-      textlint-rule-preset-jtf-style: 2.3.14(textlint@15.8.0)
+      textlint-rule-preset-jtf-style: 2.3.14(textlint@15.8.0(supports-color@7.2.0))
       textlint-rule-sentence-length: 4.0.2
     transitivePeerDependencies:
       - supports-color
       - textlint
 
-  textlint-rule-preset-jtf-style@2.3.14(textlint@15.8.0):
+  textlint-rule-preset-jtf-style@2.3.14(textlint@15.8.0(supports-color@7.2.0)):
     dependencies:
       analyze-desumasu-dearu: 2.1.5
       japanese-numerals-to-number: 1.0.2
@@ -4731,7 +4726,7 @@ snapshots:
       moji: 0.5.1
       regexp.prototype.flags: 1.5.4
       regx: 1.0.4
-      textlint: 15.8.0
+      textlint: 15.8.0(supports-color@7.2.0)
       textlint-rule-helper: 2.3.1
       textlint-rule-prh: 5.3.0
 
@@ -4749,17 +4744,17 @@ snapshots:
       textlint-rule-helper: 2.3.1
       textlint-util-to-string: 3.3.4
 
-  textlint-rule-spellcheck-tech-word@5.0.0(textlint@15.8.0):
+  textlint-rule-spellcheck-tech-word@5.0.0(textlint@15.8.0(supports-color@7.2.0)):
     dependencies:
       spellcheck-technical-word: 2.0.0
-      textlint: 15.8.0
+      textlint: 15.8.0(supports-color@7.2.0)
       textlint-rule-helper: 1.2.0
 
-  textlint-tester@13.4.1:
+  textlint-tester@13.4.1(supports-color@7.2.0):
     dependencies:
       '@textlint/feature-flag': 13.4.1
-      '@textlint/kernel': 13.4.1
-      '@textlint/textlint-plugin-markdown': 13.4.1
+      '@textlint/kernel': 13.4.1(supports-color@7.2.0)
+      '@textlint/textlint-plugin-markdown': 13.4.1(supports-color@7.2.0)
       '@textlint/textlint-plugin-text': 13.4.1
     transitivePeerDependencies:
       - supports-color
@@ -4771,29 +4766,29 @@ snapshots:
       structured-source: 4.0.0
       unified: 8.4.2
 
-  textlint@15.8.0:
+  textlint@15.8.0(supports-color@7.2.0):
     dependencies:
       '@modelcontextprotocol/server': 2.0.0
       '@textlint/ast-node-types': 15.8.0
       '@textlint/ast-traverse': 15.8.0
-      '@textlint/config-loader': 15.8.0
+      '@textlint/config-loader': 15.8.0(supports-color@7.2.0)
       '@textlint/feature-flag': 15.8.0
-      '@textlint/fixer-formatter': 15.8.0
-      '@textlint/kernel': 15.8.0
-      '@textlint/linter-formatter': 15.8.0
+      '@textlint/fixer-formatter': 15.8.0(supports-color@7.2.0)
+      '@textlint/kernel': 15.8.0(supports-color@7.2.0)
+      '@textlint/linter-formatter': 15.8.0(supports-color@7.2.0)
       '@textlint/module-interop': 15.8.0
       '@textlint/resolver': 15.8.0
-      '@textlint/textlint-plugin-markdown': 15.8.0
+      '@textlint/textlint-plugin-markdown': 15.8.0(supports-color@7.2.0)
       '@textlint/textlint-plugin-text': 15.8.0
       '@textlint/types': 15.8.0
       '@textlint/utils': 15.8.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       file-entry-cache: 10.1.4
       glob: 13.0.6
       md5: 2.3.0
       optionator: 0.9.4
       path-to-glob-pattern: 2.0.1
-      rc-config-loader: 4.1.4
+      rc-config-loader: 4.1.4(supports-color@7.2.0)
       read-package-up: 11.0.0
       structured-source: 4.0.0
       zod: 4.6.5
@@ -5069,11 +5064,11 @@ snapshots:
 
   xtend@4.0.2: {}
 
-  zenn-cli@0.5.4:
+  zenn-cli@0.5.4(supports-color@7.2.0):
     dependencies:
       '@ai-sdk/fireworks': 3.0.47(zod@4.5.4)
       '@ai-sdk/openai': 4.0.60(zod@4.5.4)
-      '@secretlint/node': 11.7.1
+      '@secretlint/node': 11.7.1(supports-color@7.2.0)
       '@secretlint/secretlint-rule-preset-recommend': 11.7.1
       ai: 7.0.93(zod@4.5.4)
       open: 10.2.0
