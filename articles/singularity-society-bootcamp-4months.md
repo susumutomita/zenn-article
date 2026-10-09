@@ -3,7 +3,7 @@ title: "ブートキャンプに参加して4か月、TenkaCloudを外に出し�
 emoji: "🥋"
 type: "idea"
 topics: [コミュニティ, 個人開発, プロダクト開発, AWS]
-published: false
+published: true
 publication_name: singularity
 ---
 
