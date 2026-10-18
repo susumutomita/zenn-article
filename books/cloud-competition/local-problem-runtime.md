@@ -179,17 +179,51 @@ make agent-gate
 
 ```bash
 cd ..
-git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
+git clone https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
 make install
 make local
 ```
 
-TenkaCloudは、公開されている問題カタログを`problems/`というGit submoduleから読み込みます。これはTenkaCloudChallengeを参照するための仕組みであり、TenkaCloud本体へ問題を追加するという意味ではありません。
+`make local`は、`catalog-sources.json`のURLと`ref`から起動前に問題カタログを取得します。デフォルトはTenkaCloudChallengeの`main`です。取得にはネットワーク接続が必要で、失敗すると起動を中止します。`problems/`は取得内容から生成するbuild用のビューで、Git submoduleではありません。保存済みのイベントは、取得時の不変snapshotを使い続けます。
+
+自分の作問用branchを試す場合は、TenkaCloud側の`catalog-sources.json`のURLと`ref`を、そのリポジトリとbranchへ変更します。`make deploy`も同じ選択を使います。設定と取得処理は、[catalog-sources.json](https://github.com/susumutomita/TenkaCloud/blob/main/catalog-sources.json)と[downloaded-catalog.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/problem-pack/downloaded-catalog.ts)で確認できます。
 
 本書で作った`sqli-demo`の完成形は、すでにTenkaCloudChallengeの`main`へ公開されています。TenkaCloud側で作問用branchを作る必要はありません。
 
 `make local`を実行すると、主催者用と参加者用の画面が起動します。対話できるターミナルで起動すると、主催者キーが一度だけ表示されます。表示された主催者用のURLを開き、このキーでログインします。
+
+デフォルトの主催者URLは`http://127.0.0.1:5174`、参加者URLは`http://127.0.0.1:5175`です。この2つは、TenkaCloudを動かしたPCから開きます。参加者が別の端末を使う場合は、信頼できる隔離ネットワーク上で、hostに割り当て済みのIPv4を指定します。
+
+```bash
+make local LOCAL_ARGS="--lan 100.96.12.34 --unsafe-lan"
+```
+
+`100.96.12.34`は説明用なので、実際のhostのIPへ置き換えてください。Tailscaleの`100.64.0.0/10`内のIPv4も指定できます。主催者はhost上の`http://127.0.0.1:5174`を使い、参加者へは`http://100.96.12.34:5175`と、そのチームのキーを渡します。主催者キーは渡しません。参加者の端末で`127.0.0.1`を開いても、hostには接続できません。
+
+この指定はHTTPで待ち受けます。VPNや権限を設定するコマンドではありません。通常のLAN起動では`--competition-network`は無効で、演習からホストや家庭LANへの通信を拒否する専用firewall guardは適用されません。コンテナ内で操作できる参加者からの到達は、DockerとOSの経路に依存します。待受IPの指定だけで、チーム間や家庭LANを隔離できるとは扱わないでください。HTTPS構成、VMからの実通信、多人数での競技開催は、この手順で検証済みとは扱いません。起動中のhostを変更するときは、主催者と停止・再開の時刻を決めてから進めます。
+
+隔離用のnative Linuxモードは別の実装です。設定不足や未対応環境では拒否し、MacやDocker Desktopへ自動で適用することはありません。[guardの前提](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/linux-network-guard.ts)を確認してください。Tailscaleへの接続は、専用モードや参加者端末間のアクセス制限を有効にする操作ではありません。
+
+初回はbuildを省略しません。同じコードと選択カタログでbuild済みの場合だけ、`LOCAL_ARGS`へ`--no-build`を追加できます。buildがない場合やカタログが一致しない場合は起動を拒否するため、次の起動でこの指定を外してbuildします。
+
+HTTPの応答は、次のコマンドで確認できます。別端末の例のIPは実際のhostのIPへ置き換えます。
+
+```bash
+# host上で実行
+curl --fail --silent --output /dev/null --write-out '%{http_code}\n' http://127.0.0.1:5174/
+# 参加者の端末で実行
+curl --fail --silent --output /dev/null --write-out '%{http_code}\n' http://100.96.12.34:5175/
+```
+
+どちらも`200`を確認してから、ブラウザでログイン画面を開きます。応答がない場合は、起動ログのURL、指定IPがhostにあること、端末間の既存の接続経路を確認します。HTTPの応答だけでは、ログイン、採点、Docker問題への接続は確認できません。
+
+待受アドレスの実装は[options.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/options.ts)と[server.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/server.ts)で確認できます。TenkaCloudのルートで次を実行すると、待受とoriginの制約、取得失敗、snapshotとbuildの整合性の回帰テストを確認できます。実機のネットワーク隔離を証明するテストではありません。
+
+```bash
+make catalog-download catalog-prepare
+bun test scripts/local-host/tests/public-mode.test.ts scripts/local-host/tests/catalog-startup.test.ts
+```
 
 主催者としてイベントとチームを作り、`sqli-demo`を選びます。「スケジュール」タブで問題環境を準備し、イベントを開始します。次に、参加者URLとチームキーで参加者としてログインし、「起動・再開」で問題環境を起動します。`Web` endpointからログイン画面へ進みます。
 
