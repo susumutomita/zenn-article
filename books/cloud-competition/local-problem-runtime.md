@@ -175,7 +175,7 @@ const verify = createServer(async (request, response) => {
 make agent-gate
 ```
 
-次に、TenkaCloudChallengeとは別のディレクトリへTenkaCloudを取得します。
+Git、Make、Bun 1.3.11、Docker EngineとComposeを用意します。次に、TenkaCloudChallengeとは別のディレクトリへTenkaCloudを取得します。
 
 ```bash
 cd ..

@@ -175,19 +175,57 @@ Run the completion gate in the TenkaCloudChallenge repository you have been edit
 make agent-gate
 ```
 
-Next, clone TenkaCloud into a directory separate from TenkaCloudChallenge.
+Use Git, Make, Bun 1.3.11, Docker Engine and Compose for this same-PC lab. Next, clone TenkaCloud into a directory separate from TenkaCloudChallenge.
 
 ```bash
 cd ..
-git clone --recurse-submodules https://github.com/susumutomita/TenkaCloud.git
+git clone https://github.com/susumutomita/TenkaCloud.git
 cd TenkaCloud
 make install
 make local
 ```
 
-TenkaCloud reads the published problem catalog through a Git submodule named `problems/`. This is how it references TenkaCloudChallenge; it does not mean that problems belong to the TenkaCloud platform repository.
+Before startup, `make local` downloads the repository URL and `ref` selected in `catalog-sources.json`, defaulting to TenkaCloudChallenge's `main`. Network access is required; acquisition failure stops startup. The `problems/` directory is a generated build view, not a Git submodule. Saved events retain immutable acquisition snapshots. To test an authoring branch, change the configured URL and `ref`; `make deploy` uses the same selection. See [catalog-sources.json](https://github.com/susumutomita/TenkaCloud/blob/main/catalog-sources.json) and [downloaded-catalog.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/problem-pack/downloaded-catalog.ts).
 
 The completed `sqli-demo` built in this book is already published on TenkaCloudChallenge's `main` branch. You do not create an authoring branch in TenkaCloud. Start the organizer console and Participant Portal with `make local`. In an interactive terminal, startup displays a new organizer key once and invalidates the previous organizer access. Open the organizer URL and sign in with that key.
+
+The default organizer URL is `http://127.0.0.1:5174`; the participant URL is `http://127.0.0.1:5175`. Both work on the host PC. To admit another device on a trusted isolated network, specify an IPv4 already assigned to the host:
+
+```bash
+make local LOCAL_ARGS="--lan 100.96.12.34 --unsafe-lan"
+```
+
+Replace the example address with the host's real IP. Tailscale IPv4 addresses in `100.64.0.0/10` are accepted. The organizer still uses `http://127.0.0.1:5174` on the host; participants use `http://100.96.12.34:5175` and their own team key. Keep the organizer key private. On a participant device, `127.0.0.1` refers to that device, not the host.
+
+This is an HTTP listener. Plain LAN supports native problems that do not use Docker, such as Crypto Battle. Starting, resuming or recovering Docker/Compose exercises without dedicated isolation is rejected with `network_isolation_required`. Mac/Docker Desktop does not support that mode. Run this chapter's `sqli-demo` on same-PC loopback first; loopback exercises have no dedicated guard isolation guarantee.
+
+Remote Docker exercises require supported native Linux, explicit `--competition-network` and `--docker-network-pool`, and a pool that does not overlap LAN/VPN routes. Docker 28.4.x, a rootful local daemon and firewall/nsenter permissions are among the [guard prerequisites](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/linux-network-guard.ts). Selecting a LAN listener alone does not automatically change firewall or VPN settings.
+
+Retained unisolated Docker units, even stopped ones, block remote host startup before listeners open. Jobs/units are not automatically stopped or migrated. Agree on maintenance with the organizer, preserve needed data, then stop and retire those environments through the original loopback host before creating isolated ones. Do not update or restart a running host without coordination.
+
+These checks concern exercise containers. Tailscale connectivity alone does not establish restrictions on the rest of a participant device's network access or communication between devices. HTTPS hosting, real VM traffic and a complete multiplayer event are not established by this procedure.
+
+Keep builds enabled on the first start. Add `--no-build` only after building the same code and selected catalog. If startup rejects a missing build or a catalog mismatch, omit the flag on the next start to rebuild.
+
+Check HTTP responses, replacing the example host IP:
+
+```bash
+# Run on the host
+curl --fail --silent --output /dev/null --write-out '%{http_code}\n' http://127.0.0.1:5174/
+# Run on the participant device
+curl --fail --silent --output /dev/null --write-out '%{http_code}\n' http://100.96.12.34:5175/
+```
+
+Expect `200` before opening the login pages. If unreachable, check the startup URLs, that the IP belongs to the host and the existing network route. HTTP success does not verify authentication, scoring or Docker access.
+
+Implementation references: [listener options](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/options.ts), [server](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/server.ts), [LAN engine composition](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/application.ts) and [Docker rejection conditions](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/docker-engine.ts). Run these checks from TenkaCloud's root for listener/origin behavior, unisolated LAN rejection, acquisition failures and snapshot/build consistency. These tests do not prove isolation on a real network.
+
+```bash
+make catalog-download catalog-prepare
+bun test scripts/local-host/tests/public-mode.test.ts scripts/local-host/tests/catalog-startup.test.ts scripts/local-host/tests/lan-isolation.test.ts
+```
+
+For the `sqli-demo` steps below, return to default `make local` and the loopback participant URL, `http://127.0.0.1:5175`. Coordinate any shutdown/restart of a running LAN host with the organizer first.
 
 Create an event and team, select `sqli-demo`, prepare the problem environments, and start from Schedule. Join with the participant URL and team key, then choose Start / resume to start the Docker environment. Follow the `Web` endpoint to the login page.
 
