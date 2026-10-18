@@ -61,8 +61,50 @@ flowchart TD
 今回、利用者が導入するのは接続先Mac側のMulmoTerminalと、両端末のTailscaleアプリです。WireGuardのアプリを別に入れて設定する手順はありません。Tailscaleが内部でWireGuardを使います。
 
 - 接続先Mac側でMulmoTerminalを起動できる環境を用意します。Node.jsと使うエージェントの準備は[公式の導入ガイド](https://www.mulmoterminal.com/guide/ja/getting-started.html)に沿って行います。
-- 接続元Macと接続先MacにTailscaleを入れ、同じ自分のネットワークへ参加させます。[公式クイックスタート](https://tailscale.com/docs/how-to/quickstart)が、アカウント作成と端末の追加を説明しています。
+- Tailscaleへのログインと、次に示す同じネットワークへの登録、または端末共有を済ませます。
 - 接続先Macは起動したままにし、スリープに入らない状態で確認します。接続元Mac側のTailscaleも有効にします。
+
+#### まずTailscaleを入れ、ログイン先を決める
+
+1. 両方のMacに[公式のmacOS導入手順](https://tailscale.com/docs/install/mac)でTailscaleを入れます。この記事の接続先MacはStandalone版です。起動後、macOSからVPN構成などの許可を求められたら、公式手順に沿って進めます。
+2. Tailscaleアプリからログインし、ブラウザで認証を完了します。自分のMac同士なら、2台とも同じログイン方法と同じアカウントを使います。[公式クイックスタート](https://tailscale.com/docs/how-to/quickstart#create-a-tailnet)も “using the same credentials” と説明しています。訳すと「同じ認証情報を使って」です。
+3. アプリのログイン中のアカウントと、選択中のtailnetを確認します。tailnetは、Tailscaleで端末と利用者をまとめるプライベートなネットワークです。ブラウザの管理画面とMacアプリで別のアカウントを開いていることもあるため、両方を照合します。
+
+ここでいうtailnetへの参加と、アクセス制御のACLグループへの追加は別です。まず、自分のMac同士なら次のA、別の人のMacならBへ進みます。**Bは相手のtailnet全体へ参加する手順ではなく、許可された端末1台を共有してもらう手順です。**
+
+#### A：自分のMac同士を同じtailnetへ登録する
+
+1. 接続先Macと接続元Macで、ログイン中のアカウントと選択中のtailnetが一致することを確認します。違っていたら、使う予定のアカウント・tailnetを選び直してログインします。
+2. 管理画面を開ける場合は、[Machines（端末一覧）](https://login.tailscale.com/admin/machines)で2台の端末名を確認します。Memberなど管理画面を開けない役割なら、Tailscaleアプリの端末一覧を確認し、登録状況を管理者にも照合してもらいます。別のtailnetに登録された2台は、同じtailnetの端末としては並びません。
+3. 端末が`Needs approval`なら、管理者による端末承認を待ちます。[公式の端末追加手順](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up#permissions)では、端末承認が有効な場合、Owner・Admin・IT adminのいずれかが承認します。承認が無効なら、tailnetへログインできる利用者が端末を追加できます。
+
+2台が登録済みになったら、下の「接続先の端末名とIPを確認する」へ進みます。組織のtailnetを使う場合は、その組織で認められたアカウントと端末を使います。
+
+#### B：別の人から、接続先Macだけの共有招待を受ける
+
+共有する人は、その端末を外部へ共有してよいことを確認してから進めます。受け取る人は自分のtailnetにログインしたまま、共有された1台へ接続します。[公式の端末共有の説明](https://tailscale.com/docs/features/sharing)は “only the shared machine” と範囲を示しています。訳すと「共有された端末だけ」です。
+
+[公式の端末共有の要件](https://tailscale.com/docs/features/sharing#share-a-machine-with-another-user)では、共有の作成と受諾の双方に “Owner, Admin, or IT admin” が必要です。訳すと「所有者、管理者、IT管理者のいずれか」です。送る人は共有元、受け取る人は受信先のtailnetで、この役割が必要です。権限がなければ管理者に共有方法を確認します。
+
+1. **共有する人**：承認済みの接続先MacをMachinesで選び、`…` → `Share` → `Copy invite link`を開きます。`Reusable link`は有効にせず、`Copy share link`で単発の招待リンクを作り、受け取る本人へ渡します。リンクは接続権限を受け取れる秘密情報なので、公開しません。
+2. **受け取る人**：接続元MacのTailscaleアプリで使っているアカウント・tailnetを確認してから招待リンクを開きます。ブラウザの受諾先も同じアカウント・tailnetかを読み、意図した共有元と端末であることを確認して受け取ります。メールの宛先とログインアカウントは自動では一致しません。
+3. **両者**：共有する人はShare画面に表示された受信者を照合します。受け取る人は接続元MacのTailscaleの端末一覧に共有端末が現れたことを確認します。共有は受諾した利用者向けで、その人のtailnet全員へ広がるものではありません。
+
+画面名と単発リンクの操作は[公式のリンク共有手順](https://tailscale.com/docs/features/sharing#share-using-a-link)、受諾と受信者の確認は[受諾手順](https://tailscale.com/docs/features/sharing#wait-for-the-recipient-to-accept)に沿っています。この共有招待の手順は公式文書に基づく補足で、今回のMac同士の接続確認時に実施したという意味ではありません。
+
+#### 「グループへ追加」と言われたとき
+
+ACLグループは、誰に接続を許すかをまとめる利用者の一覧です。[公式のポリシー仕様](https://tailscale.com/docs/reference/syntax/policy-file#groups)は “create groups of users” と説明しています。訳すと「利用者のグループを作る」です。グループへ名前を加えることだけで、Macがtailnetへ登録されるわけではありません。AやBの登録・共有を先に確かめます。
+
+組織の接続ルールでグループ追加が必要なら、管理者が[Users画面の手順](https://tailscale.com/docs/reference/syntax/policy-file#edit-a-users-group-membership-from-the-users-page)で操作します。対象利用者の`…` → `Edit group membership`を開きます。`Add to a group`で対象グループを選び、`Save`で保存します。必要な役割はOwner・Admin・Network adminです。端末共有を扱えるIT adminとは権限が異なります。これはtailnet内のアクセス制御の手順で、Bの端末共有に常に追加が必要という意味ではありません。
+
+#### 接続先の端末名とIPを確認する
+
+接続元MacのTailscaleアプリの端末一覧で、接続先Macの名前とIPv4を確認します。AならMachinesでも2台を確認でき、Bなら受諾した共有端末が表示されます。端末名が見つからなければ、ログイン方法・アカウント・tailnet・招待の受諾先・端末承認の順に確認し、まだMulmoTerminalの起動設定は変えません。
+
+[共有端末のIPに関する公式の注意](https://tailscale.com/docs/features/sharing#share-a-machine-with-another-user)では、IP競合時は受信側で別のIPv4を割り当てる場合があると説明しています。起動コマンドには接続先Mac自身のIPv4を使い、ブラウザのURLには接続元から見えるIPv4を使います。異なる場合は、後半で説明する`MULMOTERMINAL_ALLOWED_ORIGINS`に閲覧側のIPも明示します。以下は、両方で同じ説明用IPが見える例です。
+
+共有だけでMulmoTerminalの接続先ポートは限定されません。本人認証も追加されません。[共有とアクセス制御の仕様](https://tailscale.com/docs/features/sharing#sharing-and-access-control-policies)に従い、双方のtailnetの管理者が、既存ルールも含めて接続元から接続先のTCPポート34567へ何を許しているかを確認します。[ポリシーを編集できる役割](https://tailscale.com/docs/reference/user-roles#permissions-managed-by-user-roles)はOwner・Admin・Network adminで、端末共有ができる役割と同一ではありません。以下の待ち受け設定へ進む前に、この接続を許可する範囲を決めます。
 
 この接続は、接続先Macのターミナルを操作できる経路を作ります。確認対象のMulmoTerminalには独自の利用者認証がありません。[固定commitの起動警告](https://github.com/receptron/mulmoterminal/blob/ae270ae7c8609b8f3c04d891241bce9a30f96a13/server/infra/http/allowed-origin.ts#L117-L126)で確認でき、後半にその原文とコードを示します。[Tailscaleのアクセス制御](https://tailscale.com/security#access-controls-lists-acls)で、自分の端末から接続先MacのTCPポート34567へ接続できる範囲を確認してください。「Tailscaleにつながる全員を信頼してよい」とは考えず、必要な端末へ許可を絞ります。
 
@@ -70,7 +112,7 @@ flowchart TD
 
 ### 起動と確認
 
-接続元Macと接続先MacのTailscaleを有効にし、両端末間の通信が許可されていることを確認します。接続先MacのTailscaleアプリで、その接続先MacのIPv4を調べます。コマンドでTailscaleを操作できる環境なら`tailscale ip -4`でも確認できます。
+ここからは接続先MacでMulmoTerminalを起動します。Aの同じtailnetへの登録、またはBの端末共有が済み、接続元Macからの通信が許可されていることを確認します。接続先MacのTailscaleアプリで、そのMac自身のIPv4を調べます。コマンドでTailscaleを操作できる環境なら`tailscale ip -4`でも確認できます。
 
 既存のMulmoTerminalが起動している場合は、作業を保存し、通常の終了手順で止めてから設定付きで起動します。環境変数は、起動するプログラムへ設定を渡す仕組みです。起動時に読み込まれるため、すでに動いているプロセスの設定は変わりません。
 
