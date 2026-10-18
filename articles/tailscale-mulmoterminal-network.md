@@ -15,9 +15,15 @@ publication_name: singularity
 
 [MulmoTerminal](https://github.com/receptron/mulmoterminal)は、Claude CodeやCodexなどのAIコーディングエージェントを、ブラウザの1つの画面に並べて使うツールです。エージェントは、依頼に応じてコードの作成や修正を進めるプログラムです。MulmoTerminalでは複数の作業を見渡し、入力を待っているセッションへ移って返事をできます。基本の使い方や画面は[公式の日本語ユーザーガイド](https://www.mulmoterminal.com/guide/ja/)で確認できます。
 
-この記事では、ブラウザを開くMacを「接続元Mac」、MulmoTerminalを動かすMacを「接続先Mac」と呼びます。今回、接続元Macのブラウザから接続先MacのWeb UIへ接続しました。この構成で、2台の役割と接続の手順を説明します。
+この記事では、ブラウザを開くMacを「接続元Mac」、MulmoTerminalを動かすMacを「接続先Mac」と呼びます。Web UIは、ブラウザに表示する操作画面です。今回、接続元Macのブラウザから接続先MacのWeb UIへ接続しました。エージェントやターミナルは接続先Macで動かしたまま、接続元Macを画面と入力の窓口にします。
 
-この記事で扱うのは、接続先Macで動かしているMulmoTerminalのWeb UIへ、接続元Macのブラウザから接続する方法です。Web UIは、ブラウザに表示する操作画面を指します。エージェントやターミナルは接続先Macで動かしたまま、接続元Macを画面と入力の窓口にします。
+### MulmoServer経由と、今回の接続の目的
+
+今回の目的は、接続元Macのブラウザで、接続先MacのMulmoTerminalのWeb UIを直接開くことです。HTTPはWebページなどを取得する通信方式です。WebSocketは接続を保って双方向にデータを送る仕組みで、ターミナルの入力・出力に使います。その通信を運ぶために、離れた端末同士を暗号化した通信でつなぐ[Tailscale](https://tailscale.com/docs/concepts/what-is-tailscale)を使います。
+
+既存の別経路として[MulmoServer](https://github.com/receptron/mulmoserver)があります。[Remote Hostの公式仕様](https://github.com/receptron/mulmoterminal/blob/ae270ae7c8609b8f3c04d891241bce9a30f96a13/docs/remote-host-protocol.md#transport)には “It talks to MulmoTerminal over Firestore command docs, not HTTP” とあります。訳すと「HTTPではなくFirestoreの指示データを介してMulmoTerminalと通信する」です。この経路では、接続先Macが[Firebase Authentication](https://firebase.google.com/docs/auth)でサインインします。[Firestore](https://firebase.google.com/docs/firestore)はデータを保存・同期するサービスで、接続先Macはそこに届く利用者ごとの指示を受け取り、処理結果を返します。
+
+MulmoServer経由は、接続先Macへ外から直接接続できない環境でも指示を届け、結果を受け取れる経路です。一方、今回はWeb UI自体を別のMacから開くため、Tailscaleで端末同士をつなぎ、HTTPとWebSocketで直接アクセスします。目的に応じて使い分けるもので、今回のWeb UIへの接続にはFirestoreの指示の中継を使いません。Remote Hostなどを別に有効にしていれば、その機能の通信や保存は続きます。直接接続したことだけを根拠に、Firestoreへの記録がすべてなくなるとは言えません。
 
 :::message
 
@@ -66,7 +72,7 @@ flowchart TD
 
 接続元Macと接続先MacのTailscaleを有効にし、両端末間の通信が許可されていることを確認します。接続先MacのTailscaleアプリで、その接続先MacのIPv4を調べます。コマンドでTailscaleを操作できる環境なら`tailscale ip -4`でも確認できます。
 
-既存のMulmoTerminalが起動している場合は、作業を保存し、通常の終了手順で止めてから設定付きで起動します。環境変数は起動時に読み込まれるため、すでに動いているプロセスの設定は変わりません。
+既存のMulmoTerminalが起動している場合は、作業を保存し、通常の終了手順で止めてから設定付きで起動します。環境変数は、起動するプログラムへ設定を渡す仕組みです。起動時に読み込まれるため、すでに動いているプロセスの設定は変わりません。
 
 ```bash
 # 例のIPを、接続先MacのTailscale IPv4へ置き換える
@@ -124,7 +130,7 @@ HTTPの応答が返れば、接続元Macからサーバーへ接続できてい�
 ブラウザはHTTPで画面やデータを取得します。WebSocketは接続を維持して双方向にデータを送る仕組みで、ターミナルの入力や出力をやり取りするために使われます。図中のHTTPとWebSocketはこの役割です。[WebSocketの仕様RFC 6455](https://www.rfc-editor.org/rfc/rfc6455#section-1.1)は “a single TCP connection for traffic in both directions” と説明しています。訳すと「双方向の通信に1本のTCP接続を使う」です。
 
 
-今回接続元Macで開くのは、接続先MacのWeb UIのURLです。別の接続方法として[MulmoServer](https://github.com/receptron/mulmoserver)がありますが、今回の画面操作の中継には使いません。MulmoServer経由との違いは最後の節で説明します。その通信を運ぶTailscaleは、端末同士で直接通信できない場合、中継サーバーを使います。
+前半で示したとおり、今回運ぶのは接続先MacのWeb UIへの通信です。Tailscaleは、端末同士で直接通信できない場合、中継サーバーを使います。
 
 ### パケットの「外側」と「内側」を分ける
 
@@ -520,9 +526,9 @@ HTTPやWebSocketの内容は、Tailscaleの端末間トンネルを通る間は�
 
 接続先Macのアプリは復号した内容を読み取ります。アプリが履歴を保存したり、AIサービスへ送信したりする処理も、Tailscaleによって止まるわけではありません。保存先や送信先はアプリ側で確認します。
 
-## MulmoServer経由との使い分け
+## 応用：スマホを接続元にする場合
 
-[Remote Hostの仕様](https://github.com/receptron/mulmoterminal/blob/ae270ae7c8609b8f3c04d891241bce9a30f96a13/docs/remote-host-protocol.md#transport)には “It talks to MulmoTerminal over Firestore command docs, not HTTP” とあります。訳すと「HTTPではなくFirestoreの指示データを介してMulmoTerminalと通信する」です。[Firebase Authentication](https://firebase.google.com/docs/auth)はサインインなどを提供するサービス、[Firestore](https://firebase.google.com/docs/firestore)はデータを保存・同期するサービスです。この仕様では、接続先Mac側がFirebaseでサインインし、利用者ごとの指示がFirestoreに届くのを待ちます。指示が届くと接続先Mac側で処理し、結果を返します。端末へ外から直接接続できない環境でも、サインインした利用者の指示を受け取り、処理結果を後から返せます。一方、今回のWeb UIへのHTTP/WebSocket経路にはそのコマンド中継が不要になります。Remote Hostなどを別に有効にしていれば、その機能の通信や保存は続きます。直接接続したことだけを根拠に、Firestoreへの記録がすべてなくなるとは言えません。
+接続元をスマホに替え、スマホでもTailscaleを有効にして、接続先Macの同じURLをブラウザで開く応用もできます。端末の参加手順は[Tailscale公式クイックスタート](https://tailscale.com/docs/how-to/quickstart)で確認できます。そのスマホから接続先Macのポートへ接続できるよう、アクセス制御も確認します。**今回の実機確認はMacからMacへの接続で、スマホからの接続や画面操作は未検証です。**
 
 ## まとめ
 
@@ -531,9 +537,5 @@ HTTPやWebSocketの内容は、Tailscaleの端末間トンネルを通る間は�
 MulmoTerminalは、`MULMOTERMINAL_HOST`に指定した100.xで接続を待ちます。PR964の修正により、その100.xで開いたページからのブラウザ操作も許可します。この2つがそろうことで、Tailscale経由でWeb UIを開いて操作できます。利用するときは、接続先Macの34567番ポートへの接続許可を必要な端末に絞ります。
 
 ---
-
-### 応用：スマホを接続元にする場合
-
-接続元をスマホに替え、スマホでもTailscaleを有効にして、接続先Macの同じURLをブラウザで開く応用もできます。端末の参加手順は[Tailscale公式クイックスタート](https://tailscale.com/docs/how-to/quickstart)で確認できます。そのスマホから接続先Macのポートへ接続できるよう、アクセス制御も確認します。**今回の実機確認はMacからMacへの接続で、スマホからの接続や画面操作は未検証です。**
 
 コード参照：MulmoTerminalとTailscaleは本文記載の固定commitを用いました。Tailscaleの公開版はv1.104.1です。wireguard-goはその[go.mod](https://github.com/tailscale/tailscale/blob/9a522a9786c97eb7910c01ccb7bd66557b04c910/go.mod)に記載された依存commitを用いました。WireGuardの抜粋はWireGuard LLCのMITライセンス実装、Tailscaleの公開Go実装はBSD-3-Clauseです。XNUはリンク先の公開コードの説明であり、実機macOSと同一版であることは確認していません。
