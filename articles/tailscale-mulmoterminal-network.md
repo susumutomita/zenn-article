@@ -4,6 +4,7 @@ emoji: "🔗"
 type: "tech"
 topics: ["tailscale", "vpn", "mulmoterminal", "network"]
 published: false
+publication_name: singularity
 ---
 
 ## 要旨
