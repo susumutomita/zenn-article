@@ -201,9 +201,13 @@ make local LOCAL_ARGS="--lan 100.96.12.34 --unsafe-lan"
 
 `100.96.12.34`は説明用なので、実際のhostのIPへ置き換えてください。Tailscaleの`100.64.0.0/10`内のIPv4も指定できます。主催者はhost上の`http://127.0.0.1:5174`を使い、参加者へは`http://100.96.12.34:5175`と、そのチームのキーを渡します。主催者キーは渡しません。参加者の端末で`127.0.0.1`を開いても、hostには接続できません。
 
-この指定はHTTPで待ち受けます。VPNや権限を設定するコマンドではありません。通常のLAN起動では`--competition-network`は無効で、演習からホストや家庭LANへの通信を拒否する専用firewall guardは適用されません。コンテナ内で操作できる参加者からの到達は、DockerとOSの経路に依存します。待受IPの指定だけで、チーム間や家庭LANを隔離できるとは扱わないでください。HTTPS構成、VMからの実通信、多人数での競技開催は、この手順で検証済みとは扱いません。起動中のhostを変更するときは、主催者と停止・再開の時刻を決めてから進めます。
+この指定はHTTPで待ち受けます。上のLAN起動では、Dockerを使わないnative問題（例: Crypto Battle）を利用できます。DockerやCompose問題の開始・再開・復旧は、専用の隔離モードがないと`network_isolation_required`で拒否します。MacやDocker Desktopはこのモードに未対応です。本章の`sqli-demo`は、まず同じPCのloopbackで実行してください。loopback演習には、専用guardによる隔離の保証はありません。
 
-隔離用のnative Linuxモードは別の実装です。設定不足や未対応環境では拒否し、MacやDocker Desktopへ自動で適用することはありません。[guardの前提](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/linux-network-guard.ts)を確認してください。Tailscaleへの接続は、専用モードや参加者端末間のアクセス制限を有効にする操作ではありません。
+別端末からDocker問題を使うには、対応するnative Linuxで`--competition-network`を指定します。LANやVPNの経路と重ならないpoolを`--docker-network-pool`で明示します。Docker 28.4.xとrootfulのローカルdaemonが必要です。firewallやnsenterの権限なども確認します。[guardの前提](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/linux-network-guard.ts)を確認してください。LANの待受指定だけでfirewallやVPNの設定を自動変更することはありません。
+
+非隔離のDocker unitが保存されている場合は、停止状態でもLAN hostの起動をlistener開始前に拒否します。既存のjobやunitを自動停止・移行することはありません。主催者と保守時間を決め、元のloopback hostで必要なデータを保存して対象環境を停止・削除してから、隔離環境を新規作成します。稼働中のhostをそのまま更新・再起動しないでください。
+
+この制約は演習コンテナの境界です。Tailscale接続だけで参加者の端末全体の通信や端末間アクセスを制限することはありません。HTTPS構成、VMからの実通信、多人数での競技開催は、この手順で検証済みとは扱いません。
 
 初回はbuildを省略しません。同じコードと選択カタログでbuild済みの場合だけ、`LOCAL_ARGS`へ`--no-build`を追加できます。buildがない場合やカタログが一致しない場合は起動を拒否するため、次の起動でこの指定を外してbuildします。
 
@@ -218,12 +222,14 @@ curl --fail --silent --output /dev/null --write-out '%{http_code}\n' http://100.
 
 どちらも`200`を確認してから、ブラウザでログイン画面を開きます。応答がない場合は、起動ログのURL、指定IPがhostにあること、端末間の既存の接続経路を確認します。HTTPの応答だけでは、ログイン、採点、Docker問題への接続は確認できません。
 
-待受アドレスの実装は[options.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/options.ts)と[server.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/server.ts)で確認できます。TenkaCloudのルートで次を実行すると、待受とoriginの制約、取得失敗、snapshotとbuildの整合性の回帰テストを確認できます。実機のネットワーク隔離を証明するテストではありません。
+待受アドレスの実装は[options.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/options.ts)、[server.ts](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/server.ts)、[LANのengine構成](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/application.ts)、[Dockerの拒否条件](https://github.com/susumutomita/TenkaCloud/blob/main/scripts/local-host/docker-engine.ts)で確認できます。TenkaCloudのルートで次を実行すると、待受とoriginの制約、隔離なしのLAN演習の拒否、取得失敗、snapshotとbuildの整合性の回帰テストを確認できます。実機のネットワーク隔離を証明するテストではありません。
 
 ```bash
 make catalog-download catalog-prepare
-bun test scripts/local-host/tests/public-mode.test.ts scripts/local-host/tests/catalog-startup.test.ts
+bun test scripts/local-host/tests/public-mode.test.ts scripts/local-host/tests/catalog-startup.test.ts scripts/local-host/tests/lan-isolation.test.ts
 ```
+
+以降の`sqli-demo`は、デフォルトの`make local`で起動したloopback hostを使います。参加者URLは`http://127.0.0.1:5175`です。LAN hostが起動中なら、停止・再開を主催者と調整してから切り替えてください。
 
 主催者としてイベントとチームを作り、`sqli-demo`を選びます。「スケジュール」タブで問題環境を準備し、イベントを開始します。次に、参加者URLとチームキーで参加者としてログインし、「起動・再開」で問題環境を起動します。`Web` endpointからログイン画面へ進みます。
 
