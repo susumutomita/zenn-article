@@ -155,34 +155,63 @@ flowchart LR
 
 MacのWi-Fiが外側の通信を受信します。MacのTailscaleが中身を復号し、取り出した内側のパケットをOSへ渡します。この受け渡しはMac内のソフトウェアで行うため、ネットワークカードを追加する必要はありません。
 
-### 暗号化の鍵は、誰が渡しているのか
+### VPN・WireGuard・IPsec・IKEv2の関係
 
-WireGuardは、VPNの通信方式と、その方式を実装するオープンソースのプロジェクトです。[公式サイトの概要](https://www.wireguard.com/)から、仕組みの説明、導入手順、プロトコルの資料へ進めます。[公式リポジトリ一覧](https://www.wireguard.com/repositories/)には、Linux向けやGo言語版などの実装が載っています。IPsecもVPNを作る方式の1つです。
+WireGuardは、VPNの通信方式と、その方式を実装するオープンソースのプロジェクトです。[公式サイトの概要](https://www.wireguard.com/)から、仕組みの説明、導入手順、プロトコルの資料へ進めます。[公式リポジトリ一覧](https://www.wireguard.com/repositories/)には、Linux向けやGo言語版などの実装が載っています。VPNの目的は、離れた端末やネットワークの間に仮想的な通信経路を作ることです。今回のように、その通信内容を暗号化して運ぶ用途に使います。VPNは仕組みの総称で、WireGuardとIPsecはそれを実現する異なる方式です。Tailscaleは、その方式を使って接続を提供する製品・サービスです。
+
+IPsecはIPの通信を保護するための方式群です。[RFC 4301の2.1節](https://www.rfc-editor.org/rfc/rfc4301.html#section-2.1)には “cryptographically-based security for IPv4 and IPv6” とあります。訳すと「IPv4とIPv6に対する暗号技術に基づく保護」です。[3.2節](https://www.rfc-editor.org/rfc/rfc4301.html#section-3.2)で、AHによる改ざんの検出や送信元の確認、ESPによるそれらの保護と暗号化の役割を説明しています。ESPは設定により暗号化せず使うこともあるので、IPsecなら常に同じ保護内容とは限りません。
+
+IKEv2は、IPsecで相手を認証し、使う暗号方式や鍵を取り決めるための通信手順です。[RFC 7296の要旨](https://www.rfc-editor.org/rfc/rfc7296.html)には “IKE is a component of IPsec” とあります。訳すと「IKEはIPsecの構成要素」です。同仕様の[初期交換の説明](https://www.rfc-editor.org/rfc/rfc7296.html#section-1.2)で、暗号方式の交渉、鍵交換、相手の認証を確認できます。
+
+IPsecでは、この通信にどの暗号方式・鍵・有効期間などを使うかを保持します。この保護の取り決めがSA（Security Association）です。[RFC 4301の4.1節](https://www.rfc-editor.org/rfc/rfc4301.html#section-4.1)ではSAを片方向のものとして定義し、双方向通信には通常1組を使うと説明しています。IKEv2は相手を認証し、こうしたSAを作成・更新する役割を担います。データそのものを保護するESPなどとは役割が違います。
+
+| 比べる役割 | IPsecとIKEv2を使う構成 | 今回のTailscaleの端末間トンネル |
+| --- | --- | --- |
+| 相手の認証と鍵の取り決め | IKEv2で相手を認証し、鍵やSAを交渉する | WireGuardのNoiseに基づくhandshakeで相手を確認し、鍵を導く |
+| データの保護 | 合意したSAに沿ってESPなどで保護する | WireGuardが方向別の鍵でIPパケットを暗号化し、改ざんを検証する |
+| 端末の登録や接続先の調整 | 利用する製品や運用により異なる | Tailscaleが端末登録、公開鍵配布、接続先の調整などを補う |
+
+今回のTailscaleの端末間トンネルは、IPsecとIKEv2で作る構成ではありません。端末間の暗号化と鍵交換にはWireGuardを使います。この説明の対象は端末間トンネルです。ログインや調整サーバーとの通信まで、すべて同じ方式だという意味ではありません。
 
 TailscaleはWireGuardを土台に、通信相手を見つける仕組みや公開鍵の配布、アクセス制御などを加えています。[Tailscale公式の説明](https://tailscale.com/docs/concepts/what-is-tailscale#technical-details)でも、この関係を確認できます。
 
 オープンソースであっても、実装が違えばライセンスも同じとは限りません。この記事で読むTailscale版wireguard-goの[LICENSE](https://github.com/tailscale/wireguard-go/blob/417aef361226c869ab29e15fe3539b01173c4719/LICENSE)はMITライセンスです。一方、Linuxカーネルの[COPYING](https://git.zx2c4.com/wireguard-linux/plain/COPYING)はGPL-2.0とシステムコールの例外を示しています。WireGuard全体を1つのライセンスとして扱わず、読む実装の条件を確認します。
 
+### 暗号化の鍵は、誰が渡しているのか
+
 各端末は、自分だけが持つ秘密鍵と、相手へ知らせてよい公開鍵を持ちます。Tailscaleの調整サーバーは、通信相手の公開鍵と接続先を端末へ届けます。[Tailscale公式のセキュリティ説明](https://tailscale.com/security)は “Private keys never leave the device.” と述べています。訳すと「秘密鍵は端末の外へ出ない」です。[Tailscale公式の接続調整の説明](https://tailscale.com/docs/concepts/control-data-planes#state-policies-and-configurations)には、配布する情報として “Device public keys and certificates.” とあります。訳すと「端末の公開鍵と証明書」です。秘密鍵を送るのではなく、公開してよい鍵を配布する説明です。
 
 次に端末同士が、暗号化通信を始めるためのやり取りをします。これがhandshakeです。[WireGuard公式のプロトコル説明](https://www.wireguard.com/protocol/#key-exchange-and-data-packets)には “WireGuard uses the `Noise_IK` handshake” とあります。訳すと「WireGuardはNoise_IKのhandshakeを使う」です。Noiseは暗号化通信を開始するための手順を組み立てる枠組みです。WireGuardはその手順を使い、両端が持つ鍵と、そのやり取りのために作った一時的な鍵から、データの暗号化に使う鍵をそれぞれ計算します。
 
-スマホとMacは公開してよい値を交換し、それぞれ自分の秘密の値と組み合わせて計算します。その結果、スマホの送信用の鍵とMacの受信用の鍵が対応します。**完成したデータ用の鍵を、相手へ送る必要はありません。**
+ここでは、3種類の情報を分けます。登録する端末の鍵は相手を識別するために使い、handshakeごとの一時的な鍵とは寿命が違います。一時的な鍵も、秘密鍵と公開鍵の組で作ります。最後に、これらから実際のデータを暗号化する送受信用の鍵を導きます。
+
+[WireGuardの公式プロトコル説明](https://www.wireguard.com/protocol/)は、鍵交換に “Curve25519 for ECDH” を使うと記しています。訳すと「ECDHにCurve25519を使う」です。ECDHは、自分の秘密鍵と相手の公開鍵から、両端で共通の秘密の値を計算する方法です。WireGuardでは登録済みの鍵と一時的な鍵を組み合わせて計算し、相手の確認と鍵の生成を進めます。秘密鍵そのものを交換する手順ではありません。
+
+同じ資料は “HKDF for key derivation” とも記しています。訳すと「鍵の導出にHKDFを使う」です。鍵の導出とは、計算で得た秘密の値などを材料に、用途に合う鍵を作ることです。HKDFはそのための方式で、KDFは鍵を導く関数の総称です。これにより、スマホの送信用の鍵とMacの受信用の鍵が対応します。逆方向には別の鍵を使います。**完成したデータ用の鍵を、相手へ送る必要はありません。**
+
+公式説明の構成名は`Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s`です。[実装の定数](https://github.com/tailscale/wireguard-go/blob/417aef361226c869ab29e15fe3539b01173c4719/device/noise-protocol.go#L48-L53)とも一致します。これはNoise_IK系の手順と、鍵交換・暗号化などに使う方式をまとめた名前です。追加の事前共有鍵にも対応しますが、利用者が必ず別の秘密鍵を手入力するという意味ではありません。以下は鍵の役割を追うための図で、handshake内の暗号処理をすべて列挙したものではありません。
 
 ```mermaid
 sequenceDiagram
   participant S as Tailscaleの調整サーバー
   participant P as スマホ
   participant M as Mac
+  Note over P: 登録用の秘密鍵は端末内に保持
+  Note over M: 登録用の秘密鍵は端末内に保持
   P->>S: 自分の公開鍵などを登録
   M->>S: 自分の公開鍵などを登録
   S-->>P: 許可されたMacの公開鍵・接続情報
   S-->>M: 許可されたスマホの公開鍵・接続情報
-  P->>M: WireGuardのhandshake
-  M-->>P: handshakeの応答
-  Note over P,M: 両端がデータ用の送受信鍵を計算
-  P->>M: その鍵で暗号化した通信
-  M-->>P: その鍵で暗号化した応答
+  Note over P: 一時的な秘密鍵・公開鍵を生成
+  P->>M: handshake開始：一時的な公開鍵など
+  Note over M: 一時的な秘密鍵・公開鍵を生成
+  M-->>P: handshake応答：一時的な公開鍵など
+  Note over P,M: 自分の秘密鍵と相手の公開鍵でECDHを計算
+  Note over P,M: 得た秘密の値からKDFで方向別の鍵を導出
+  Note over P,M: 秘密鍵と完成したデータ用の鍵は送らない
+  P->>M: 送信用の鍵で暗号化したデータ
+  Note over M: 対応する受信用の鍵で復号・改ざん検証
+  M-->>P: 逆方向の鍵で暗号化した応答
 ```
 
 この2段階をコードで確認します。Tailscaleの[controlclient/direct.go](https://github.com/tailscale/tailscale/blob/9a522a9786c97eb7910c01ccb7bd66557b04c910/control/controlclient/direct.go#L704-L762)は端末の鍵を作り、登録リクエストに公開鍵を設定します。WireGuard側の[CreateMessageInitiation](https://github.com/tailscale/wireguard-go/blob/417aef361226c869ab29e15fe3539b01173c4719/device/noise-protocol.go#L272-L335)は、handshake用の一時的な鍵を作り、公開値をメッセージへ入れ、鍵の計算を進めます。
@@ -198,7 +227,13 @@ KDF2(
 )
 ```
 
-`KDF2`は鍵を作る関数です。ここではhandshakeで得た`chainKey`を材料に、送信用の`sendKey`と受信用の`recvKey`を作ります。相手側では送受信の対応が逆になるように計算するため、一方が送信用の鍵で暗号化したデータを、もう一方が受信用の鍵で復号できます。
+`KDF2`は鍵を作る関数です。丸かっこの中には、処理に渡す値や結果の保存先を並べています。`&sendKey`と`&recvKey`の`&`は「この変数へ結果を書き込む場所」を渡す記号です。`handshake.chainKey[:]`は、handshakeで作った秘密の材料をバイト列として渡す記法です。バイト列は、コンピューターが扱う数値の並びです。`nil`は、追加の入力をここでは渡さない指定です。
+
+この処理で求めたいのは、データ用の送信鍵と受信鍵の2つです。たとえばスマホ側でできた送信鍵を使ってHTTPのデータを暗号化すると、Mac側で対応する受信鍵を使って読めます。この例は鍵の使い分けを示しており、実際の鍵の値を公開したものではありません。
+
+ここではhandshakeで得た`chainKey`を材料に、送信用の`sendKey`と受信用の`recvKey`を作ります。相手側では送受信の対応が逆になるように計算するため、一方が送信用の鍵で暗号化したデータを、もう一方が受信用の鍵で復号できます。
+
+今回の接続手順に戻ると、MacとスマホでTailscaleへログインする準備が端末登録に当たります。その後の公開鍵配布と接続先の調整はTailscaleが行い、ブラウザの通信を運ぶ端末間の鍵と暗号化はWireGuardが担当します。MulmoTerminalの起動コマンドへ暗号鍵を書かないのは、この役割をTailscaleアプリ側で扱うためです。
 
 同じ公式説明は “This handshake occurs every few minutes” とも述べています。訳すと「このhandshakeは数分ごとに行われる」です。WireGuardは通信中のデータ用の鍵も更新します。これは、Tailscaleに登録した端末の鍵の更新とは別の処理です。調整サーバーは相手の公開鍵を知らせ、データ用の鍵は通信する端末同士で作ります。[WireGuard公式のプロトコル説明](https://www.wireguard.com/protocol/)
 
