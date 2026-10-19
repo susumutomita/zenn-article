@@ -8,11 +8,25 @@ published: true
 
 ## 何ができるのか
 
-[TenkaCloud](https://github.com/susumutomita/TenkaCloud)は、クラウドやセキュリティの課題に、実際に手を動かして取り組む競技プラットフォームです。参加者は演習環境で問題を解き、回答を送って得点を競います。主催者は問題を選び、大会やチーム、演習環境、得点を管理します。
+[TenkaCloud](https://github.com/susumutomita/TenkaCloud)は、クラウドやセキュリティの課題に、実際に手を動かして取り組むために作っているOSSです。OSSは、ソースコードを公開し、ライセンスの条件に沿って利用・改良できるソフトウェアです。参加者はチームで問題を解き、回答を送って得点を競います。
 
-離れた場所から参加してもらうには、画面への接続に加えて、操作できる範囲を決める必要があります。参加者には自分の問題を操作してもらいたい一方、主催者の管理画面や他チームの非公開環境へはアクセスさせたくありません。
+主催者は、大会やチーム、問題の実行環境を用意し、採点結果と順位を1つの画面で管理できます。チームキーを配って参加してもらうため、参加者全員がTenkaCloud本体をインストールする必要はありません。問題集を追加して、別の大会でも再利用できます。概要は[紹介ページ](https://tenkacloud.com/)、コードと導入手順は[GitHub](https://github.com/susumutomita/TenkaCloud)にまとめています。
 
-この記事では、主催者が用意した1台へTailscale経由で接続し、離れた参加者に演習を提供する方法を説明します。接続方法に加え、接続後に許される操作とチームごとの環境をどう分けるか、実装と制限を確認します。通信の保護、操作の権限、演習環境の分離は、それぞれの役割と限界を分けて考えます。
+### クラウド費用を気にせず試せる開催方法が欲しかった
+
+TenkaCloudを紹介する中で、コミュニティや研究室で使ってみたいと言ってもらいました。一方で、クラウド費用がネックになったり、いくら課金されるかが気になって手を出しづらかったりする様子も見えてきました。[以前の記事](https://zenn.dev/singularity/articles/singularity-society-bootcamp-4months)でも、利用者の声を受けて費用の考え方が変わったことを書いています。
+
+そこで、主催者のローカルPCで大会を開ける競技モードを追加しました。AWS上の環境で問題を解くクラウド開催に加え、手元のPCで動く問題を選べるようにした形です。暗号バトルなど、クラウド資源を使わない問題なら、クラウドの利用料を発生させずに競技できます。使える問題は開催方式で異なります。Tailscale自体の利用条件や料金も別に確認します。
+
+### 離れた人にも参加してもらいたいが、自分のPCを無制限に開きたくない
+
+次に、地理的に離れた人とも、このローカル開催で競技できるようにしたいと考えました。その接続に使うのがTailscaleです。自分でVPNを開発するのではなく、Tailscaleを使って、離れた参加者から開催用PCへ接続する構成にしました。
+
+ただし、参加者を自分のPCへ受け入れる以上、そのPCを悪用されたり、マルウェアを動かされたりするリスクを考える必要があります。マルウェアは、情報を盗むなどの悪意ある動作をするソフトウェアです。家庭や研究室のネットワークにある別のPC・機器への接続も避けたいところです。参加者には自分の問題を操作してもらいつつ、主催者の管理画面や他チームの非公開環境へはアクセスさせたくありません。
+
+開催場所には、普段のPCへ直接受け入れる構成より、開催専用のクラウドサーバーや、UTMで用意するLinux VMなどを勧めます。UTMはMacで別のOSを動かすソフトウェア、VMは仮想的なコンピューターです。普段の作業環境と分けるためです。クラウドサーバーには利用料がかかり、VMも設定を確認せず安全と見なせるものではありません。具体的な確認事項は最初の手順で説明します。
+
+このために苦労したのが、問題コンテナから主催者PCや家庭LANへ出る通信を制限する部分でした。対応するLinuxでは、この通信を止めるguardを追加しています。Tailscaleでの接続、操作の認可、コンテナの通信制限を組み合わせる設計です。参加者PCや開催OS全体のマルウェア対策を保証するものではありません。この記事では、Tailscaleでの接続と、接続後の操作権限・チームごとの環境分離を説明します。実装が制限する範囲と、保証しない範囲を分けて確認します。Docker演習の隔離に必要なLinuxの条件と、Macでは対応していない範囲も確認します。
 
 [Tailscale](https://tailscale.com/docs/how-to/quickstart)は、許可した端末同士を暗号化した通信でつなぐサービスです。VPNは、離れた端末の間に仮想的な通信経路を作る仕組みです。tailnetは、Tailscaleで利用者と端末をまとめるプライベートなネットワークを指します。
 
@@ -33,6 +47,24 @@ Tailscaleの暗号化やMacの受信処理の基礎は、既存の[MulmoTerminal
 ### 1. 主催者が、使う問題と開催端末を決める
 
 開催用のソフトウェアを動かす端末を「開催端末」、ブラウザで問題を解く端末を「参加端末」と呼びます。会社の端末やサービスを共有するときは、所有者・管理者が認めた専用の開催端末を使います。
+
+#### 開催場所は、普段の作業環境と分ける
+
+実際の開催には、専用のクラウドサーバーか、Mac上の[UTM](https://mac.getutm.app/)で用意するLinux VMなどを勧めます。VMは、別のOSを動かすための仮想的なコンピューターです。個人ファイルや普段の仕事の権限を持つPCへ、演習の操作を直接受け入れる範囲を減らすためです。クラウドサーバーには利用料が発生します。手元でクラウド資源を使わない問題を動かす選択とは、費用の条件が違います。
+
+VMにしただけで、元のMacや周囲の機器へ接続できなくなるとは限りません。[UTMのネットワーク説明](https://docs.getutm.app/settings-qemu/devices/network/network/)では、Shared NetworkでVMと元の端末のサービスが互いに見える構成を説明しています。NATも、通信の宛先・送信元アドレスを変換する仕組みで、家庭内LANへの接続を一律に禁止する機能ではありません。
+
+開催用の環境を作るときは、次の点も別に確認します。
+
+- [UTMの共有機能](https://docs.getutm.app/settings-qemu/sharing/)による共有フォルダとクリップボード同期は、不要なら無効にする。使う場合も教材で必要な範囲だけを選び、個人ファイルや秘密を共有しない。
+- 開催用のOSに普段のAWSキーや秘密鍵を置かない。参加者へ開催OSやDockerの管理権限を渡さない。[Dockerの安全性の説明](https://docs.docker.com/engine/security/)も、Docker daemonを操作する権限を強い権限として扱っている。
+- 後半で説明するTenkaCloudのguardにより、問題コンテナから開催OSや家庭LANへの通信を制限する。その外側の開催OS自身から出る通信は別に制限し、必要な接続を残して許可・拒否を確認する。
+
+Linux VMを使う場合、TenkaCloudとDockerをそのLinux内で動かし、[Linux向け手順](https://tailscale.com/docs/install/linux)でTailscaleも同じVMへ導入します。指定するIPはVM自身のものです。管理画面の127.0.0.1もVMやクラウドサーバー自身を指します。主催者だけの管理経路を使い、参加者用に管理画面を公開しません。
+
+Docker演習の隔離を使うには、VM内でも後半のguardの条件をすべて満たす必要があります。native Linux、rootful Docker Engine 28.4.x、同じネットワーク名前空間、必要なfirewall権限などが条件です。MacのDocker Desktopを使う構成とは異なります。UTMでLinuxを起動できることだけを理由に、対応済みとは判断しません。
+
+今回、UTM上のTenkaCloudとクラウドサーバーでの開催は実機未検証です。ここでは構成の候補と確認事項を示しています。OSや仮想化ソフトウェアの欠陥まで防げると保証するものではありません。
 
 | 使いたいもの | 開催端末の条件 | 参加者に必要な接続先 |
 | --- | --- | --- |
@@ -390,11 +422,47 @@ firewallは、通してよい通信を選ぶ仕組みです。このguardが扱�
 
 「VPNを使ったから全部安全」とは言えません。参加端末間の不要な接続を防ぎたいならTailscaleのpolicyで別途確認し、端末自体の不正利用や別回線での通信まで防げるとは扱いません。脆弱性を学ぶ演習は、許可された自チームの対象だけに行います。
 
+### 家庭LANへ出る通信を、開催Linuxの中で止める
+
+ここで苦労したのは、演習のための接続を残しながら、問題コンテナから主催者のPCや家庭LANへ出る通信を止めることでした。[PR #3386](https://github.com/susumutomita/TenkaCloud/pull/3386)で、チーム所有のネットワークとnative firewall guardを追加しています。さらに[PR #3420](https://github.com/susumutomita/TenkaCloud/pull/3420)では、Tailscale IPで待ち受けるだけでは不十分だった点を修正しました。別端末向けのDocker演習は、隔離モードを満たさなければ開始・再開・復旧を拒否します。
+
+Linuxでは、自分自身へ届く通信と、別の宛先へ転送する通信を分けて検査できます。前者の検査場所がINPUT、後者がFORWARDです。guardは、所有する演習ネットワークのbridgeを通る通信を、この検査へ接続します。bridgeは、コンテナの通信を受け渡す仮想的な接続点です。
+
+[hooksと通信規則](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L124-L380)では、IPv4はINPUTとDOCKER-USER、IPv6はINPUTとFORWARDへ規則を入れます。DOCKER-USERはDockerが転送する通信を独自に検査するための場所です。許可条件を列挙した後、INPUT側・転送側とも最後をDROPにします。DROPは、通信を通さず捨てる指示です。
+
+| 送信元→宛先 | guardが行う制御 |
+| --- | --- |
+| 問題コンテナ→開催Linux自身 | INPUTで任意の新規接続を遮断。認めた接続への応答やIPv6の近隣確認などは区別する |
+| 問題コンテナ→家庭LANの別PC・機器 | 転送側で許可条件に当たらない通信を遮断。private IPv4だけでなくIPv6も検査する |
+| 問題コンテナ→他チームの非公開環境 | 転送側で遮断。同じ演習内の通信と、同じ大会で明示的に公開した宛先への通信は別に許可する |
+| 問題コンテナ→インターネット | 未承認の通信を遮断。問題集の宣言と主催者承認を満たす特定IP・TCPポートだけを例外にする |
+
+許可した接続への返事は必要ですが、「接続済みなら何でも通す」とはしていません。接続を追跡するconntrackの情報を使い、元の送信元・宛先と応答方向を照合します。別チームの接続や、アドレス変換後の見かけだけで通らないようにしています。
+
+外部通信の例外も、家庭LANへ抜ける穴にしないための検査があります。[internet-access.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/internet-access.ts#L12-L56)は、private IPv4、loopback、link-localなどの特殊な宛先を拒否します。loopbackは自分自身、link-localは同じ接続範囲内で使うアドレスです。IPv6でもグローバルな宛先を限定して受け付けます。
+
+さらに[動作中の経路の検査](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L471-L511)で、開催Linux自身のIP、LAN/VPN、Dockerの範囲と重なる宛先を拒否します。規則は入れて終わりではなく、[順番・最後のDROP・接続位置の照合](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L689-L740)も行います。条件が崩れたときに、無制限な接続へ切り替えて継続する設計ではありません。
+
+### 問題コンテナの制御と、VM全体の制御を分ける
+
+Linux VMで使う場合も、問題コンテナから外へ転送する通信は、まずそのLinuxのguardを通る設計です。UTMのNATだけに家庭LAN遮断を任せるものではありません。ただし、guardはUTMの外側にあるMacの経路を管理するわけではなく、実際のVM構成での通信確認も必要です。
+
+| 通信を始めるもの | このguardの対象か |
+| --- | --- |
+| 所有する演習bridge上の問題コンテナ | 対象。上のINPUT・転送規則で制御する |
+| 開催LinuxのBun/native問題や、OS上の別プロセス | 対象外。開催OS全体の通信制限は別途設定する |
+| 参加者のPC・スマホ | 対象外。Tailscaleのアクセス制御や端末側の管理と分ける |
+
+したがって、問題コンテナから家庭LANへの通信を制限する機能は実装されていますが、PC全体のマルウェア対策を完成させたとは言えません。開催OS自体の侵害やVMからの脱出まで、このネットワーク規則だけで防げるとは扱いません。
+
 次の図は、[local-network.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/local-network.ts)の所有関係に基づく通信計画と、[guardの通信規則](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L125-L310)を整理したものです。許可経路を持つ競技もあるため、他チームとの通信をすべて一律に禁止する図ではありません。
 
 ```mermaid
 flowchart TB
-  M["Mac / Docker Desktop<br/>rootless / remote Docker"] --> X["この隔離モードは未対応<br/>別端末向けDocker演習を拒否"]
+  MAC["Macでの開催案"] --> VM["UTMのLinux VM<br/>TenkaCloud・Tailscale・DockerをVM内へ<br/>実通信は未検証"]
+  VM -->|"Linux側が全条件を満たす場合"| L
+  VM --> OS["Linux OS自身のプロセス<br/>このguardの対象外・別の制限が必要"]
+  M["MacのDocker Desktop<br/>rootless / remote Docker"] --> X["この隔離モードは未対応<br/>別端末向けDocker演習を拒否"]
   L["対応native Linux<br/>rootful Docker 28.4.xと必要権限"] --> G
   subgraph ISO["guardが扱う演習コンテナの通信"]
     G["起動前検査・通信規則・状態の照合"] --> C["所有する演習コンテナ"]
@@ -408,7 +476,13 @@ flowchart TB
 
 endpointは、通信を受け付ける宛先です。外部への例外は自由なURL入力ではなく、[internet-grants.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/internet-grants.ts)で、固定した問題定義の要求から主催者が選んで承認する構成です。開催OSやLANの経路との衝突も検査します。許可の追加は攻撃できる範囲も変えるため、教材に必要な宛先だけを扱います。
 
-リポジトリの[限定された実行検証の記録](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/assets/local-network-bounded-rehearsal.json)は、入れ子のDocker実験環境で、合成したホスト・別環境への通信制限などを報告しています。同じ記録は、実LAN・VPN・ブラウザ表示・VMからの脱出を確認したとは主張していません。この記録を今回のTailscale開催の実測として扱わない理由です。
+### コードのテストと、実際の通信確認の違い
+
+今回の再確認では、確認commitの[guardのテスト](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/tests/linux-network-guard.test.ts)49件・162 assertionsが成功しました。これはコマンドと規則を模擬するfixtureによる確認で、実パケットの遮断試験ではありません。IPv4/IPv6のDROP、許可する応答の範囲、LAN/VPNなどに重なる外部宛先の拒否を確認します。
+
+リポジトリの[限定された実行検証の記録](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/assets/local-network-bounded-rehearsal.json)は、入れ子のDocker実験環境で、合成したホスト・別環境へのIPv4/IPv6通信制限などを報告しています。同じ記録は、実LAN・VPN・ブラウザ表示・VMからの脱出を確認したとは主張していません。
+
+別の[kernel canary記録](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/assets/local-network-kernel-canary.json)もありますが、記載されたguardのソースハッシュは現在の確認commitと異なります。これらの記録を、現行版のUTMや家庭LANで今回実測した証拠にはしません。実装された制限、模擬テスト、過去の限定実験、今回未検証の実環境を分けて扱います。
 
 ### 教材のコード、秘密、資源の上限も確認する
 
