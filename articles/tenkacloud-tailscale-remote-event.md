@@ -3,7 +3,7 @@ title: "TenkaCloudとTailscaleで、離れた場所から競技に参加する"
 emoji: "🏯"
 type: "tech"
 topics: ["tenkacloud", "tailscale", "security", "network"]
-published: false
+published: true
 ---
 
 ## 何ができるのか
