@@ -61,7 +61,7 @@ native問題は、ここではDockerの演習コンテナを使わずに実行�
 1. 共有を作る主催者と、受け取る参加者は、それぞれのtailnetでOwner/Admin/IT adminのいずれかの権限が必要です。権限がなければ、それぞれの管理者に確認します。
 2. 主催者はMachinesで開催端末を選び、`Share` → `Copy invite link` → `Copy share link`から、参加者ごとの単発リンクを作ります。`Reusable link`は有効にしません。招待リンクは本人にだけ渡します。
 3. 参加者は招待を開き、ブラウザで受け取るアカウント・tailnetを確認して承認します。Tailscaleアプリでも、その共有を受けたアカウント・tailnetを選び、`Connected`を確認します。
-4. 参加者の端末一覧に、主催者の伝えた開催端末を確認できるか確認します。共有は受諾した本人向けです。参加者側のtailnetにいる全員が自動的に使えるわけではありません。
+4. 参加者は端末一覧から、主催者の伝えた開催端末を探します。共有は受諾した本人向けです。参加者側のtailnetにいる全員が自動的に使えるわけではありません。
 
 共有を承認しても、ポートの許可は次の手順で確認します。共有時のIP競合で、受信側に別のIPを割り当てる場合があります。その場合は本記事のIP指定の手順を止め、両側の管理者と経路を確認します。
 
@@ -158,26 +158,118 @@ End Eventで採点を止め、必要な結果を保存します。環境の停�
 
 開催端末を停止しただけでは、共有を取り消したことにはなりません。共有・許可の設定画面で失効を確認し、再接続できないことは補助確認にします。
 
-## 通信は、どの順番で届くのか
-
-次はnative問題を使うときの構成です。実際のIPは載せず、開催端末のTailscale IPを「開催IP」と表します。
+次の図は、[ローカル停止・再開の設計図](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/diagrams/local-play-sequence.mmd)を基に、安全確認の区切りを足したものです。採点終了、実行環境の停止・削除、ネットワーク上の招待失効は、別々に確認します。
 
 ```mermaid
 flowchart LR
-  P["参加端末のブラウザ"]
-  T["Tailscaleの端末間暗号化<br/>アクセス制御"]
-  U["開催IP:5175<br/>参加者画面とAPI"]
-  K["チームキーの確認<br/>大会とチームの範囲で処理"]
-  N["native問題と得点"]
-  H["開催端末のブラウザ"]
-  A["127.0.0.1:5174<br/>主催者画面とAPI"]
-  P --> T --> U --> K --> N
-  H --> A
+  A["開催前<br/>問題と版・開催端末を選ぶ"] --> B["招待と承認<br/>アカウント・tailnetを照合"]
+  B --> C["接続と権限を確認<br/>5175・自チームの演習は許可<br/>5174・不要な接続は不許可"]
+  C --> D["競技開始<br/>操作と採点を確認"]
+  D --> E["End Event<br/>採点を止め結果を保存"]
+  E --> F["環境を停止または削除<br/>保存要否と対象を確認"]
+  F --> G["共有・臨時許可を失効<br/>設定画面でも確認"]
+  G --> H["残したデータと資源を確認<br/>停止だけで削除済みとしない"]
+```
+
+## なぜ、接続方法だけでなく競技用の境界を作るのか
+
+### 出発点は「個人練習を共有」ではなく「別端末でチーム競技」
+
+[Issue #3226](https://github.com/susumutomita/TenkaCloud/issues/3226)には、主催者のPCで大会を運営し、参加者が別端末のブラウザから自分のチームへログインする要求があります。原文の要点は「リクエストで渡された`teamId`を信用せず」です。参加者が送るチーム名を書き換えて、他チームの回答や環境へ触れないことを求めています。
+
+同Issueには、主催者とチームの資格情報の分離、チーム別の演習環境、サーバー側の締切判定、二重加点の防止、再起動後の保存も要求されています。これは当時の要件の記録です。当時の「既存個人練習モードを維持する」という方針まで、現在の製品構成として断定するものではありません。現在の責任分担は[設計資料](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/README.md)と実装で確認します。
+
+Tailscale対応には、さらに具体的な障害がありました。[PR #3419](https://github.com/susumutomita/TenkaCloud/pull/3419)は “accepted only RFC 1918 addresses” と説明しています。以前の`--lan`は一般的なprivate IPv4だけを受け付け、Tailscaleの共有アドレス範囲を拒否していました。このPRで100.64.0.0/10を受け付ける条件を追加しました。管理画面のloopback限定やHost/Origin検査を外して解決したわけではありません。
+
+[Issue #3424](https://github.com/susumutomita/TenkaCloud/issues/3424)では、起動オプションだけでなく、接続・キー取得・配布の手順を文書化する要求が出ています。一方、[Issue #3422](https://github.com/susumutomita/TenkaCloud/issues/3422)にあるMagicDNS名対応は、確認版の`options.ts`にはありません。IssueがClosedでも、そこに書かれた案を実装済みとは扱いません。このため前半はIPを照合する手順です。
+
+ここまでの資料と現在のコードから、本記事が扱う要求を整理します。これは作者の個人的な動機や開催体験を推測した説明ではありません。
+
+```mermaid
+flowchart LR
+  R1["離れた端末から<br/>参加画面へ届かせたい"] --> D1["Tailscaleと開催IPへのbind<br/>公開するポートを限定"]
+  R2["参加者へ管理権限を<br/>渡したくない"] --> D2["管理5174はloopback<br/>主催者キーとチームキーを分離"]
+  R3["他チームの環境や<br/>得点を操作させたくない"] --> D3["認証結果からチームを選ぶ<br/>演習の所有関係を確認"]
+  R4["演習から開催端末や<br/>LANへ出てほしくない"] --> D4["対応Linuxでコンテナ通信を制限<br/>条件を満たさなければ拒否"]
+```
+
+図の4つは、1つのVPN設定でまとめて満たせる要求ではありません。参加画面へ届くことと、その先で許される操作を分けて設計します。
+
+### 攻撃を学ぶ競技では、VPNの参加者も無条件には信頼しない
+
+信頼境界は、入力や操作をそのまま信用せず、確認してから通す境目です。脅威は、守りたいものを損なう操作や事故を指します。悪意だけでなく、URLやキーの取り違え、誤った環境の停止も含めて考えます。
+
+現在の[論理構成図](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/diagrams/logical.mmd)と[ローカル構成図](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/diagrams/local-components.mmd)は、主催者認証、チーム認証、競技処理、保存先、実行環境を分けています。次はその責任分担を、本記事の接続方法に合わせて描き直した図です。別の箱でも、すべてが別マシンや別プロセスとは限りません。
+
+```mermaid
+flowchart TB
+  P["参加者と参加端末<br/>送られる値を無条件には信用しない"]
+  O["主催者<br/>開催端末とデータを管理"]
+  subgraph H["開催端末：主催者の管理下"]
+    PA["参加者API<br/>チーム認証と操作範囲の確認"]
+    AA["管理API<br/>主催者認証"]
+    C["競技処理<br/>大会時刻・所有関係・採点"]
+    DB["非公開のSQLiteとキー<br/>同じBunプロセスが利用"]
+    N["native問題<br/>Bun内で実行"]
+    PA --> C
+    AA --> C
+    C --> DB
+    C --> N
+  end
+  subgraph R["Docker問題を使う場合：対応Linuxが必要"]
+    G["チームを確認する演習gateway"]
+    E["演習コンテナ<br/>脆弱性を持つ教材も含む"]
+    G --> E
+  end
+  P -->|"Tailscale経由・チームキー"| PA
+  O -->|"loopback・主催者キー"| AA
+  P -->|"認可された演習接続"| G
+  C -->|"所有する環境を管理・検証"| E
+```
+
+順位表のように競技のルールで見せる情報と、チーム固有の秘密・回答・実行環境は区別します。ここで信頼するのは、開催端末を管理する主催者と、採用したコード・問題集です。参加者が開催端末、ソースコード、DBを自由に変更できれば、採点や秘密も変更・閲覧できてしまいます。native問題もBun内で動くため、問題コードがOSから隔離される図ではありません。
+
+| 守りたいもの | 競技で考える失敗・脅威 | 現在の対策と残る境界 |
+| --- | --- | --- |
+| 主催者の管理操作 | 参加者が大会を停止したりキーを取得したりする | 管理ポートと認証を分離。参加者向けに管理画面を中継すれば、この構成の前提を失う |
+| 他チームの非公開データと環境 | チームIDの書き換え、別チームの環境への接続 | 認証したチームから対象を選び、演習の所有関係を検査。漏れたチームキーの持ち主までは識別しない |
+| 主催者の家庭・社内LAN | 演習からNASや別PCへ到達する | 演習コンテナ側には対応Linuxのguardが必要。参加端末全体のLAN通信は管理しない |
+| 得点と公平性 | 二重送信、締切後の加点、他人の回答利用 | サーバーで採点状態を管理。ただし相談・別回線・端末外での行為を検出する仕組みではない |
+| 秘密と運用費用 | キーやAWS権限の流出、環境の消し忘れ | 非公開の保存と配布、明示した終了・削除が必要。VPNは保存先や課金を管理しない |
+
+## 通信は、どの順番で届くのか
+
+次は開催端末をMacにしてnative問題を使うときの構成です。Mac上に、Linux専用のDocker隔離機能まで存在する図ではありません。実際のIPは載せず、開催端末のTailscale IPを「開催IP」と表します。
+
+```mermaid
+flowchart LR
+  subgraph PC["参加端末"]
+    B["ブラウザ<br/>HTTP"]
+    PT["Tailscale"]
+    B -->|"開催IP:5175宛て"| PT
+  end
+  subgraph WAN["インターネット上"]
+    W["端末間で暗号化した通信<br/>直接または中継"]
+  end
+  subgraph MAC["開催用Mac：native問題の例"]
+    MT["Tailscale<br/>復号する"]
+    API["開催IP:5175<br/>参加者画面とAPI・HTTP"]
+    N["Bunの競技処理とnative問題<br/>SQLiteへ保存"]
+    OB["主催者のブラウザ"]
+    AD["127.0.0.1:5174<br/>管理画面とAPI"]
+    MT -->|"復号後のHTTP"| API
+    API --> N
+    OB -->|"端末内のHTTP"| AD
+    AD --> N
+  end
+  PT --> W --> MT
 ```
 
 APIは、画面の操作をプログラムへ伝える窓口です。Tailscaleは通信を開催端末へ運びます。届いた後、TenkaCloudがチームキーや大会の状態を確認します。
 
 [Tailscale公式の経路説明](https://tailscale.com/docs/concepts/traffic-routing-through-tailscale)には “The traffic that bounces through our relay servers is encrypted” とあります。「中継サーバーを通る通信も暗号化される」という意味です。直接接続と中継のどちらでも、端末間の暗号化を使います。
+
+図の暗号化区間はTailscaleの端末間です。ブラウザと各端末のTailscaleの間、開催端末で復号した後のアプリとの間まで、別途TLSを使う構成を示しているわけではありません。
 
 ただしURLはHTTPのままです。ブラウザから見たHTTPSに変わるわけではありません。開催端末では通信内容が復号され、アプリが読み取ります。保存データ、ログ、参加端末の画面やブラウザをTailscaleが一括して守るわけではありません。
 
@@ -223,22 +315,52 @@ const row = this.statement("SELECT body FROM host_teams WHERE login_hash=?")
 
 [hosting-domain.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/hosting-domain.ts#L2085-L2111)では、認証できたチームの`eventId`と`teamId`で大会・演習環境を選びます。Tailscaleの利用者とTenkaCloudのチームは自動で同じものにはなりません。チームキーを持つ人はそのチームとして操作できるため、キーの配布範囲も守る必要があります。
 
+チームを選ぶだけでなく、得点の確定もサーバーが担当します。次は[採点の設計図](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/diagrams/participant-scoring.mmd)を、ローカル開催向けに描き直したものです。
+
+```mermaid
+sequenceDiagram
+  participant A as チームAのブラウザ
+  participant H as TenkaCloudのAPI
+  participant V as 対象問題の検証処理
+  participant D as SQLite
+  A->>H: チームキー・問題ID・回答を送る
+  H->>H: キーから大会とチームAを決める
+  Note over A,H: 本文のteamId・eventId指定は拒否
+  H->>H: 大会時刻と対象問題への権限を確認
+  H->>V: 所有する対象で回答を検証
+  V-->>H: 検証結果またはエラー
+  H->>H: 締切などの状態を再確認
+  H->>D: 得点・進捗・再送用の記録を保存
+  H-->>A: 確定した結果を返す
+```
+
+[hosting-domain.tsの提出処理](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/hosting-domain.ts#L2432-L2465)は、本文の`teamId`や`eventId`を拒否します。同ファイルの[加点確定処理](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/hosting-domain.ts#L2518-L2550)には、締切の再確認と、得点・進捗・再送用の記録をまとめて保存する処理があります。再送用の記録は、同じ操作の再試行を区別するためのものです。
+
+これが必要なのは、参加者のブラウザ表示や通信到着時刻だけを採点の根拠にできないためです。ただし、これは対応する採点処理の設計とコードの説明で、あらゆる問題形式の公平性や不正検出を保証するものではありません。
+
 ### 演習gatewayは、参加画面とは別の入口になる
 
 Docker問題では、参加者画面と実際の演習用Webアプリが別のポートを使う場合があります。[gateway-ports.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/gateway-ports.ts#L1-L25)のデフォルト範囲は5200–5239です。したがって、**すべての問題が5175だけで動くとは言えません。**
 
 ```mermaid
 sequenceDiagram
-  participant B as 参加者ブラウザ
+  participant A as チームAのブラウザ
   participant P as 参加者API 5175
-  participant G as 演習gateway
-  participant C as 自チームの演習環境
-  B->>P: チームキーで認証して演習を開く
-  P-->>B: 演習へ入るための短命なURL
-  B->>G: URLで接続する
-  G->>G: ticketとチームの権限を確認
-  G->>C: 許可された通信を渡す
-  C-->>B: gateway経由で演習画面を返す
+  participant G as Aの演習gateway
+  participant C as Aの演習環境
+  participant B as チームBのブラウザ
+  A->>P: Aのチームキーで演習を開く
+  P->>P: 認証結果からAの演習と権限を確認
+  P-->>A: 短命な入場URL
+  A->>G: ticketで入場する
+  G->>G: ticketを確認して消費・セッションを作る
+  A->>G: セッションを使って演習を操作
+  G->>C: 認可された通信を渡す
+  C-->>G: 演習の応答
+  G-->>A: 演習画面
+  B->>G: Aの有効なセッションなしで接続
+  G-->>B: 認証を拒否
+  Note over A,B: Aのキーや入場URLが漏れた場合は別の脅威
 ```
 
 [gateways.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/gateways.ts)には、チームの権限を確認し、一度だけ使うticketからブラウザのセッションを作る処理があります。ticketは演習への入場券に当たる秘密の値です。URL全体を記事・スクリーンショット・チャットへ貼り付けません。すべての演習runtimeが同じgateway実装を使うという意味ではなく、ここではWeb演習用の入口を説明しています。
@@ -263,6 +385,46 @@ firewallは、通してよい通信を選ぶ仕組みです。このguardが扱�
 | 演習コンテナの通信境界 | 対応Linuxの隔離モード | 参加者PC全体の外部通信の禁止 |
 
 「VPNを使ったから全部安全」とは言えません。参加端末間の不要な接続を防ぎたいならTailscaleのpolicyで別途確認し、端末自体の不正利用や別回線での通信まで防げるとは扱いません。脆弱性を学ぶ演習は、許可された自チームの対象だけに行います。
+
+次の図は、[local-network.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/local-network.ts)の所有関係に基づく通信計画と、[guardの通信規則](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L125-L310)を整理したものです。許可経路を持つ競技もあるため、他チームとの通信をすべて一律に禁止する図ではありません。
+
+```mermaid
+flowchart TB
+  M["Mac / Docker Desktop<br/>rootless / remote Docker"] --> X["この隔離モードは未対応<br/>別端末向けDocker演習を拒否"]
+  L["対応native Linux<br/>rootful Docker 28.4.xと必要権限"] --> G
+  subgraph ISO["guardが扱う演習コンテナの通信"]
+    G["起動前検査・通信規則・状態の照合"] --> C["所有する演習コンテナ"]
+    C -->|"演習内で許可された通信"| DB["同じ環境のDBなど"]
+    C -->|"明示した公開先だけ"| PUB["同じ大会の公開演習endpoint"]
+    C -->|"問題集の宣言と主催者承認が必要"| NET["指定した外部IP・ポート"]
+    C -.-> DENY["通常は通さない<br/>開催OS・家庭LAN<br/>他チームの非公開環境<br/>未承認の外部宛先"]
+  end
+  PC["参加者自身のPCやスマホ全体"] --> OUT["このguardの制御対象外<br/>別回線や端末上の操作も対象外"]
+```
+
+endpointは、通信を受け付ける宛先です。外部への例外は自由なURL入力ではなく、[internet-grants.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/internet-grants.ts)で、固定した問題定義の要求から主催者が選んで承認する構成です。開催OSやLANの経路との衝突も検査します。許可の追加は攻撃できる範囲も変えるため、教材に必要な宛先だけを扱います。
+
+リポジトリの[限定された実行検証の記録](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/assets/local-network-bounded-rehearsal.json)は、入れ子のDocker実験環境で、合成したホスト・別環境への通信制限などを報告しています。同じ記録は、実LAN・VPN・ブラウザ表示・VMからの脱出を確認したとは主張していません。この記録を今回のTailscale開催の実測として扱わない理由です。
+
+### 教材のコード、秘密、資源の上限も確認する
+
+ネットワークを制限しても、危険な教材を無条件に動かしてよいことにはなりません。[過去のIssue #3097](https://github.com/susumutomita/TenkaCloud/issues/3097)は、Dockerの管理用socketを扱えることを大きな信頼境界として挙げています。socketはプログラム同士の接続口です。Dockerの管理口を自由に使えれば、単なる演習コンテナの権限を越える操作につながります。同Issueにあるbroker化やrootless化の案を、現在すべて導入済みとは読みません。
+
+確認版は[docker-catalog.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/docker-catalog.ts#L65-L79)から[Composeの設定検査](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/container/compose-policy.ts)を呼びます。特権コンテナ、ホストの名前空間、絶対パスのマウントなどを拒否します。マウントは、別の場所のファイルや接続口をコンテナから使えるようにする設定です。それでも、許可された教材のコード自体が無害であることや、OS・Dockerの未知の欠陥まで防ぐことは証明できません。
+
+秘密の保存にも別の確認があります。[files.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/files.ts#L22-L86)は、専用データディレクトリを所有者だけが使える状態にし、共有された既存ディレクトリは拒否します。これはディスクの暗号化とは違います。バックアップも含め、DBやキーを参加者へ渡しません。教材には実際の秘密鍵、AWSのキー、個人ファイルを混ぜず、チームキー・共有招待・ticket入りURLを公開しません。
+
+[container-budget.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/container-budget.ts)には、コンテナのメモリなどの設定や起動数の上限があります。これは無制限の資源消費を避けるための処理で、開催端末全体が落ちない保証や、多人数に耐える性能測定ではありません。使う問題と人数に合わせたリハーサルが必要です。
+
+### AWS問題へ広げる場合は、別の権限と費用の確認が要る
+
+本記事の`make local`はAWS問題を動かす手順ではありません。[options.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/options.ts#L85-L89)も、AWS問題の実行先としてクラウド開催を要求します。Tailscaleで画面へ接続できても、AWSの権限分離は完成しません。
+
+クラウド側の[設計資料](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/README.md#storage-and-cloud-boundary)は、第三者の参加時には開催基盤と演習用のAWSアカウントを分けるよう求めています。リージョンはAWSの利用地域、IAMはAWSの操作権限を管理する仕組みです。同じアカウントで地域だけを分けても、IAMなどの共通資源は分かれません。資料には権限監査の未解決事項もあり、すべての問題が最小権限であるとは認定されていません。
+
+[participant-aws-access.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/participant-aws-access.ts#L54-L120)には、チームと演習のアカウント・ロールを照合し、一時的な資格情報を取得する処理があります。ロールは操作権限をまとめた役割です。ただし、新しい資格情報を発行しないことと、発行済みの資格情報を即時に無効とすることは別です。大会終了だけで、発行済み権限がすべて失効するとは扱いません。[AWS公式の一時資格情報の説明](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_disable-perms.html)も、期限や権限変更・失効の操作を別に扱っています。
+
+費用の確認も残ります。設計資料では、`make down`はAWSの演習stackを削除しません。stackは、まとめて管理するクラウド資源の集まりです。クラウドを使う場合は演習のTeardownと基盤の削除を分け、保持するデータや残る保存先も確認します。資源が残れば費用も残り得ます。利用予定と予算の確認には[AWS Budgetsの公式説明](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)も参照し、終了ボタンを押したことだけで後始末を完了したと判断しません。
 
 ## 再現するときに固定するもの
 
