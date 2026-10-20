@@ -6,108 +6,103 @@ topics: ["tenkacloud", "tailscale", "security", "network"]
 published: true
 ---
 
-## 何ができるのか
+## この記事で試すこと
 
-[TenkaCloud](https://github.com/susumutomita/TenkaCloud)は、クラウドやセキュリティの課題に、実際に手を動かして取り組むために作っているOSSです。OSSは、ソースコードを公開し、ライセンスの条件に沿って利用・改良できるソフトウェアです。参加者はチームで問題を解き、回答を送って得点を競います。
+離れたPCから、主催者のTenkaCloudへ参加するところまで試したい人向けの記事です。前半では**主催者用と参加者用の2台を同じtailnetにつなぎ、暗号バトルを開始・採点・終了する**手順を追います。
 
-主催者は、大会やチーム、問題の実行環境を用意し、採点結果と順位を1つの画面で管理できます。チームキーを配って参加してもらうため、参加者全員がTenkaCloud本体をインストールする必要はありません。問題集を追加して、別の大会でも再利用できます。概要は[紹介ページ](https://tenkacloud.com/)、コードと導入手順は[GitHub](https://github.com/susumutomita/TenkaCloud)にまとめています。
+- 到達点は、参加端末から自分のチームへログインし、問題の操作と得点を確認して、開催後の接続許可を片づける。
+- 準備するものは、主催者はMacまたはLinuxの専用環境と、ソフトウェアを導入できる権限を用意する。参加者はPCのブラウザを使う。Tailscaleの管理者が招待とアクセス制御を確認できることも必要。
+- 扱うのは、DockerとAWSが不要なCrypto Battle（暗号バトル）。他人の得点を奪うScore Stealは使わない。
 
-### クラウド費用を気にせず試せる開催方法が欲しかった
+[Tailscale](https://tailscale.com/docs/how-to/quickstart)は、許可した端末同士を暗号化した通信でつなぐサービスです。tailnetは、その利用者と端末をまとめるプライベートなネットワークです。IPは、通信先を表す住所のような番号です。
 
-TenkaCloudを紹介する中で、コミュニティや研究室で使ってみたいと言ってもらいました。一方で、クラウド費用がネックになったり、いくら課金されるかが気になって手を出しづらかったりする様子も見えてきました。[以前の記事](https://zenn.dev/singularity/articles/singularity-society-bootcamp-4months)でも、利用者の声を受けて費用の考え方が変わったことを書いています。
-
-そこで、主催者のローカルPCで大会を開ける競技モードを追加しました。AWS上の環境で問題を解くクラウド開催に加え、手元のPCで動く問題を選べるようにした形です。暗号バトルなど、クラウド資源を使わない問題なら、クラウドの利用料を発生させずに競技できます。使える問題は開催方式で異なります。Tailscale自体の利用条件や料金も別に確認します。
-
-### 離れた人にも参加してもらいたいが、自分のPCを無制限に開きたくない
-
-次に、地理的に離れた人とも、このローカル開催で競技できるようにしたいと考えました。その接続に使うのがTailscaleです。自分でVPNを開発するのではなく、Tailscaleを使って、離れた参加者から開催用PCへ接続する構成にしました。
-
-ただし、参加者を自分のPCへ受け入れる以上、そのPCを悪用されたり、マルウェアを動かされたりするリスクを考える必要があります。マルウェアは、情報を盗むなどの悪意ある動作をするソフトウェアです。家庭や研究室のネットワークにある別のPC・機器への接続も避けたいところです。参加者には自分の問題を操作してもらいつつ、主催者の管理画面や他チームの非公開環境へはアクセスさせたくありません。
-
-開催場所には、普段のPCへ直接受け入れる構成より、開催専用のクラウドサーバーや、UTMで用意するLinux VMなどを勧めます。UTMはMacで別のOSを動かすソフトウェア、VMは仮想的なコンピューターです。普段の作業環境と分けるためです。クラウドサーバーには利用料がかかり、VMも設定を確認せず安全と見なせるものではありません。具体的な確認事項は最初の手順で説明します。
-
-このために苦労したのが、問題コンテナから主催者PCや家庭LANへ出る通信を制限する部分でした。対応するLinuxでは、この通信を止めるguardを追加しています。Tailscaleでの接続、操作の認可、コンテナの通信制限を組み合わせる設計です。参加者PCや開催OS全体のマルウェア対策を保証するものではありません。この記事では、Tailscaleでの接続と、接続後の操作権限・チームごとの環境分離を説明します。実装が制限する範囲と、保証しない範囲を分けて確認します。Docker演習の隔離に必要なLinuxの条件と、Macでは対応していない範囲も確認します。
-
-[Tailscale](https://tailscale.com/docs/how-to/quickstart)は、許可した端末同士を暗号化した通信でつなぐサービスです。VPNは、離れた端末の間に仮想的な通信経路を作る仕組みです。tailnetは、Tailscaleで利用者と端末をまとめるプライベートなネットワークを指します。
-
-前半で準備から終了までの手順を示し、後半で「何を、どの仕組みが守るか」をコードから追います。最初はDockerを使わない問題、たとえばCrypto Battleを対象にします。Dockerは、演習用のプログラムをコンテナという実行環境で動かす仕組みです。Docker問題を別端末から利用するには追加条件があります。
+Dockerは、プログラムをコンテナという実行環境へ分けて動かす仕組みです。今回の最初の手順には不要です。
 
 :::message
 
-この記事は、2026年10月19日に公式資料とTenkaCloudのmain、[d1c77b00f5b7eefc99021741a78ae23ecd9031ab](https://github.com/susumutomita/TenkaCloud/tree/d1c77b00f5b7eefc99021741a78ae23ecd9031ab)を確認した、開催準備のための説明です。TenkaCloudの[ガイド](https://tenkacloud.com/docs/getting-started/#tailscale-first-connection)はPreviewです。今回、Tailscale共有を通したTenkaCloudの実機リハーサル、スマホ操作、多人数開催、Dockerの実通信は行っていません。以下の成功条件は、実測結果ではなく開催前に確認する項目です。
+これは開催準備の手順で、実測による成功報告ではありません。2026年10月20日にTenkaCloudのmain、[d1c77b00f5b7eefc99021741a78ae23ecd9031ab](https://github.com/susumutomita/TenkaCloud/tree/d1c77b00f5b7eefc99021741a78ae23ecd9031ab)を再確認しました。公式[ガイド](https://tenkacloud.com/docs/getting-started/)はPreviewです。今回、Tailscale経由のTenkaCloud開催、スマホ、多人数、UTM、Dockerの実通信は検証していません。
 
 :::
 
-Tailscaleの暗号化やMacの受信処理の基礎は、既存の[MulmoTerminalにTailscale経由でアクセスする方法](https://zenn.dev/susumutomita/articles/tailscale-mulmoterminal-network)につなぎます。そちらの実機確認はMacからMacへのMulmoTerminal接続です。TenkaCloudやスマホの動作確認として読み替えないでください。
+外部参加者への端末共有とDocker問題は、最初の手順を終えた後の「構成を広げる場合」で扱います。安全性の仕組みを読みたい場合は、その後のコード解説へ進めます。
 
-ソースコードは、ソフトウェアの動作を記述した文章です。mainは開発の中心となるbranch（変更を進める系列）、commitは記録した変更の版を指します。長い英数字は、その版を特定する番号です。
+## TenkaCloudと、遠隔開催を作った理由
 
-## 開催までの手順
+[TenkaCloud](https://github.com/susumutomita/TenkaCloud)は、クラウドやセキュリティの課題に、実際に手を動かして取り組むために作っているOSSです。OSSは、コードを公開し、ライセンスの条件に沿って利用・改良できるソフトウェアです。参加者はチームで問題に取り組み、得点を競います。
 
-### 1. 主催者が、使う問題と開催端末を決める
+主催者は、大会・チーム・問題の実行環境・採点結果・順位を1つの画面で管理できます。参加者にはチームキーを配るため、全員がTenkaCloud本体をインストールする必要はありません。問題集を追加して再利用できます。[紹介ページ](https://tenkacloud.com/)に概要をまとめています。
 
-開催用のソフトウェアを動かす端末を「開催端末」、ブラウザで問題を解く端末を「参加端末」と呼びます。会社の端末やサービスを共有するときは、所有者・管理者が認めた専用の開催端末を使います。
+紹介する中で、コミュニティや研究室で使ってみたいと言ってもらいました。一方で、クラウド費用や、いくら課金されるか分からない不安が利用の壁になっていました。[以前の記事](https://zenn.dev/singularity/articles/singularity-society-bootcamp-4months)でも、利用者の声を受けて費用の考え方が変わったことを書いています。
 
-#### 開催場所は、普段の作業環境と分ける
+そこで、AWS上で開く大会に加え、主催者のローカルPCで開ける競技モードを追加しました。暗号バトルのようにクラウド資源を使わない問題なら、クラウドの利用料を発生させずに競技できます。問題ごとの対応方式や、Tailscaleの利用条件・料金は別に確認します。
 
-実際の開催には、専用のクラウドサーバーか、Mac上の[UTM](https://mac.getutm.app/)で用意するLinux VMなどを勧めます。VMは、別のOSを動かすための仮想的なコンピューターです。個人ファイルや普段の仕事の権限を持つPCへ、演習の操作を直接受け入れる範囲を減らすためです。クラウドサーバーには利用料が発生します。手元でクラウド資源を使わない問題を動かす選択とは、費用の条件が違います。
+さらに、地理的に離れた人にも参加してもらうため、Tailscaleを接続に使いました。VPNは、離れた端末の間に仮想的な通信経路を作る仕組みです。自分でVPNを作るのではなく、Tailscaleが届けた通信をTenkaCloudで受け付けます。
 
-VMにしただけで、元のMacや周囲の機器へ接続できなくなるとは限りません。[UTMのネットワーク説明](https://docs.getutm.app/settings-qemu/devices/network/network/)では、Shared NetworkでVMと元の端末のサービスが互いに見える構成を説明しています。NATも、通信の宛先・送信元アドレスを変換する仕組みで、家庭内LANへの接続を一律に禁止する機能ではありません。
+ただし、自分のPCへ参加者を受け入れると、管理画面の悪用や他チームへの接続も考える必要があります。家庭LANという、家庭内のPC・機器がつながるネットワークも守りたいところです。特に苦労した問題コンテナからの通信制限は、後半で実装と限界を説明します。
 
-開催用の環境を作るときは、次の点も別に確認します。
+## 最初に、2台の役割と通信を見る
 
-- [UTMの共有機能](https://docs.getutm.app/settings-qemu/sharing/)による共有フォルダとクリップボード同期は、不要なら無効にする。使う場合も教材で必要な範囲だけを選び、個人ファイルや秘密を共有しない。
-- 開催用のOSに普段のAWSキーや秘密鍵を置かない。参加者へ開催OSやDockerの管理権限を渡さない。[Dockerの安全性の説明](https://docs.docker.com/engine/security/)も、Docker daemonを操作する権限を強い権限として扱っている。
-- 後半で説明するTenkaCloudのguardにより、問題コンテナから開催OSや家庭LANへの通信を制限する。その外側の開催OS自身から出る通信は別に制限し、必要な接続を残して許可・拒否を確認する。
+ソフトウェアを動かすPCを「開催端末」、参加者がブラウザを使うPCを「参加端末」と呼びます。以下は開催端末をMacにした例です。Linuxでも役割は同じです。
 
-Linux VMを使う場合、TenkaCloudとDockerをそのLinux内で動かし、[Linux向け手順](https://tailscale.com/docs/install/linux)でTailscaleも同じVMへ導入します。指定するIPはVM自身のものです。管理画面の127.0.0.1もVMやクラウドサーバー自身を指します。主催者だけの管理経路を使い、参加者用に管理画面を公開しません。
+この図のnative問題は、Dockerを使わずBun内で動く問題です。Bunはプログラムを動かす道具です。
 
-Docker演習の隔離を使うには、VM内でも後半のguardの条件をすべて満たす必要があります。native Linux、rootful Docker Engine 28.4.x、同じネットワーク名前空間、必要なfirewall権限などが条件です。MacのDocker Desktopを使う構成とは異なります。UTMでLinuxを起動できることだけを理由に、対応済みとは判断しません。
+TCPはデータを順序どおりに届ける通信方式、ポートは端末内の接続先を区別する番号です。HTTPはWebの通信方式です。APIは画面の操作をプログラムへ伝える窓口です。SQLiteは得点などを保存するデータベースです。
 
-今回、UTM上のTenkaCloudとクラウドサーバーでの開催は実機未検証です。ここでは構成の候補と確認事項を示しています。OSや仮想化ソフトウェアの欠陥まで防げると保証するものではありません。
+```mermaid
+flowchart LR
+  subgraph PC["参加端末"]
+    B["ブラウザ<br/>HTTP"]
+    PT["Tailscale"]
+    B -->|"開催IP:5175宛て"| PT
+  end
+  subgraph WAN["インターネット上"]
+    W["端末間で暗号化した通信<br/>直接または中継"]
+  end
+  subgraph MAC["開催用Mac：native問題の例"]
+    MT["Tailscale<br/>復号する"]
+    API["開催IP:5175<br/>参加者画面とAPI・HTTP"]
+    N["Bunの競技処理とnative問題<br/>SQLiteへ保存"]
+    OB["主催者のブラウザ"]
+    AD["127.0.0.1:5174<br/>管理画面とAPI"]
+    MT -->|"復号後のHTTP"| API
+    API --> N
+    OB -->|"端末内のHTTP"| AD
+    AD --> N
+  end
+  PT --> W --> MT
+```
+図の5175が参加者の入口です。5174は開催端末上の主催者だけが使います。この端末内だけの接続をloopbackと呼びます。127.0.0.1は、操作している端末自身を指すアドレスです。参加者へ主催者の画面を中継しません。
 
-| 使いたいもの | 開催端末の条件 | 参加者に必要な接続先 |
-| --- | --- | --- |
-| Dockerを使わないnative問題 | MacまたはLinux。ここではこの構成から始める | TCP 5175 |
-| Docker / Compose問題 | 対応するnative Linuxと専用隔離モードが必要 | TCP 5175と、使用する演習gatewayのTCPポート |
+Tailscaleの暗号化やMacの受信処理の基礎は、[MulmoTerminalの記事](https://zenn.dev/susumutomita/articles/tailscale-mulmoterminal-network)につなぎます。そちらの実機確認はMacからMacへのMulmoTerminal接続で、TenkaCloudやスマホの確認結果ではありません。
 
-native問題は、ここではDockerの演習コンテナを使わずに実行する問題です。TCPは、Web画面などのデータを順序どおりに届ける通信方式です。ポートは、同じ端末上のどのサービスへ届けるかを区別する番号です。
+## 2台で暗号バトルを開く
 
-**MacでTailscaleを使えることと、MacでDocker演習を隔離できることは別です。**
+### 1. 開催前の条件をそろえる
 
-現行の隔離モードはnative Linux上のrootful Docker Engine 28.4.xに限られます。rootfulは、Dockerの管理プログラムが管理者権限で動く方式です。MacのDocker Desktop、rootless方式、別端末のDockerを使うremote方式は対象外です。詳しい拒否条件は後半で確認します。
+**普段の個人ファイルや秘密を置かない、専用の開催環境を使います。** 会社の端末なら、所有者・管理者の承認も必要です。参加者に開催OSの管理権限を渡しません。OSは、端末を動かす基本のソフトウェアです。
 
-### 2. 主催者と参加者が、Tailscaleのログイン先をそろえる
+今回使うnative問題は、Dockerの演習コンテナを使わずBun内で動く問題です。**問題コードをOSから隔離する機能ではありません。** 信頼できる教材だけを選び、未知のコードやマルウェアを試す場所にはしません。マルウェアは、情報を盗むなどの悪意ある動作をするソフトウェアです。
 
-両方の端末へ[公式手順](https://tailscale.com/docs/how-to/quickstart)でTailscaleを入れます。Macは[macOS用手順](https://tailscale.com/docs/install/mac)、スマホなら使うOSの手順に従います。OSがVPN構成の許可を求めたら、公式手順に沿って進めます。
+開催端末にGit・Make・Bun 1.3.11とインターネット接続を用意します。Gitはコードの版を管理し、Makeは用意された作業を呼び出す道具です。導入方法は[公式ガイド](https://tenkacloud.com/docs/getting-started/#local-start)を確認します。
 
-ここで、次のどちらを使うか決めます。**tailnetへの参加、端末1台の共有、アクセス制御のグループ追加は別の操作です。**
+Tailscaleの設定を扱う管理者を決めます。この後で、参加者向けは5175だけを許可し、5174と不要なサービスを許可しないことを、有効な設定全体で確認します。専用サーバーやMac上の仮想マシンを使う場合の追加条件は、後半にまとめています。
 
-#### A. 開催用の同じtailnetへ参加する
+### 2. 同じtailnetへ2台を登録する
+
+両方のPCへ[公式手順](https://tailscale.com/docs/how-to/quickstart)でTailscaleを導入します。Macは[macOS向け手順](https://tailscale.com/docs/install/mac)に従います。OSがVPN構成の許可を求めたら、公式手順に沿って進めます。
 
 1. 主催者が、参加者を開催用tailnetへ招待します。[利用者招待の公式案内](https://tailscale.com/docs/manage-users)から、利用する認証方法に合う手順を選びます。自分の2台で先に試すなら、同じアカウントで登録できます。他人とログイン情報を共用しません。
 2. 参加者は招待を受け、決めたアカウントでログインします。ブラウザとTailscaleアプリで、選択中のアカウント・tailnetが一致するか確認します。
 3. 利用者承認や端末承認が有効なら、管理者の承認を待ちます。Machinesの`Needs approval`は、グループ追加では解消しません。[端末管理の公式手順](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up)も確認します。
 4. 管理者は端末一覧で開催端末と参加端末を照合します。参加者が管理画面を開けない役割なら、管理者が確認します。
 
-#### B. 参加者自身のtailnetへ、開催端末だけを共有する
+### 3. 参加者の5175への接続だけを許可する
 
-外部の参加者へ開催端末1台を共有する方法です。[共有の公式仕様](https://tailscale.com/docs/features/sharing)は範囲を “only the shared machine” と説明しています。「共有された端末だけ」という意味です。主催者のtailnet全体へ加入する手順ではありません。
+アクセス制御は「誰が、どの端末の、どのポートへつなげるか」を決める設定です。policyはアクセス制御の設定で、grantsやACLはその書式です。ここでは通信の許可にgrantsを使います。[公式のgrants説明](https://tailscale.com/docs/features/access-control/grants)は “deny-by-default” と表現しています。必要な通信を明示して許可する考え方です。ただし、実際のtailnetに広い許可が残っていないかは別途確認します。
 
-1. 共有を作る主催者と、受け取る参加者は、それぞれのtailnetでOwner/Admin/IT adminのいずれかの権限が必要です。権限がなければ、それぞれの管理者に確認します。
-2. 主催者はMachinesで開催端末を選び、`Share` → `Copy invite link` → `Copy share link`から、参加者ごとの単発リンクを作ります。`Reusable link`は有効にしません。招待リンクは本人にだけ渡します。
-3. 参加者は招待を開き、ブラウザで受け取るアカウント・tailnetを確認して承認します。Tailscaleアプリでも、その共有を受けたアカウント・tailnetを選び、`Connected`を確認します。
-4. 参加者は端末一覧から、主催者の伝えた開催端末を探します。共有は受諾した本人向けです。参加者側のtailnetにいる全員が自動的に使えるわけではありません。
+この手順では、管理者が`group:event-participants`のような参加者グループを用意し、承認した本人の識別子を追加します。[公式のグループ仕様](https://tailscale.com/docs/reference/syntax/policy-file#groups)を確認し、policyファイルの`groups`、またはUsers → 対象者の`…` → `Edit group membership`で操作します。グループ編集の権限も必要です。これは端末登録やTenkaCloudのチーム作成ではありません。
 
-共有を承認しても、ポートの許可は次の手順で確認します。共有時のIP競合で、受信側に別のIPを割り当てる場合があります。その場合は本記事のIP指定の手順を止め、両側の管理者と経路を確認します。
-
-### 3. 管理者が、参加者グループと接続許可を確認する
-
-アクセス制御は「誰が、どの端末の、どのポートへつなげるか」を決める設定です。TailscaleではgrantsやACLを使います。ここでは通信の許可にgrantsを使います。[公式のgrants説明](https://tailscale.com/docs/features/access-control/grants)は “deny-by-default” と表現しています。必要な通信を明示して許可する考え方です。ただし、実際のtailnetに広い許可が残っていないかは別途確認します。
-
-Aの同じtailnet方式では、管理者が`group:event-participants`のような参加者グループを用意し、承認した本人の識別子を追加します。[公式のグループ仕様](https://tailscale.com/docs/reference/syntax/policy-file#groups)を確認し、policyファイルの`groups`、またはUsers → 対象者の`…` → `Edit group membership`で操作します。グループ編集の権限も必要です。これは端末登録やTenkaCloudのチーム作成ではありません。
-
-以下は、**同じtailnetでnative問題を試す場合の設定例**です。既存policyを丸ごと置き換えるものではありません。管理者が他の許可との関係を確認し、設定の検査・テストを通してから適用します。メールアドレスとIPは架空の値です。IPは開催端末自身のものへ置き換えます。
+以下は、**同じtailnetで暗号バトルを試す場合の設定例**です。既存policyを丸ごと置き換えるものではありません。管理者が他の許可との関係を確認し、設定の検査・テストを通してから適用します。メールアドレスとIPは架空の値です。IPは開催端末自身のものへ置き換えます。
 
 ```json
 {
@@ -127,21 +122,17 @@ Aの同じtailnet方式では、管理者が`group:event-participants`のよう�
 }
 ```
 
-`src`は接続する人、`dst`は接続先、`ip`は許可する通信方式とポートです。`hosts`はpolicy内で使うIPの別名で、ブラウザで開くDNS名を登録する設定ではありません。ログイン方法によって利用者識別子が異なるため、メールアドレスと決めつけず、管理画面と[公式の利用者表記](https://tailscale.com/docs/reference/syntax/policy-file#users)を照合します。
+`src`は接続する人、`dst`は接続先、`ip`は許可する通信方式とポートです。`hosts`はpolicy内で使うIPの別名で、ブラウザで接続先を名前で開けるようにする設定ではありません。ログイン方法によって利用者識別子が異なるため、メールアドレスと決めつけず、管理画面と[公式の利用者表記](https://tailscale.com/docs/reference/syntax/policy-file#users)を照合します。
 
-Bの端末共有方式は、[公式の共有とアクセス制御の例](https://tailscale.com/docs/features/sharing#sharing-and-access-control-policies)に沿って、開催側では受諾した外部利用者を`src`に指定します。参加側のグループが開催側へ引き継がれる前提にはしません。参加側のpolicyも接続を妨げていないか確認します。
+参加者へ許可するのは、開催端末のTCP 5175です。管理画面の5174や、遠隔操作に使うSSHなどの不要なサービスは許可しません。
 
-許可する範囲は次のとおりです。
+**狭い許可を追加しても、既存の広い許可は打ち消されません。** 管理者は有効なpolicy全体を確認します。許可した参加者の5175は許可、5174・不要なサービス・許可していない利用者は不許可になることを、policyテストで確認します。会社の設定を本記事の例だけで置き換えないでください。
 
-- native問題だけなら、開催端末のTCP 5175。
-- Dockerの演習gatewayを使う場合だけ、設定した`--gateway-ports`のTCP範囲も対象にする。デフォルトは5200–5239。gatewayは、参加者の通信を演習環境へ渡す入口です。
-- 管理画面の5174、SSHなどの不要なサービス、コンテナ内部へ直接つながるポートは参加者に許可しない。
+### 4. 開催端末でTenkaCloudを起動する
 
-**狭い許可を追加しても、既存の広い許可は打ち消されません。** 全員・全ポートを許可するルールなどを含め、有効なpolicy全体で判断します。管理者は許可した参加者の5175、使用するgatewayへの接続と、5174・不要なサービス・許可していない利用者の不許可をpolicyテストで確認します。会社のpolicyを本記事の例だけで変更しないでください。
+次は、新しい開催用ディレクトリで行う準備です。稼働中の大会を途中で更新・再起動する手順ではありません。
 
-### 4. 主催者が、開催端末自身のIPで起動する
-
-[TenkaCloudの導入ガイド](https://tenkacloud.com/docs/getting-started/#local-start)に従い、Git、Make、Bun 1.3.11を用意します。Gitはコードの版を管理する道具、Makeは決められた作業を呼び出す道具です。Bunは、このプロジェクトのプログラムを実行するために使います。以下は新しい開催用ディレクトリでの例です。稼働中の大会を途中で更新・再起動する手順ではありません。
+commitは記録した変更の版で、次の長い英数字はその識別子です。本体を説明と同じ版へ固定します。
 
 ```sh
 git clone https://github.com/susumutomita/TenkaCloud.git
@@ -151,25 +142,29 @@ git checkout --detach d1c77b00f5b7eefc99021741a78ae23ecd9031ab
 make install
 ```
 
+`make local`は問題集も取得します。問題集は本体と別の版なので、取得した版も記録します。詳しくは後半の「再現するときに固定するもの」を確認します。
+
 開催端末でTailscaleを有効にし、アプリの端末情報、またはCLIの`tailscale ip -4`と`tailscale status`で、自分のTailscale IPv4を確認します。CLIは文字で命令を入力する操作方法です。Macで`tailscale`が見つからない場合は、アプリの表示と公式の導入手順を使って確認します。
 
-次の`100.96.12.34`は、TenkaCloudのガイドと同じ**説明用の値**です。実際には開催端末自身のIPへ置き換えます。参加者自身のIPや、共有先でだけ別に見えているIPを指定しません。VMを開催端末にするなら、そのVM自身に割り当てられたIPを使います。
+次の`100.96.12.34`は、TenkaCloudのガイドと同じ**説明用の値**です。実際には開催端末自身のIPへ置き換えます。参加者自身のIPを指定しません。
 
 ```sh
 make local LOCAL_ARGS="--lan 100.96.12.34 --unsafe-lan"
 ```
 
-このコマンドは、Tailscaleの導入、招待、アクセス制御、OSの通信許可を設定しません。`--unsafe-lan`はHTTPでの待ち受けに明示的に同意する指定です。HTTPはWebの通信方式、TLSは通信を暗号化する仕組みです。この指定だけでVPNやTLSが有効になることはありません。
+このコマンドは、Tailscaleの導入、招待、アクセス制御、OSの通信許可を設定しません。`--unsafe-lan`はHTTPでの待ち受けに明示的に同意する指定です。TLSは通信を暗号化する仕組みです。この指定だけでVPNやTLSが有効になることはありません。
 
-初回はbuildを省略しません。buildはソースコードから実行用のファイルを作る処理です。起動ログに表示されたURLを確認します。デフォルトのポートなら、主催者は**開催端末上で**`http://127.0.0.1:5174`を開きます。127.0.0.1は、その操作をしている端末自身を指すアドレスです。
+初回はbuildを省略しません。ソースコードは動作を記述した文章、buildはそこから実行用のファイルを作る処理です。起動ログに表示されたURLを確認します。デフォルトのポートなら、主催者は**開催端末上で**`http://127.0.0.1:5174`を開きます。
 
 対話ターミナルでの起動時に表示される主催者キーを非公開で保管し、主催者のログインに使います。起動し直すと以前の主催者キーとログインは失効します。主催者キーを参加者へ配りません。管理画面を参加者用に転送・proxyしないでください。proxyは、別のサービスへ通信を中継する仕組みです。
 
-### 5. 大会とチームを作り、接続を確認してから開始する
+### 5. 暗号バトルに参加し、得点を確かめる
 
-主催者はHost Consoleで大会とチームを作り、使うnative問題を選んで環境を準備します。画面の流れは[公式ガイド](https://tenkacloud.com/docs/getting-started/)に従います。各チームには、そのチームのキーだけを渡します。
+主催者はHost Console（主催者画面）で大会を作り、最初は参加用の1チームを用意します。問題はCrypto Battle（暗号バトル、IDは`crypto-battle`）だけを選び、Score Stealが無効のnative構成であることを確認します。画面の作成・開始手順は[開催者マニュアル](https://tenkacloud.com/docs/manual/organizer/)を確認します。
 
-参加者へ渡すのは、起動ログの参加者URL、チームキー、接続先の開催端末名です。例は`http://100.96.12.34:5175/`です。参加端末で127.0.0.1を開くと、開催端末へは届きません。このLAN構成はIPに基づくHost/Originを検査するため、URLを勝手にMagicDNS名へ置き換えません。MagicDNSは端末を名前で探すTailscaleの機能です。
+大会のSchedule（スケジュール）で、画面の案内に沿って開催準備を完了します。準備できたことを確認してから、各チームへそのチームのキーだけを渡します。
+
+参加者へ渡すのは、起動ログの参加者URL、チームキー、接続先の開催端末名です。例は`http://100.96.12.34:5175/`です。参加端末で127.0.0.1を開くと、開催端末へは届きません。このLAN構成はIPに基づくHost（接続先）とOrigin（ブラウザの操作元）を検査するため、URLを勝手にMagicDNS名へ置き換えません。MagicDNSは端末を名前で探すTailscaleの機能です。
 
 参加者はTailscaleが接続中で、招待を受けたアカウント・tailnetになっていることを再確認してから、URLを開きます。PCでは、承認済みの開催端末だけを次のように確認できます。ここでもIPを置き換えます。
 
@@ -180,19 +175,29 @@ nc -vz -w 3 "$EVENT_HOST_IP" 5175
 nc -vz -w 3 "$EVENT_HOST_IP" 5174
 ```
 
-確認するのは、healthの`status`が`ok`で`role`が`participant`、5175へ接続でき、5174へ接続できないことです。`curl`はHTTPの応答、`nc`はポートへの接続を調べるコマンドです。スマホならブラウザで同じ`/healthz`を開く確認方法がありますが、今回その動作は未検証です。
+確認するのは、healthの`status`が`ok`で`role`が`participant`、5175へ接続でき、5174へ接続できないことです。`curl`はHTTPの応答、`nc`はポートへの接続を調べるコマンドです。
 
 5174への接続失敗だけでは、Tailscaleの制御が正しい証明にはなりません。アプリが外向けに待ち受けていないだけでも失敗します。管理者のpolicyテストと組み合わせます。healthが開くことも、チームキー認証や採点まで動く証明にはなりません。
 
-参加者はチームキーでログインし、チーム名を確認します。全員のログインを確認してから主催者が大会を開始し、選んだ問題の操作と得点を確認します。Docker問題を使う場合は追加の隔離条件を満たしたうえで、実際に画面から発行された自チームのgateway URLまで確認します。5200–5239の全ポートが常時応答する仕組みではありません。
+参加者はチームキーでログインし、自分のチーム名と暗号バトルが表示されることを確認します。
 
-### 6. 終了し、招待による接続権も片づける
+主催者はログインできたことを聞いてから、Scheduleで大会を開始します。参加者は問題の案内に沿って操作し、主催者と参加者の画面で得点を照合します。ここが手順の到達点で、接続確認だけで採点も成功したことにはしません。
 
-End Eventで採点を止め、必要な結果を保存します。環境の停止・削除は大会終了とは別です。データを残す場合は画面のStop (keep data)など、[停止と再開の公式手順](https://tenkacloud.com/docs/getting-started/)に従います。`make down`は管理対象のローカル環境を停止してデータを保持します。独自の`--data`で起動した場合、停止時も同じ値が必要です。Teardownや`local-clear`は削除を伴うため、対象と保存要否を先に確認します。
+暗号バトルは競技中の操作で得点が変わります。問題の遊び方は画面の案内と[参加者マニュアル](https://tenkacloud.com/docs/manual/participant/)を参照します。ここでは実測の得点や所要時間を示しません。
 
-端末共有方式なら、主催者が開催端末のShare画面から対象者と未使用招待の`Revoke invite`を実行し、失効を確認します。同じtailnet方式なら、開催用グループの所属や臨時許可を管理者が片づけます。ほかの用途でも使う利用者や端末を、まとめて削除しません。
+### 6. 採点を止め、接続許可を片づける
 
-開催端末を停止しただけでは、共有を取り消したことにはなりません。共有・許可の設定画面で失効を確認し、再接続できないことは補助確認にします。
+End Event（大会終了）で採点を止め、必要な結果を保存します。開催端末の停止は別の操作です。[停止手順](https://tenkacloud.com/docs/getting-started/)に沿い、同じリポジトリの別ターミナルで次を実行します。
+
+```sh
+make down
+```
+
+これはDB・得点・キーを保持して停止します。独自の`--data`で起動した場合、停止時も同じ値が必要です。データを削除する手順ではありません。
+
+管理者が開催用グループの所属や臨時の許可を片づけ、参加者の接続許可が残っていないことを確認します。ほかの用途でも使う利用者や端末を、まとめて削除しません。
+
+開催端末を停止しただけでは、接続許可を取り消したことにはなりません。設定画面で失効を確認し、再接続できないことは補助確認にします。
 
 次の図は、[ローカル停止・再開の設計図](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/docs/architecture/diagrams/local-play-sequence.mmd)を基に、安全確認の区切りを足したものです。採点終了、実行環境の停止・削除、ネットワーク上の招待失効は、別々に確認します。
 
@@ -207,6 +212,60 @@ flowchart LR
   G --> H["残したデータと資源を確認<br/>停止だけで削除済みとしない"]
 ```
 
+## 構成を広げる場合
+
+ここからは、最初の2台の手順とは別の構成です。共有先や問題を変える前に、追加条件を確認します。
+
+### 外部のtailnetへ、開催端末1台を共有する
+
+外部の参加者へ開催端末1台を共有する方法です。[共有の公式仕様](https://tailscale.com/docs/features/sharing)は範囲を “only the shared machine” と説明しています。「共有された端末だけ」という意味です。主催者のtailnet全体へ加入する手順ではありません。
+
+1. 共有を作る主催者と、受け取る参加者は、それぞれのtailnetでOwner/Admin/IT adminのいずれかの権限が必要です。権限がなければ、それぞれの管理者に確認します。
+2. 主催者はMachinesで開催端末を選び、`Share` → `Copy invite link` → `Copy share link`から、参加者ごとの単発リンクを作ります。`Reusable link`は有効にしません。招待リンクは本人にだけ渡します。
+3. 参加者は招待を開き、ブラウザで受け取るアカウント・tailnetを確認して承認します。Tailscaleアプリでも、その共有を受けたアカウント・tailnetを選び、`Connected`を確認します。
+4. 参加者は端末一覧から、主催者の伝えた開催端末を探します。共有は受諾した本人向けです。参加者側のtailnetにいる全員が自動的に使えるわけではありません。
+
+共有を承認しても、ポートの許可は次の手順で確認します。共有時のIP競合で、受信側に別のIPを割り当てる場合があります。その場合は本記事のIP指定の手順を止め、両側の管理者と経路を確認します。
+
+共有の受諾、同じtailnetへの参加、グループへの追加は別の操作です。[公式の共有とアクセス制御](https://tailscale.com/docs/features/sharing#sharing-and-access-control-policies)に沿い、開催側では受諾した外部利用者を`src`に指定します。参加側のグループが開催側へ引き継がれる前提にはしません。両側の管理者が有効なpolicyを確認します。
+
+終了時は、開催端末のShare画面から対象者と未使用招待の`Revoke invite`を実行し、失効を確認します。スマホでもOS向けの公式手順が必要ですが、今回のTenkaCloudでの操作は未検証です。
+
+### Docker問題では、接続先と隔離条件を追加する
+
+Docker問題では、対応Linuxのguardという通信を検査する仕組みが必要です。後半で、その規則とDNS転送の制限を確認します。
+
+Docker問題では、gatewayという演習環境への入口を使う場合があります。参加者画面の5175に加え、使うgatewayのTCPポートも許可します。`--gateway-ports`のデフォルトは5200–5239です。範囲全体が常時応答するわけではなく、画面から発行された自チームのURLで確認します。5174やコンテナ内部へ直接つながるポートは許可しません。
+
+Docker環境を停止して残す場合は、Stop (keep data)を使います。Teardownや`local-clear`は削除を伴うため、対象と保存要否を先に確認します。大会終了、停止、削除を同じ操作と考えないでください。
+
+| 使いたいもの | 開催端末の条件 | 参加者に必要な接続先 |
+| --- | --- | --- |
+| Dockerを使わないnative問題 | MacまたはLinux。ここではこの構成から始める | TCP 5175 |
+| Docker / Compose問題 | 対応するnative Linuxと専用隔離モードが必要 | TCP 5175と、使用する演習gatewayのTCPポート |
+
+**MacでTailscaleを使えることと、MacでDocker演習を隔離できることは別です。**
+
+現行の隔離モードはnative Linux上のrootful Docker Engine 28.4.xに限られます。rootfulは、Dockerの管理プログラムが管理者権限で動く方式です。MacのDocker Desktop、rootless方式、別端末のDockerを使うremote方式は対象外です。詳しい拒否条件は後半で確認します。
+
+### 専用サーバーやMac上のLinux VMを使う
+
+実際の開催には、専用のクラウドサーバーか、Mac上の[UTM](https://mac.getutm.app/)で用意するLinux VMなどを勧めます。UTMは、Macで別のOSを動かすソフトウェアです。VMは、その仮想的なコンピューターを指します。個人ファイルや普段の仕事の権限を持つPCへ、演習の操作を直接受け入れる範囲を減らすためです。クラウドサーバーには利用料が発生します。手元でクラウド資源を使わない問題を動かす選択とは、費用の条件が違います。
+
+VMにしただけで、元のMacや周囲の機器へ接続できなくなるとは限りません。[UTMのネットワーク説明](https://docs.getutm.app/settings-qemu/devices/network/network/)では、Shared NetworkでVMと元の端末のサービスが互いに見える構成を説明しています。NATも、通信の宛先・送信元アドレスを変換する仕組みで、家庭内LANへの接続を一律に禁止する機能ではありません。
+
+開催用の環境を作るときは、次の点も別に確認します。
+
+- [UTMの共有機能](https://docs.getutm.app/settings-qemu/sharing/)による共有フォルダとクリップボード同期は、不要なら無効にする。使う場合も教材で必要な範囲だけを選び、個人ファイルや秘密を共有しない。
+- 開催用のOSに普段のAWSキーや秘密鍵を置かない。参加者へ開催OSやDockerの管理権限を渡さない。[Dockerの安全性の説明](https://docs.docker.com/engine/security/)も、Docker daemonを操作する権限を強い権限として扱っている。
+- 後半で説明するTenkaCloudのguardにより、問題コンテナから開催OSや家庭LANへの通信を制限する。その外側の開催OS自身から出る通信は別に制限し、必要な接続を残して許可・拒否を確認する。
+
+Linux VMを使う場合、TenkaCloudをそのLinux内で動かし、[Linux向け手順](https://tailscale.com/docs/install/linux)でTailscaleも同じVMへ導入します。指定するIPはVM自身のものです。管理画面の127.0.0.1もVMやクラウドサーバー自身を指します。主催者だけの管理経路を使い、参加者用に管理画面を公開しません。
+
+Docker問題を選ぶ場合はDockerも同じLinux内へ導入します。演習の隔離を使うには、VM内でも後半のguardの条件をすべて満たす必要があります。native Linux、rootful Docker Engine 28.4.x、同じネットワーク名前空間、必要なfirewall権限などが条件です。MacのDocker Desktopを使う構成とは異なります。UTMでLinuxを起動できることだけを理由に、対応済みとは判断しません。
+
+今回、UTM上のTenkaCloudとクラウドサーバーでの開催は実機未検証です。ここでは構成の候補と確認事項を示しています。OSや仮想化ソフトウェアの欠陥まで防げると保証するものではありません。
+
 ## なぜ、接続方法だけでなく競技用の境界を作るのか
 
 ### 出発点は「個人練習を共有」ではなく「別端末でチーム競技」
@@ -219,7 +278,7 @@ Tailscale対応には、さらに具体的な障害がありました。[PR #341
 
 [Issue #3424](https://github.com/susumutomita/TenkaCloud/issues/3424)では、起動オプションだけでなく、接続・キー取得・配布の手順を文書化する要求が出ています。一方、[Issue #3422](https://github.com/susumutomita/TenkaCloud/issues/3422)にあるMagicDNS名対応は、確認版の`options.ts`にはありません。IssueがClosedでも、そこに書かれた案を実装済みとは扱いません。このため前半はIPを照合する手順です。
 
-ここまでの資料と現在のコードから、本記事が扱う要求を整理します。これは作者の個人的な動機や開催体験を推測した説明ではありません。
+ここまでの資料と現在のコードから、接続と競技運営に必要な条件を整理します。
 
 ```mermaid
 flowchart LR
@@ -273,43 +332,11 @@ flowchart TB
 | 得点と公平性 | 二重送信、締切後の加点、他人の回答利用 | サーバーで採点状態を管理。ただし相談・別回線・端末外での行為を検出する仕組みではない |
 | 秘密と運用費用 | キーやAWS権限の流出、環境の消し忘れ | 非公開の保存と配布、明示した終了・削除が必要。VPNは保存先や課金を管理しない |
 
-## 通信は、どの順番で届くのか
-
-次は開催端末をMacにしてnative問題を使うときの構成です。Mac上に、Linux専用のDocker隔離機能まで存在する図ではありません。実際のIPは載せず、開催端末のTailscale IPを「開催IP」と表します。
-
-```mermaid
-flowchart LR
-  subgraph PC["参加端末"]
-    B["ブラウザ<br/>HTTP"]
-    PT["Tailscale"]
-    B -->|"開催IP:5175宛て"| PT
-  end
-  subgraph WAN["インターネット上"]
-    W["端末間で暗号化した通信<br/>直接または中継"]
-  end
-  subgraph MAC["開催用Mac：native問題の例"]
-    MT["Tailscale<br/>復号する"]
-    API["開催IP:5175<br/>参加者画面とAPI・HTTP"]
-    N["Bunの競技処理とnative問題<br/>SQLiteへ保存"]
-    OB["主催者のブラウザ"]
-    AD["127.0.0.1:5174<br/>管理画面とAPI"]
-    MT -->|"復号後のHTTP"| API
-    API --> N
-    OB -->|"端末内のHTTP"| AD
-    AD --> N
-  end
-  PT --> W --> MT
-```
-
-APIは、画面の操作をプログラムへ伝える窓口です。Tailscaleは通信を開催端末へ運びます。届いた後、TenkaCloudがチームキーや大会の状態を確認します。
-
-[Tailscale公式の経路説明](https://tailscale.com/docs/concepts/traffic-routing-through-tailscale)には “The traffic that bounces through our relay servers is encrypted” とあります。「中継サーバーを通る通信も暗号化される」という意味です。直接接続と中継のどちらでも、端末間の暗号化を使います。
-
-図の暗号化区間はTailscaleの端末間です。ブラウザと各端末のTailscaleの間、開催端末で復号した後のアプリとの間まで、別途TLSを使う構成を示しているわけではありません。
-
-ただしURLはHTTPのままです。ブラウザから見たHTTPSに変わるわけではありません。開催端末では通信内容が復号され、アプリが読み取ります。保存データ、ログ、参加端末の画面やブラウザをTailscaleが一括して守るわけではありません。
-
 ## コードで、守る場所を確かめる
+
+[Tailscale公式の経路説明](https://tailscale.com/docs/concepts/traffic-routing-through-tailscale)には “The traffic that bounces through our relay servers is encrypted” とあります。中継サーバーを通る場合も端末間で暗号化される、という意味です。
+
+図の暗号化区間はTailscaleの端末間です。ブラウザのURLはHTTPのままで、HTTPSになるわけではありません。開催端末では復号した内容をアプリが読み取ります。保存データやブラウザ画面を一括して守る機能ではありません。
 
 以下のTenkaCloudコードへのリンクは、すべて冒頭のcommitへ固定しています。用語の説明だけで済ませず、どの条件で受け付け、どこで拒否するかを確認します。
 
@@ -435,13 +462,25 @@ Linuxでは、自分自身へ届く通信と、別の宛先へ転送する通信
 | 問題コンテナ→開催Linux自身 | INPUTで任意の新規接続を遮断。認めた接続への応答やIPv6の近隣確認などは区別する |
 | 問題コンテナ→家庭LANの別PC・機器 | 転送側で許可条件に当たらない通信を遮断。private IPv4だけでなくIPv6も検査する |
 | 問題コンテナ→他チームの非公開環境 | 転送側で遮断。同じ演習内の通信と、同じ大会で明示的に公開した宛先への通信は別に許可する |
-| 問題コンテナ→インターネット | 未承認の通信を遮断。問題集の宣言と主催者承認を満たす特定IP・TCPポートだけを例外にする |
+| 問題コンテナ→インターネット | 対応する隔離構成で、guardが扱う未承認の通信を遮断。DNS転送も下記の設定で制限し、承認した特定IP・TCPポートは例外にする |
 
 許可した接続への返事は必要ですが、「接続済みなら何でも通す」とはしていません。接続を追跡するconntrackの情報を使い、元の送信元・宛先と応答方向を照合します。別チームの接続や、アドレス変換後の見かけだけで通らないようにしています。
 
 外部通信の例外も、家庭LANへ抜ける穴にしないための検査があります。[internet-access.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/internet-access.ts#L12-L56)は、private IPv4、loopback、link-localなどの特殊な宛先を拒否します。loopbackは自分自身、link-localは同じ接続範囲内で使うアドレスです。IPv6でもグローバルな宛先を限定して受け付けます。
 
 さらに[動作中の経路の検査](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L471-L511)で、開催Linux自身のIP、LAN/VPN、Dockerの範囲と重なる宛先を拒否します。規則は入れて終わりではなく、[順番・最後のDROP・接続位置の照合](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L689-L740)も行います。条件が崩れたときに、無制限な接続へ切り替えて継続する設計ではありません。
+
+### DockerのDNS転送も、別に制限する
+
+DNSは、名前から接続先のIPを調べる仕組みです。[Docker公式資料](https://docs.docker.com/engine/network/#dns-services)は、独自ネットワークのコンテナが`127.0.0.11`の内蔵DNSを使い、外部の問い合わせを転送すると説明しています。コンテナの通常の転送規則だけで、そのすべてを止められると仮定しません。
+
+確認版の[local-network.ts](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/local-network.ts#L149-L188)は、外部通信を持たない演習ネットワークを`internal: true`にします。外部通信の例外を持つサービスには、DNSの転送先として、そのサービス専用の演習gatewayだけを指定します。
+
+Docker Engine 28.4.0の[DNS実装](https://github.com/moby/moby/blob/v28.4.0/libnetwork/sandbox_dns_unix.go#L54-L79)は、internalネットワークだけならホスト側から外部DNSへ転送しないようにします。明示したDNSは[コンテナ側の通信環境から送る](https://github.com/moby/moby/blob/v28.4.0/libnetwork/resolver.go#L465-L505)分岐になります。この違いが、外部通信を持つサービスでもDNS転送先を指定する理由です。
+
+TenkaCloudは[生成ComposeのDNS](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/local-network.ts#L448-L481)と、[実コンテナのDNS設定](https://github.com/susumutomita/TenkaCloud/blob/d1c77b00f5b7eefc99021741a78ae23ecd9031ab/scripts/local-host/linux-network-guard.ts#L891-L898)を照合します。そのgatewayへ届く新規通信は、前述のguardのINPUT側で遮断する設計です。つまり、内蔵DNS自体を消すのではなく、外へ問い合わせる経路を制限しています。
+
+これはコードから確認した設計で、今回DNS問い合わせの実パケットを観測した結果ではありません。許可したTCP接続の内容まで検査する機能でもありません。たとえば外部の特定IP・TCP 53を明示承認すれば、その接続も例外になり得ます。「DNSを例外なく禁止」「情報流出をすべて防ぐ」という意味ではありません。
 
 ### 問題コンテナの制御と、VM全体の制御を分ける
 
