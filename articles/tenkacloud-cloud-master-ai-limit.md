@@ -3,7 +3,7 @@ title: "脅威検知サービスの気持ちになれるゲーム「目指せク
 emoji: "🃏"
 type: "tech"
 topics: [OSS, AWS, セキュリティ, Playwright, TenkaCloud]
-published: false
+published: true
 ---
 
 AWSのAPI呼び出しを見張り、不審な操作を見つけたら知らせる。Amazon GuardDutyのような脅威検知サービスの仕事を、プレイヤーが自分でやってみるブラウザゲームを作りました。[TenkaCloud](https://github.com/susumutomita/TenkaCloud)のサイトで公開している[APIの番人。｜目指せクラウドマスター](https://tenkacloud.com/cloud-master)です。この記事では、まずこのゲームの遊び方と作った理由を紹介します。そのあとで、AIエージェントに自動プレイさせて速度の限界を調べたら、Lv105から先が難しくなっていなかった話を書きます。
