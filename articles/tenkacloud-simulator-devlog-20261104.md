@@ -6,75 +6,73 @@ topics: [AWS, Go, CloudFormation, Lambda, OSS]
 published: true
 ---
 
-[TenkaCloud Simulator](https://github.com/susumutomita/TenkaCloudSimulator)という、非公式のAWS学習用シミュレーターを作っています。Goの単一バイナリにコンソールとデータベース、Pythonの実行環境をまとめ、手元でAWSサービスの操作を練習できるようにするものです。
+[TenkaCloud Simulator](https://github.com/susumutomita/TenkaCloudSimulator)という、非公式のAWS学習用シミュレーターを作っています。手元でAWSサービスの操作を練習するための環境です。
 
-2026年11月4日時点で、CloudFormationからREST API、Lambda、SSM Parameter Storeをまとめて作成する実装がmainに入りました。ローカルのAPIを呼ぶとPythonのLambda関数が動き、実行ロールの権限でSSMの値を読みます。
+この記事は、IAMロールやLambda関数、CloudFormationのスタックを触り始めた開発者に向けた記録です。APIを呼んだあと、どの関数が動き、どの権限でデータを読むのかを、1つのサンプルで確かめます。
 
-今回は、この一連の流れがどこまで動くようになったかを書きます。対象は[mainの55a1119](https://github.com/susumutomita/TenkaCloudSimulator/tree/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66)です。既存記事の[暗号バトル](https://zenn.dev/bull/articles/tenkacloud-local-cryptography-battle)や[APIの番人](https://zenn.dev/bull/articles/tenkacloud-cloud-master-ai-limit)とは別に、AWSのAPI操作を手元で試すための環境です。
+2026年11月4日、CloudFormationからREST API、Lambda、SSM Parameter Storeをまとめて作成する実装がmainに入りました。作成したローカルAPIを呼ぶとPythonのLambda関数が動き、実行ロールの権限でSSMの値を読みます。
 
-## Goのバイナリに学習環境をまとめる
+対象は[コミット55a1119](https://github.com/susumutomita/TenkaCloudSimulator/tree/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66)です。以下の対応範囲と制限は、この版のものです。
 
-Simulatorには、次のものを組み込んでいます。
+## 1つのテンプレートでAPIと実行ロールを用意する
 
-- Cloudscapeを使った操作コンソール
-- ScalarのAPIリファレンス
-- 状態を保存するSQLite
-- PythonのLambda関数を実行するCPython/WASI
+関数を動かすだけでなく、APIから呼び出し、必要なデータだけを読める構成を試せるようにしました。個別のサービスを作ったあとにつなぐ設定も、CloudFormationのテンプレートにまとめています。
 
-実行時にNode.js、外部のPython、Docker、実AWS、外部データベースは必要ありません。Pythonのコードは、バイナリに埋め込んだCPython/WASIで実行します。ただし、ソースからのビルドやテストには開発用のツールが必要です。
+[サンプルテンプレート](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/examples/cloudformation-rest-lambda.json)には、次のリソースが入っています。
 
-現時点の対応サービスは、S3、IAM、SSM Parameter Store、CloudFormation、API Gateway、Lambdaです。どのサービスも対応範囲を絞っています。たとえばLambdaは同期実行のみで、関数から任意の外部ネットワークへ通信できません。関数内でS3やSSMを操作するSDKも、シミュレーターが対応する範囲だけを扱います。
-
-各サービスの対応操作と制限は[README](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/README.md)にまとめています。
-
-## 個別に作れたものをCloudFormationでつなぐ
-
-今回までに、IAMロールの作成、Python Lambdaの実行、API GatewayのREST APIが入りました。
-
-- [PR #36](https://github.com/susumutomita/TenkaCloudSimulator/pull/36): IAMロールとLambda向けの信頼ポリシー
-- [PR #45](https://github.com/susumutomita/TenkaCloudSimulator/pull/45): REST APIとLambda proxyの実行
-- [PR #303](https://github.com/susumutomita/TenkaCloudSimulator/pull/303): CloudFormationによるREST APIとLambdaの構築
-
-#303では、これらを1つのテンプレートから作れるようにしました。[サンプルテンプレート](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/examples/cloudformation-rest-lambda.json)には、次のリソースが入っています。
-
-- SSMパラメーター
-- インラインポリシーを持つIAMロール
-- PythonのLambda関数
+- 値を保存するSSMパラメーター
+- 読み取り権限を定めるインラインポリシー付きIAMロール
+- SSMの値を読み取って返すPythonのLambda関数
 - REST APIとリソース、メソッド
-- デプロイメントとステージ
+- APIを呼び出せる状態にするデプロイメントとステージ
 - API GatewayからLambdaを呼ぶためのPermission
 
-この例では、APIへのリクエストをLambdaに渡し、LambdaがSSMの値を読み取って返します。それぞれのサービスが保存している状態を使って処理をつなぎます。
+この構成では、APIへのリクエストをLambdaに渡し、Lambdaが実行ロールのポリシーに従ってSSMを読みます。CloudFormationで構成全体を作ることで、呼び出し先と権限の関係を同じテンプレートから確認できます。
 
-## 読めるパラメーターと、読めないパラメーターを試す
+リソースを作る順序もテンプレートで指定します。APIのメソッドを用意してからデプロイメントを作るため、Deploymentの`DependsOn`にMethodを指定しています。
 
-サンプルのLambdaが読めるSSMパラメーターは、`/cfn-rest/public`です。実行ロールのポリシーで、このパラメーターに対する`ssm:GetParameter`だけを許可しています。
+実装は、[IAMロールとLambda向け信頼ポリシーのPR #36](https://github.com/susumutomita/TenkaCloudSimulator/pull/36)と、[REST APIとLambda proxy実行のPR #45](https://github.com/susumutomita/TenkaCloudSimulator/pull/45)を経ています。[PR #303](https://github.com/susumutomita/TenkaCloudSimulator/pull/303)で、この構成をCloudFormationから作成できるようにしました。
 
-スタックを作成すると、Outputsに`LocalPath`が返ります。これは認証が必要なシミュレーター内のパスです。実AWSの公開URLは作りません。
+## ローカルAPIを呼び、実行ロールの許可と拒否を確かめる
 
-このパスは`/config`で終わります。ローカルのエンドポイントにこのパスを付けて呼ぶと、Lambdaが保存済みのSSM値を読みます。一方、クエリに`?name=/private/dummy`を付けると、関数は権限不足で403を返します。
+スタックを作成すると、Outputsに`LocalPath`が返ります。これは`/_simulator/providers/aws/_execute-api/`で始まり、リージョン、APIのID、`prod/config`が続くパスです。ローカルのエンドポイントにこのパスを付けて呼び出します。
 
-ただし、このサンプル関数はSDKの`ClientError`をすべて403へ変換しています。403だけでは原因を区別できません。[E2Eテスト](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/test/e2e/cloudformation_rest.py)は、応答本文の`code`も調べ、`AccessDeniedException`と一致するか確認しています。
+`LocalPath`は認証が必要なシミュレーター内の経路で、実AWSの公開URLは作りません。呼び出すときは、ホストのトークンを`X-Simulator-Token`に付けます。
 
-同じ関数でも、読もうとするリソースによって結果が変わります。APIが呼べることに加えて、Lambdaの実行ロールで何を許可したのかを確かめられる例です。
+サンプルの実行ロールは、`/cfn-rest/public`に対する`ssm:GetParameter`だけを許可しています。クエリを付けずにAPIを呼ぶと、Lambdaはこのパラメーターを読み、値と処理したパスをJSONで返します。
 
-応答はブラウザーで実行しないダウンロード形式です。現時点では、ここにWebアプリケーションを載せて公開するところまでは対応していません。
+読もうとする名前は、クエリの`name`で変えられます。[E2Eテスト](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/test/e2e/cloudformation_rest.py)では、スタック作成時に`Value`へ`team-one`を渡します。さらに、スタックとは別に`/private/dummy`も作成し、同じAPIから読み取りを試します。
 
-作成から呼び出し、削除までの手順は[CloudFormation REST API → Lambdaの実行例](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/docs/cloudformation-rest.md)にあります。SDKから接続するときは、ローカルのエンドポイントとダミーの認証情報を明示し、`X-Simulator-Token`を付けます。実AWSの認証情報は使いません。
+以下は、その1つ目の環境でE2Eが検査する応答内容を整理したものです。この改稿で実行して得たログではありません。
 
-## 作成と削除でも状態を確認する
+| APIへの入力 | Lambda内の処理 | HTTPステータスと応答本文 |
+| --- | --- | --- |
+| `LocalPath`へのGET、クエリなし | `/cfn-rest/public`を読む | 200、`{"value":"team-one","path":"/config"}` |
+| 同じパスへのGETに`?name=/private/dummy`を付ける | 許可されていないパラメーターを読む | 403、`{"code":"AccessDeniedException"}` |
 
-CloudFormationでは、リソース同士の依存関係を扱う必要があります。APIのメソッドを用意してからデプロイメントを作る、といった順序です。サンプルでは、Deploymentの`DependsOn`にMethodを指定しています。
+ただし、このサンプル関数はSDKの`ClientError`をすべて403へ変換しています。403だけでは原因を区別できません。E2Eは応答本文の`code`も調べ、`AccessDeniedException`と一致するか確認しています。
+
+この例で確かめられるのは、APIが呼べることと、関数から任意のSSMパラメーターを読めることは別だという点です。同じ関数でも、実行ロールで許可したリソースかどうかによって結果が変わります。
+
+応答はブラウザーで実行しないダウンロード形式です。この経路にWebアプリケーションを載せて公開するところまでは対応していません。
+
+作成から呼び出し、削除までの手順は[CloudFormation REST API → Lambdaの実行例](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/docs/cloudformation-rest.md)にあります。SDKではローカルのエンドポイントとダミーの認証情報を明示し、トークンを付けます。実AWSの認証情報は使いません。
+
+## 呼び出しの確認後に、スタックを片付ける
+
+呼び出しと権限を確認したあとは、スタックを削除して片付けます。関連リソースをまとめて扱うため、作成と削除の途中の状態も確認します。
 
 今回の実装では、作成を1つのトランザクションで扱い、削除は依存関係の逆順で進めます。未対応のプロパティが書かれていた場合は、エラーにします。
 
-削除時には、CloudFormationが作ったリソースの状態も確認します。作成後に別の操作で変更されたAPIのリソースや、所有していないリソースがあれば、そのまま削除を進めません。Lambdaのポリシーへ後から追加された別のステートメントも、スタックの削除時は保持します。
+削除時には、CloudFormationが作ったリソースの状態も確認します。作成後に別の操作で変更されたAPIのリソースや、所有していないリソースがあれば、そのまま削除を進めません。
+
+Lambdaのポリシーへ後から追加された別のステートメントも、スタックの削除時は保持します。
 
 これらの動作と制約は、[対応範囲の説明](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/docs/cloudformation-rest.md#supported-resources-and-boundaries)を参照してください。作れたことだけでなく、どの状態なら片付けられるかも確認するためです。
 
-## 検証では2つのチーム環境を使う
+## 作成から削除までを2つのチーム環境で検証する
 
-リポジトリの[検証記録](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/docs/cloudformation-rest.md#verification)とE2Eテストには、実際のバイナリとSDKを使う次の流れが含まれています。
+この作成・呼び出し・削除の流れは、リポジトリの[検証記録](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/docs/cloudformation-rest.md#verification)とE2Eテストで確認しています。実際のバイナリとSDKを使い、次の順で進めます。
 
 1. CloudFormationでスタックを作る
 2. 作成されたAPIとLambdaの権限を確認する
@@ -88,18 +86,43 @@ CloudFormationでは、リソース同士の依存関係を扱う必要があり
 
 チームを分けるときは、チームごとにプロセス、SQLite、トークンを分けます。IAMのidentityを切り替えるだけでは参加者の環境を分離できません。
 
-## まだ対応していないこと
+## 手元で動かす環境と対応範囲
 
-CloudFormationの対応は、CreateStack、DescribeStacks、DeleteStackを中心とした限定的なものです。UpdateStackやchange setsには対応していません。API GatewayもRegional RESTの一部で、v2やauthorizer、WAFは未対応です。
+このサンプルを動かす環境は、Goの単一バイナリにまとめています。次のものを組み込んでいます。
 
-IAMには、今の実装で注意が必要な違いも残っています。CloudFormationで作ったロールは従来の保存モデルを使っており、新しいnative IAMのGetRoleやListRoles、ロール選択画面には出てきません。API Gateway、Lambda、SSMの状態は各サービスの画面と共有していますが、IAMの表示はまだそろっていません。
+- Cloudscapeを使った操作コンソール
+- ScalarのAPIリファレンス
+- 状態を保存するSQLite
+- PythonのLambda関数を実行するCPython/WASI
 
-また、CloudFormationで作ったロールの信頼ポリシーはメタデータとして保持され、認可には使われません。native IAMロールの信頼ポリシー検証とは異なります。`CAPABILITY_IAM`の指定も、ロール作成への同意を表すだけで権限を付与しません。呼び出す側には、CloudFormationと各リソースの操作権限が必要です。
+実行時にNode.js、外部のPython、Docker、実AWS、外部データベースは必要ありません。Pythonのコードは、バイナリに埋め込んだCPython/WASIで実行します。
+
+ただし、ソースからのビルドやテストには開発用のツールが必要です。
+
+この版の対応サービスは、S3、IAM、SSM Parameter Store、CloudFormation、API Gateway、Lambdaです。どのサービスも対応範囲を絞っています。
+
+たとえばLambdaは同期実行のみで、関数から任意の外部ネットワークへ通信できません。関数内でS3やSSMを操作するSDKも、シミュレーターが対応する範囲だけを扱います。
+
+各サービスの対応操作と制限は[README](https://github.com/susumutomita/TenkaCloudSimulator/blob/55a111953eb3eb0dfd90aaa473ac3fe39cb10b66/README.md)にまとめています。
+
+## この版で対応していないこと
+
+CloudFormationの対応は、CreateStack、DescribeStacks、DeleteStackを中心とした限定的なものです。UpdateStackやchange setsには対応していません。
+
+API GatewayもRegional RESTの一部で、v2やauthorizer、WAFは未対応です。
+
+IAMには、この版で注意が必要な違いも残っています。CloudFormationで作ったロールは従来の保存モデルを使っており、新しいnative IAMのGetRoleやListRoles、ロール選択画面には出てきません。
+
+API Gateway、Lambda、SSMの状態は各サービスの画面と共有していますが、IAMの表示はまだそろっていません。
+
+また、CloudFormationで作ったロールの信頼ポリシーはメタデータとして保持され、認可には使われません。native IAMロールの信頼ポリシー検証とは異なります。
+
+`CAPABILITY_IAM`の指定も、ロール作成への同意を表すだけで権限を付与しません。呼び出す側には、CloudFormationと各リソースの操作権限が必要です。
 
 このREST APIのサンプルは学習用の実行例です。TenkaCloudの完成した競技問題として採点までつながったものではありません。通常のTenkaCloud起動への自動統合もまだです。READMEで実採点まで検証済みとしているのは、別のhello-worldの接続です。
 
 ## おわりに
 
-今回、REST APIからLambdaを呼び、実行ロールの権限でSSMを読む流れを、CloudFormationから作成・削除できるようになりました。
+今回のサンプルでは、CloudFormationで構成を作り、ローカルAPIからLambdaを呼び、実行ロールに応じたSSMの読み取り結果を確かめられます。最後はスタックを削除し、関連するリソースが片付くところまでを扱います。
 
-次に残るのは、IAMの保存モデルと画面の違いを整理することや、TenkaCloudの問題環境としてどこまで使えるかを確認することです。サービスの対応範囲と、競技として動作を確認できた範囲を分けながら、開発状況を記録していきます。
+APIの接続と権限の違いを手元で試したいときの例です。利用する際は、この固定版の対応範囲と実行例を確認してください。
