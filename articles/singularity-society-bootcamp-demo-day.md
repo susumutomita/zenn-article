@@ -95,8 +95,8 @@ Simulatorを企業の研修担当の方に紹介し、手元で問題を解く�
 
 ## これから
 
-Hello World Battleも、実際のAWSを使わずに、LinuxのVMの上で最初から最後まで通せました。まだリリースはしていません。次はこれをリリースして、手元の開催で使えるようにします。
+Simulatorの完成を目指して、開発を進めます。TenkaCloudとSimulatorは、どちらもクラウドの学習に使えるOSSとして、これからも開発を続けます。
 
-ブートキャンプのレポートは、これからも隔週で書いていきます。
+開発の様子は、[シミュレーター開発日記](https://zenn.dev/bull/articles/tenkacloud-simulator-devlog-20261109)として、Zennで定期的に書いていきます。
 
 TenkaCloudは、一緒に問題を作ってくれる人と、研修や社内イベントで使ってみたい人を探しています。興味があれば、[GitHub](https://github.com/susumutomita/TenkaCloud)のIssueか[X](https://x.com/tenkacloud)で声をかけてください。
