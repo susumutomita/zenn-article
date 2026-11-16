@@ -15,7 +15,9 @@ publication_name: singularity
 
 TenkaCloudは、AWS GameDayやISUCONのような、手を動かして学ぶクラウド演習を開くためのOSSです。参加者はチームで問題を解いて得点を競い、主催者は大会・採点・問題集を1つの管理画面で運営します。
 
-[1分の紹介動画](https://tenkacloud.com/videos/lp/tenkacloud-60s.mp4)もあります。
+1分の紹介動画もあります。
+
+@[youtube](k3087kMJmgI)
 
 作ったきっかけは、オリジナルの問題を作って、大会を開きたいと思ったことです。既存の大会は常設ではなく、開催のたびに申し込み枠がすぐに埋まって、参加できないこともありました。
 
