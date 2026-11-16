@@ -1,13 +1,13 @@
 ---
-title: "ブートキャンプの発表会を終えて：毎週出して、反応で直す作り方"
+title: "シンギュラリティソサイエティのブートキャンプで取り組んだTenkaCloudの紹介"
 emoji: "🎤"
 type: "idea"
 topics: [コミュニティ, 個人開発, プロダクト開発, AWS]
-published: false
+published: true
 publication_name: singularity
 ---
 
-シンギュラリティソサイエティ（SS）のブートキャンプ第4回で、11月15日の発表会に出ました。BootCampコースで、[TenkaCloud](https://www.tenkacloud.com/?lang=ja)というOSSを作っています。[発表資料](https://tenkacloud.com/ss-bootcamp4-2026-11/)はこちらです。
+シンギュラリティソサイエティ（SS）の[ブートキャンプ](https://singularitysociety.org/activities/bootcamp/)第4回で、11月15日の発表会に出ました。BootCampコースで、[TenkaCloud](https://www.tenkacloud.com/?lang=ja)というOSSを作っています。[発表資料](https://tenkacloud.com/ss-bootcamp4-2026-11/)はこちらです。
 
 これまでに2本の記事を書きました。参加して1か月の7月は[ブートキャンプに参加してみたら質の高いフィードバックがもらえる場所だった](https://zenn.dev/singularity/articles/singularity-society-feedback-loop)、4か月の10月は[ブートキャンプに参加して4か月、TenkaCloudを外に出し続けて分かったこと](https://zenn.dev/singularity/articles/singularity-society-bootcamp-4months)です。この記事では、ブートキャンプ全体で取り組んだことと、感じたことを振り返ります。
 
