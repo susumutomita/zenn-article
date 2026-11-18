@@ -3,7 +3,7 @@ title: "シミュレーター開発日記：SNSの1件を2つのSQSキューへ�
 emoji: "📬"
 type: "tech"
 topics: [AWS, SNS, SQS, Go, SQLite]
-published: false
+published: true
 ---
 
 同じ出来事を、通知処理と集計処理の両方へ渡したいとします。送信側は1つの送り先へ送信し、そこから複数のキューへ届ける構成を使えます。
