@@ -21,7 +21,7 @@
     "zenn-cli": "^0.5.15"
   },
   "devDependencies": {
-    "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
+    "@textlint-ja/textlint-rule-preset-ai-writing": "^1.7.2",
     "husky": "^9.1.7",
     "jsdom": "31.0.1",
     "mermaid": "12.3.0",
